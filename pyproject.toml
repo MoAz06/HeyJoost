@@ -1,6 +1,6 @@
 [project]
 name = "nederland-mcp"
-version = "0.6.0"
+version = "0.6.1"
 description = "Hey Joost: live Nederlandse open data voor AI-assistenten (MCP-server): trein, bus en tram, vlucht, water, schoolvakanties en huis."
 readme = "README.md"
 license = "MIT"

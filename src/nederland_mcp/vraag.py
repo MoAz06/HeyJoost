@@ -32,11 +32,14 @@ MODEL = "claude-haiku-5-5"
 PRICE_INPUT, PRICE_OUTPUT, PRICE_CACHE_WRITE, PRICE_CACHE_READ = 0.10, 0.50, 0.125, 0.01
 # Booked before each call and settled after it, so a visitor who leaves halfway still counts.
 ROUND_RESERVE = 0.002
-MAX_TOKENS = 1024
+# Haiku thinks before it answers, and that counts as output too: 1024 cut off some answers halfway.
+MAX_TOKENS = 2048
+# Low was not faster in tests, and high not better.
+EFFORT = "medium"
 MAX_ROUNDS = 5
 MAX_LOOKUPS = 6
-# Transitous was told a few calls per question, so one question looks up at most two stops.
-MAX_STOP_LOOKUPS = 2
+# Transitous was told a few calls per question, so one question looks up at most three stops.
+MAX_STOP_LOOKUPS = 3
 MAX_QUESTION = 500
 MAX_REPLY = 4000
 MAX_MESSAGES = 12
@@ -53,6 +56,11 @@ TOO_LONG = f"Je vraag is te lang. Hou hem onder de {MAX_QUESTION} tekens."
 CONFUSED = "Dat snapte Joost niet. Ververs de pagina en probeer het nog eens."
 UNREACHABLE = "Joost is even niet bereikbaar. Probeer het zo nog eens."
 REFUSED = "Daar kan Joost niet mee helpen."
+# For Claude, not the visitor: without "not looked up" it reports a skipped lookup as a failed one.
+ENOUGH = (
+    "Niet opgezocht: dit is het maximum voor één vraag, het is dus niet mislukt. Antwoord met wat je al weet, "
+    "zeg eerlijk wat je niet hebt opgezocht en dat de gebruiker dat apart kan vragen."
+)
 
 # Shown while Joost looks something up: "Hey Joost kijkt bij de NS".
 WHERE = {
@@ -77,12 +85,15 @@ Zo antwoord je:
 - Sluit af met de bron in een paar woorden, zoals "Bron: NS". De bron staat in het veld 'bron' van elk resultaat.
 - Lukt iets niet of vind je niks, zeg dat dan eerlijk en stel een betere vraag voor.
 - Mis je iets wat echt nodig is, zoals de plaats van een halte, vraag dat dan kort.
+- Een routeplanner heb je niet, dus van deur tot deur doe je in stukjes. Moet iemand vanaf een adres met de trein naar een andere plaats, zoek dan tegelijk de trein met trein_reis vanaf het grote station in de buurt, en met ov_vertrek de bus of tram vanaf het adres of de straat met naar dat station, dus niet naar de eindbestemming. Noem de halte waar je opstapt en hoe ver die ongeveer is. De afstand is hemelsbreed, lopen is iets verder.
+- Gaat het om een later moment, geef dan datum en tijd mee aan de tool.
+- Zeg nooit dat iets niet lukte als je het niet hebt geprobeerd.
 - Antwoord in de taal van de vraag. In het Nederlands schrijf je informeel, met je en jij.
 - Gaat het om iets belangrijks, zoals een trein of vlucht halen, zeg dan dat de officiële app de laatste stand heeft.
 
 Grenzen:
 - Je helpt alleen met deze onderwerpen. Vraagt iemand iets anders, zoals huiswerk, code, nieuws, het weer of een verhaal, zeg dan vriendelijk dat je hier alleen live info over Nederland geeft, en dat iemand Hey Joost ook in een eigen AI kan zetten, zoals Claude of ChatGPT. Hoe dat moet, staat op deze pagina.
-- Zoek geen mensen op en vraag niet naar persoonsgegevens. Een adres gebruik je alleen voor feiten over het gebouw.
+- Zoek geen mensen op en vraag niet naar persoonsgegevens. Een adres gebruik je alleen voor feiten over het gebouw of de haltes in de buurt. Voor haltes is een straat en plaats genoeg, dus vraag niet om een huisnummer of postcode.
 - Gaat het over een noodgeval, verwijs dan naar 112."""
 
 DAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
@@ -237,6 +248,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]]) -> AsyncIter
             async with _anthropic().messages.stream(
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
+                output_config={"effort": EFFORT},
                 system=system,
                 tools=definitions,
                 # The last round answers with what it found so far.
@@ -262,7 +274,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]]) -> AsyncIter
         uses = [block for block in message.content if block.type == "tool_use"]
         if message.stop_reason != "tool_use" or not uses:
             break
-        blocks = [_param(block) for block in message.content if block.type == "tool_use" or getattr(block, "text", "")]
+        blocks = [_param(block) for block in message.content if block.type != "text" or block.text]
         results = await asyncio.gather(*(_lookup(tools, use, lookups) for use in uses))
         messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": results}]
     if message.stop_reason == "max_tokens":
@@ -277,6 +289,11 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]]) -> AsyncIter
 def _param(block: Any) -> dict[str, Any]:
     if block.type == "tool_use":
         return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+    # Haiku thinks before it answers; that thinking goes back with the tool results, so it can carry on with it.
+    if block.type == "thinking":
+        return {"type": "thinking", "thinking": block.thinking, "signature": block.signature}
+    if block.type == "redacted_thinking":
+        return {"type": "redacted_thinking", "data": block.data}
     return {"type": "text", "text": block.text}
 
 
@@ -284,7 +301,7 @@ async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int]) -> dict[s
     result: dict[str, Any] = {"type": "tool_result", "tool_use_id": use.id}
     lookups[use.name] = lookups.get(use.name, 0) + 1
     if sum(lookups.values()) > MAX_LOOKUPS or lookups.get("ov_vertrek", 0) > MAX_STOP_LOOKUPS:
-        return {**result, "content": "Genoeg opgezocht voor één vraag. Antwoord met wat je al weet.", "is_error": True}
+        return {**result, "content": ENOUGH, "is_error": True}
     try:
         output = await tools.call_tool(use.name, use.input)
     except UnexpectedToolError as exc:

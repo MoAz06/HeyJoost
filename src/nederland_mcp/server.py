@@ -163,18 +163,20 @@ async def trein_reis(
     description=(
         "Vertrektijden van bus, tram, metro en veerboot vanaf een halte in Nederland, met live vertraging en "
         "uitval als de vervoerder die doorgeeft. Werkt met de naam van de halte en de plaats, bijvoorbeeld Spui "
-        "in Den Haag of Leidseplein in Amsterdam. Bij een treinstation komen alle bus- en tramhaltes rond het "
-        "station mee, elk met halte en perron. Zonder tijd krijg je de vertrekken vanaf nu; met datum en tijd ook "
-        "later, volgens de dienstregeling. Met naar krijg je alleen de bussen en trams die daarna bij die halte "
-        "stoppen, met de aankomsttijd daar ('stopt_bij' en 'aankomst'). Een negatieve vertraging betekent te "
-        "vroeg. 'andere_haltes' noemt haltes met een andere naam die ook gevonden zijn. Treinen staan in "
-        "Treinvertrek."
+        "in Den Haag of Leidseplein in Amsterdam, en ook met een adres, straat of postcode: dan komen de drie "
+        "dichtstbijzijnde haltes mee in 'haltes_in_de_buurt', met de afstand hemelsbreed in meters ('afstand_m'). "
+        "Bij een treinstation komen alle bus- en tramhaltes rond het station mee, elk met halte en perron. Zonder "
+        "tijd krijg je de vertrekken vanaf nu; met datum en tijd ook later, volgens de dienstregeling. Met naar "
+        "krijg je alleen de bussen en trams die daarna bij die halte stoppen, met de aankomsttijd daar "
+        "('stopt_bij' en 'aankomst'), ook vanaf een adres, bijvoorbeeld naar het station. Een negatieve vertraging "
+        "betekent te vroeg. 'andere_haltes' noemt haltes met een andere naam die ook gevonden zijn. Treinen staan "
+        "in Treinvertrek."
     ),
     annotations=READ_ONLY,
 )
 async def ov_vertrek(
-    halte: Annotated[str, Field(description="Naam van de halte, bijvoorbeeld Spui, Leidseplein of Leiden Centraal")],
-    plaats: Annotated[str | None, Field(description="Plaats of wijk van de halte, bijvoorbeeld Den Haag of Scheveningen")] = None,
+    halte: Annotated[str, Field(description="Naam van de halte, bijvoorbeeld Spui, Leidseplein of Leiden Centraal. Mag ook een adres, straat of postcode zijn, bijvoorbeeld Laan van Meerdervoort 100")],
+    plaats: Annotated[str | None, Field(description="Plaats of wijk van de halte of het adres, bijvoorbeeld Den Haag of Scheveningen")] = None,
     aantal: Annotated[int, Field(ge=1, le=25, description="Aantal vertrekken")] = 10,
     lijn: Annotated[str | None, Field(description="Alleen deze lijn of soort, bijvoorbeeld 2, tram 2, 400, E of metro")] = None,
     naar: Annotated[str | None, Field(description="Alleen vertrekken die daarna bij deze halte stoppen, bijvoorbeeld Leiden Centraal of Kurhaus")] = None,

@@ -18,6 +18,7 @@ from ..common import cached, fmt_time, get_json, normalize, now_local, parse_mom
 
 BASE = "https://api.transitous.org/api"
 SOURCE = "Transitous"
+LOCATIESERVER = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
 BRON = (
     "Dienstregeling en live-data van de vervoerders via OpenOV, opgehaald via Transitous "
     "(https://transitous.org/sources/). Haltes © OpenStreetMap-bijdragers."
@@ -48,6 +49,11 @@ BOX_LAT, BOX_LON = 0.1, 0.16
 LINE_PREFIX = re.compile(r"^(lijn|bus|tram|metro|veerboot|veerpont|pont)\s*", re.IGNORECASE)
 # A word in front of the line ("tram 2"), or on its own ("metro"), also filters on the kind of transport.
 LINE_KINDS = {"bus": "bus", "tram": "tram", "metro": "metro", "veerboot": "veerboot", "veerpont": "veerboot", "pont": "veerboot"}
+POSTCODE = re.compile(r"\b(\d{4})\s?([a-z]{2})\b", re.IGNORECASE)
+HOUSE_NUMBER = re.compile(r"[a-z]\.?\s+(\d+)\s*[a-z]?\b", re.IGNORECASE)
+ADDRESS_TYPES = ("adres", "weg", "postcode")
+# Around an address, the nearest stops count up to this far, as the crow flies.
+ADDRESS_RADIUS = 2000
 
 
 def _short(name: str) -> str:
@@ -129,13 +135,14 @@ async def _place(plaats: str) -> dict | None:
     return next((h for h in hits if h.get("category") != "state" and place_key(h["name"]) == key), None)
 
 
-async def _find(halte: str, plaats: str | None) -> tuple[dict, list[dict]]:
-    """The stop meant, plus all stops found, best first.
+async def _find(halte: str, plaats: str | None, wide: bool = True) -> tuple[dict, list[dict], bool]:
+    """The stop meant, all stops found (best first), and whether the stop's own name was asked in full.
 
     Stop names start with the town, so the first search adds the town to the text. Districts like
     Scheveningen are not in stop names, so a second search looks for the stop alone around the town.
     'Station Leiden' means Leiden Centraal rather than Station De Vink, so a last search asks for the
-    town's Centraal when no main station turned up.
+    town's Centraal when no main station turned up. Without wide, only the first search runs: for a
+    street, whose own stops come next.
     """
     wanted = _words(halte)
     asked = set(wanted)
@@ -170,7 +177,16 @@ async def _find(halte: str, plaats: str | None) -> tuple[dict, list[dict]]:
         return (in_town(hit), main(hit), exact(hit), _coverage(wanted, hit["name"]), station and _is_station(hit))
 
     def good(hit: dict) -> bool:
-        return main(hit) or _coverage(wanted, hit["name"]) >= 0.5
+        # For a street, half the words (Prinses Margrietplantsoen for Prinses Beatrixlaan) is not enough.
+        return main(hit) or _coverage(wanted, hit["name"]) >= (0.5 if wide else 1.0)
+
+    def alike(hit: dict) -> bool:
+        """A word of the stop's own name looks like an asked word, as Station Zoetermeer for Stationsplein."""
+        return any(
+            SequenceMatcher(None, w, x).ratio() >= 0.8 or (min(len(w), len(x)) >= 4 and (w.startswith(x) or x.startswith(w)))
+            for w in asked - plaats_words
+            for x in own_words(hit)
+        )
 
     first = f"{halte} {plaats}" if plaats and normalize(plaats) not in normalize(halte) else halte
     rounds: list[tuple[str, tuple[float, ...] | None]] = [(first, None)]
@@ -179,6 +195,8 @@ async def _find(halte: str, plaats: str | None) -> tuple[dict, list[dict]]:
     rest = " ".join(w for w in wanted if w not in STATION_WORDS)
     if station and (plaats or rest):
         rounds.append((f"{plaats or rest} Centraal", box))
+    if not wide:
+        rounds = rounds[:1]
 
     found: dict[str, dict] = {}
     for text, area in rounds:
@@ -191,15 +209,16 @@ async def _find(halte: str, plaats: str | None) -> tuple[dict, list[dict]]:
 
     # sorted() is stable as well, so equal hits keep Transitous' order.
     hits = sorted(found.values(), key=rank, reverse=True)
-    near = [h for h in hits if not center or _distance(center, h) <= NEAR_RADIUS]
+    near = [h for h in hits if wide and (not center or _distance(center, h) <= NEAR_RADIUS)]
     for pool in ([h for h in hits if in_town(h)], near):
         matches = [h for h in pool if good(h)]
         if matches:
-            return matches[0], hits
-    names = "; ".join(dict.fromkeys(h["name"] for h in (near or hits)[:5]))
+            return matches[0], hits, main(matches[0]) or exact(matches[0])
+    names = "; ".join(list(dict.fromkeys(h["name"] for h in (near or hits) if alike(h)))[:5])
     where = f" in {plaats}" if plaats else ""
-    hint = f" Gevonden haltes: {names}." if names else " Controleer de naam."
-    raise ToolError(f"Geen halte gevonden die lijkt op '{halte}'{where}.{hint}")
+    # Only the names look alike, so these stops can be anywhere in town.
+    hint = f" Haltes met een naam die erop lijkt, niet per se in de buurt: {names}." if names else " Controleer de naam."
+    raise ToolError(f"Geen halte of adres gevonden dat lijkt op '{halte}'{where}.{hint}")
 
 
 def _same_stop(best: dict, hits: list[dict]) -> list[dict]:
@@ -210,6 +229,115 @@ def _same_stop(best: dict, hits: list[dict]) -> list[dict]:
         if h["id"] != best["id"] and normalize(_short(h["name"])) == key and _distance(best, h) <= SAME_STOP_RADIUS
     ]
     return [best, *others[:2]]
+
+
+def _is_address(text: str) -> bool:
+    """A postcode or a house number makes it an address rather than a stop name."""
+    return bool(POSTCODE.search(text) or HOUSE_NUMBER.search(text))
+
+
+def _names_street(text: str, street: str, fuzzy: bool = True) -> bool:
+    """The text names this street, allowing a small typo: 'Laan v Meerdervoort 100' names Laan van Meerdervoort."""
+    wanted = normalize(street)
+    words = text.split()
+    for start in range(len(words)):
+        for end in range(start + 1, len(words) + 1):
+            span = normalize(" ".join(words[start:end]))
+            if span == wanted or (fuzzy and len(span) > 3 and SequenceMatcher(None, span, wanted).ratio() >= 0.85):
+                return True
+    return False
+
+
+async def _address(text: str, plaats: str | None, fuzzy: bool = True) -> dict | None:
+    """Where an address, street or postcode is, from PDOK. None when nothing matches."""
+    query = re.sub(r"[^\w\s'.-]", " ", f"{text} {plaats or ''}").strip()
+    params = [
+        ("q", query),
+        ("fq", f"type:({' OR '.join(ADDRESS_TYPES)})"),
+        ("fl", "type,weergavenaam,straatnaam,postcode,woonplaatsnaam,gemeentenaam,centroide_ll"),
+        ("rows", "10"),
+    ]
+    try:
+        data = await cached(
+            ("ov-adres", query.lower()),
+            DAY,
+            lambda: get_json(LOCATIESERVER, params=params, source="PDOK Locatieserver"),
+        )
+    except ToolError:
+        # A street is only checked next to the stop search, which can do without it.
+        if _is_address(text):
+            raise
+        return None
+    code = POSTCODE.search(text)
+    code = f"{code[1]}{code[2]}".upper() if code else None
+
+    def fits(doc: dict) -> bool:
+        if plaats and place_key(plaats) not in (place_key(doc.get("woonplaatsnaam") or ""), place_key(doc.get("gemeentenaam") or "")):
+            return False
+        if code and doc.get("postcode") != code:
+            return False
+        return bool(code and doc.get("type") == "postcode") or _names_street(text, doc.get("straatnaam") or "", fuzzy)
+
+    docs = [d for d in data.get("response", {}).get("docs", []) if d.get("centroide_ll") and fits(d)]
+    if not docs:
+        return None
+    towns = list(dict.fromkeys(d.get("woonplaatsnaam") for d in docs if d.get("woonplaatsnaam")))
+    if not plaats and not code and len(towns) > 1:
+        raise ToolError(f"'{text}' bestaat in meer dan één plaats, bijvoorbeeld: {', '.join(towns[:5])}. Geef de plaats mee.")
+    lon, lat = (float(x) for x in docs[0]["centroide_ll"].removeprefix("POINT(").removesuffix(")").split())
+    return {"lat": lat, "lon": lon, "naam": docs[0]["weergavenaam"]}
+
+
+async def _near(point: dict) -> list[dict]:
+    """The stops nearest to a point, one per name, nearest first. Transitous gets the point rounded to
+    about a hundred metres, never the address itself."""
+    place = f"{point['lat']:.3f},{point['lon']:.3f}"
+    hits = await cached(
+        ("ov-near", place),
+        DAY,
+        lambda: get_json(f"{BASE}/v1/reverse-geocode", params={"place": place, "type": "STOP"}, source=SOURCE),
+    )
+    stops = [h for h in hits or [] if h.get("country") == "NL" and h.get("id") and h.get("name")]
+    return sorted((h for h in stops if _distance(point, h) <= ADDRESS_RADIUS), key=lambda h: _distance(point, h))
+
+
+async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | None, list[dict]]:
+    """Where to leave from: an address or street as (point, None, []), or a stop as (None, stop, candidates).
+
+    A stop can be named after its street (Spui), so for a street the stop search still runs. With a town,
+    the street is looked up first and then only the first round of the stop search runs: that keeps the
+    lookups at Transitous within the one to three per question they were told.
+    """
+    if _is_address(halte):
+        point = await _address(halte, plaats)
+        if point:
+            return point, None, []
+        best, candidates, _ = await _find(halte, plaats)
+        return None, best, candidates
+    street = await _address(halte, plaats) if plaats else None
+    try:
+        best, candidates, sure = await _find(halte, plaats, wide=street is None)
+    except ToolError:
+        street = street or (None if plaats else await _address(halte, None, fuzzy=False))
+        if street is None:
+            raise
+        return street, None, []
+    # Without a town, a street can look like a stop elsewhere, as Rotterdam's Van Noortwijckstraat for the
+    # Paets van Troostwijkstraat in Den Haag. A street with exactly the name asked wins then.
+    if not sure and not plaats:
+        street = await _address(halte, None, fuzzy=False)
+        if street:
+            return street, None, []
+    return None, best, candidates
+
+
+def _meters(a: dict, b: dict) -> int:
+    return round(_distance(a, b) / 10) * 10
+
+
+def _kinds(stop: dict) -> list[str]:
+    modes = stop.get("modes") or []
+    return [SOORT[m] for m in modes if m in SOORT] + (["trein"] if RAIL & set(modes) else [])
 
 
 def _without_town(wanted: list[str], town: str) -> list[str] | None:
@@ -356,10 +484,16 @@ async def ov_vertrek(
 ) -> dict:
     halte = halte.strip()
     if not halte:
-        raise ToolError("Geef de naam van een halte, bijvoorbeeld Spui of Leidseplein.")
+        raise ToolError("Geef de naam van een halte of een adres, bijvoorbeeld Spui of Laan van Meerdervoort 100.")
     plaats = plaats.strip() if plaats and plaats.strip() else None
     naar = naar.strip() if naar and naar.strip() else None
-    best, candidates = await _find(halte, plaats)
+    # Around an address or a street, the stops nearby count.
+    point, best, candidates = await _origin(halte, plaats)
+    if point:
+        candidates = await _near(point)
+        if not candidates:
+            raise ToolError(f"Geen halte voor bus, tram of metro gevonden binnen 2 km van {point['naam']}.")
+        best = candidates[0]
 
     aantal = max(1, min(aantal, 25))
     moment = parse_moment(datum, tijd) if datum or tijd else None
@@ -387,16 +521,22 @@ async def ov_vertrek(
             headsigns.append(st["headsign"])
         return _target_stop(st, target, memo) is not None
 
-    if _is_station(best):
-        stops, radius = [best], STATION_RADIUS
+    if point:
+        # The three nearest stops, a station with the stops around it.
+        stops = candidates[:3]
+        radii = [STATION_RADIUS if _is_station(s) else None for s in stops]
+    elif _is_station(best):
+        stops, radii = [best], [STATION_RADIUS]
     else:
-        stops, radius = _same_stop(best, candidates), None
+        stops = _same_stop(best, candidates)
+        radii = [None] * len(stops)
     n = 50 if wanted or kind or target else aantal + 5
     # Transitous was told 1 to 3 stoptimes calls per question, so the stops share three pages.
     pages = max(1, 3 // len(stops))
-    batches = await asyncio.gather(
-        *(_stop_times(s, radius, n, when, keep, aantal, pages, next_stops=target is not None) for s in stops)
-    )
+    batches = await asyncio.gather(*(
+        _stop_times(s, radius, n, when, keep, aantal, pages, next_stops=target is not None)
+        for s, radius in zip(stops, radii)
+    ))
 
     # One trip can call at two stops around a station (Leiden Centraal and its Westzijde); the first counts.
     # Trip ids start with the date and time, so a trip on another day is another id.
@@ -411,26 +551,40 @@ async def ov_vertrek(
     if not merged:
         at = f" vanaf {moment.strftime('%Y-%m-%d %H:%M')}" if moment else ""
         period = at or " de komende tijd"
+        where = f"de haltes bij {point['naam']} ({', '.join(_short(s['name']) for s in stops)})" if point else best["name"]
         if target and passed:
             hint = f" Wel richtingen: {', '.join(headsigns[:8])}." if headsigns else ""
-            raise ToolError(f"Er vertrekt{period} niks van {best['name']} dat bij '{naar}' stopt.{hint}")
+            if STATION_WORDS & set(target):
+                hint += " Verder met de trein? Zoek dan de bus of tram naar een station in de buurt, en de trein met trein_reis."
+            raise ToolError(f"Er vertrekt{period} niks van {where} dat bij '{naar}' stopt.{hint}")
         if wanted or kind:
             running = sorted(((s, name) for s, name in lines_seen if name), key=lambda x: (x[0], len(x[1]), x[1]))
             names = ", ".join(f"{s} {name}" for s, name in running[:15])
             hint = f" Wel bijvoorbeeld: {names}." if names else ""
             if wanted:
                 label = f"{kind or 'lijn'} {line}"
-                raise ToolError(f"{label[0].upper()}{label[1:]} vertrekt{period} niet bij {best['name']}.{hint}")
-            raise ToolError(f"Er vertrekt{period} geen {kind} bij {best['name']}.{hint}")
-        raise ToolError(f"Geen vertrekken gevonden bij {best['name']}{at}.")
+                raise ToolError(f"{label[0].upper()}{label[1:]} vertrekt{period} niet bij {where}.{hint}")
+            raise ToolError(f"Er vertrekt{period} geen {kind} bij {where}.{hint}")
+        raise ToolError(f"Geen vertrekken gevonden bij {where}{at}.")
 
     day = (moment or now_local()).date()
     rows = [_row(st, day, _target_stop(st, target, memo) if target else None) for st in merged]
+    if point:
+        for row, st in zip(rows, merged):
+            row["afstand_m"] = _meters(point, st["place"])
+        nearby = [{"halte": s["name"], "afstand_m": _meters(point, s), "soort": _kinds(s)} for s in stops]
+        return {
+            "adres": point["naam"],
+            "haltes_in_de_buurt": nearby,
+            "vertrektijden": rows,
+            "meldingen": _alerts(merged),
+            "bron": BRON,
+        }
     # Suggestions for when this was not the stop meant; stops already in the list are left out.
     shown = {normalize(_short(s["name"])) for s in stops} | {normalize(row["halte"]) for row in rows}
     others = [
         h["name"] for h in candidates
-        if normalize(_short(h["name"])) not in shown and not (radius and _distance(best, h) <= radius)
+        if normalize(_short(h["name"])) not in shown and not (radii[0] and _distance(best, h) <= radii[0])
     ]
     return {
         "halte": best["name"],
