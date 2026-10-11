@@ -7,21 +7,33 @@ Tools that need an API-key you have not set are reported as skipped, not failed.
 import asyncio
 import json
 import sys
+from datetime import timedelta
 
 from dotenv import find_dotenv, load_dotenv
 from mcp.server.mcpserver.exceptions import ToolError
 
+from nederland_mcp.common import now_local
 from nederland_mcp.server import server
+
+SOON = now_local() + timedelta(minutes=30)
+TOMORROW = (now_local() + timedelta(days=1)).date().isoformat()
 
 CALLS = [
     ("huis_info", {"postcode": "2511 cv", "huisnummer": 3}),
+    ("huis_info", {"straat": "Rapenburg", "huisnummer": 70, "plaats": "Leiden"}),
+    ("huis_info", {"straat": "Spui", "huisnummer": 70, "plaats": "Den Haag"}),
+    ("huis_info", {"straat": "Rapenburg", "huisnummer": 70}),
     ("huis_info", {"postcode": "9999ZZ", "huisnummer": 1}),
     ("schoolvakanties", {"regio": "zuid"}),
     ("schoolvakanties", {"schooljaar": "2026-2027", "regio": "Noord"}),
     ("water_actueel", {"plaats": "Hoek van Holland"}),
     ("water_actueel", {"plaats": "Den Haag", "soort": "waterstand"}),
+    ("water_actueel", {"plaats": "Scheveningen", "soort": "watertemperatuur"}),
     ("water_actueel", {"plaats": "Lobith", "soort": "waterstand"}),
     ("trein_vertrek", {"station": "Leiden Centraal", "aantal": 3}),
+    ("trein_aankomst", {"station": "Leiden Centraal", "aantal": 3}),
+    ("trein_aankomst", {"station": "Utrecht", "aantal": 2, "datum": SOON.date().isoformat(), "tijd": SOON.strftime("%H:%M")}),
+    ("trein_vertrek", {"station": "Utrecht", "aantal": 2, "datum": TOMORROW, "tijd": "08:00"}),
     ("trein_reis", {"van": "Den Haag Centraal", "naar": "Leiden Centraal"}),
     ("vlucht_info", {"vluchtnummer": "KL1001"}),
 ]

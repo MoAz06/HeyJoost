@@ -1,4 +1,4 @@
-"""NS Reisinformatie API: stations, departures and journey planning.
+"""NS Reisinformatie API: stations, departures, arrivals and journey planning.
 
 Needs NS_API_KEY (a subscription key from apiportal.ns.nl).
 """
@@ -17,6 +17,7 @@ BASE = "https://gateway.apiportal.ns.nl/reisinformatie-api/api"
 SOURCE = "NS Reisinformatie"
 BRON = "NS Reisinformatie API"
 CROWD = {"LOW": "rustig", "MEDIUM": "gemiddeld", "HIGH": "druk"}
+BOARDS = {"departures": "vertrektijden", "arrivals": "aankomsttijden"}
 
 
 def _headers() -> dict:
@@ -69,38 +70,62 @@ def _delay_minutes(planned: datetime | None, actual: datetime | None) -> int:
     return max(0, round((actual - planned).total_seconds() / 60))
 
 
-async def trein_vertrek(station: str, aantal: int = 10) -> dict:
+async def _board(kind: str, station: str, aantal: int, datum: str | None, tijd: str | None) -> tuple[dict, list[dict]]:
     found = await _station(station)
-    code = found.get("code")
     aantal = max(1, min(aantal, 25))
+    params = {"station": found.get("code"), "maxJourneys": aantal}
+    moment = _moment(datum, tijd) if datum or tijd else None
+    if moment:
+        params["dateTime"] = moment.isoformat(timespec="seconds")
     data = await cached(
-        ("ns-vertrek", code, aantal),
+        ("ns-" + kind, tuple(params.items())),
         30,
-        lambda: get_json(
-            f"{BASE}/v2/departures",
-            params={"station": code, "maxJourneys": aantal},
-            headers=_headers(),
-            source=SOURCE,
-        ),
+        lambda: get_json(f"{BASE}/v2/{kind}", params=params, headers=_headers(), source=SOURCE),
     )
-    departures = []
-    for item in (data.get("payload") or {}).get("departures", [])[:aantal]:
-        planned, actual = parse_time(item.get("plannedDateTime")), parse_time(item.get("actualDateTime"))
-        planned_track, actual_track = item.get("plannedTrack"), item.get("actualTrack")
-        product = item.get("product") or {}
-        departures.append({
-            "vertrek": fmt_time(planned),
-            "vertraging_min": _delay_minutes(planned, actual),
-            "richting": item.get("direction"),
-            "trein": product.get("longCategoryName") or item.get("trainCategory"),
-            "vervoerder": product.get("operatorName"),
-            "spoor": actual_track or planned_track,
-            "spoorwijziging": bool(actual_track and planned_track and actual_track != planned_track),
-            "geannuleerd": bool(item.get("cancelled")),
+    items = (data.get("payload") or {}).get(kind, [])[:aantal]
+    if moment and not items:
+        # The boards only reach about an hour ahead; later moments come back empty instead of failing.
+        raise ToolError(
+            f"NS heeft geen {BOARDS[kind]} voor {_station_name(found)} vanaf {moment.strftime('%Y-%m-%d %H:%M')}. "
+            "Deze lijst gaat maar ongeveer een uur vooruit. Gebruik voor een later moment trein_reis met die tijd."
+        )
+    return found, items
+
+
+def _board_item(item: dict, time_key: str, place_key: str, place: str | None) -> dict[str, Any]:
+    planned, actual = parse_time(item.get("plannedDateTime")), parse_time(item.get("actualDateTime"))
+    planned_track, actual_track = item.get("plannedTrack"), item.get("actualTrack")
+    product = item.get("product") or {}
+    return {
+        time_key: fmt_time(planned),
+        "vertraging_min": _delay_minutes(planned, actual),
+        place_key: place,
+        "trein": product.get("longCategoryName") or item.get("trainCategory"),
+        "treinnummer": product.get("number"),
+        "vervoerder": product.get("operatorName"),
+        "spoor": actual_track or planned_track,
+        "spoorwijziging": bool(actual_track and planned_track and actual_track != planned_track),
+        "geannuleerd": bool(item.get("cancelled")),
+        "meldingen": [m.get("message") for m in (item.get("messages") or []) if m.get("message")],
+    }
+
+
+async def trein_vertrek(station: str, aantal: int = 10, datum: str | None = None, tijd: str | None = None) -> dict:
+    found, items = await _board("departures", station, aantal, datum, tijd)
+    departures = [
+        {
+            **_board_item(item, "vertrek", "richting", item.get("direction")),
             "via": [s.get("mediumName") for s in (item.get("routeStations") or [])[:3]],
-            "meldingen": [m.get("message") for m in (item.get("messages") or []) if m.get("message")],
-        })
+        }
+        for item in items
+    ]
     return {"station": _station_name(found), "vertrektijden": departures, "bron": BRON}
+
+
+async def trein_aankomst(station: str, aantal: int = 10, datum: str | None = None, tijd: str | None = None) -> dict:
+    found, items = await _board("arrivals", station, aantal, datum, tijd)
+    arrivals = [_board_item(item, "aankomst", "herkomst", item.get("origin")) for item in items]
+    return {"station": _station_name(found), "aankomsttijden": arrivals, "bron": BRON}
 
 
 def _moment(datum: str | None, tijd: str | None) -> datetime:

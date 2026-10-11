@@ -111,7 +111,8 @@ async def _measure(place: str, quantity: str, stations: list[dict]) -> list[dict
     nearby: list[dict] = []
     if anchor:
         located = [s for s in with_quantity if s["lat"] is not None and s["lon"] is not None]
-        nearby = sorted(located, key=lambda s: _distance_km(anchor, (s["lat"], s["lon"])))[:15]
+        # Many points near the coast (bathing water, monitoring rounds) have no live data, so look well past the closest few.
+        nearby = sorted(located, key=lambda s: _distance_km(anchor, (s["lat"], s["lon"])))[:60]
 
     candidates = list({s["code"]: s for s in named + nearby}.values())
     if not candidates:

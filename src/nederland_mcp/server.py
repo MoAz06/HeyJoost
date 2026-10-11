@@ -38,16 +38,19 @@ LOWER = BeforeValidator(lambda value: value.strip().lower() if isinstance(value,
     title="Huis-check",
     description=(
         "Feiten over een Nederlands adres uit de BAG (Kadaster): bouwjaar, oppervlakte, gebruiksdoel, wijk, "
-        "buurt en, als het geregistreerd is, het energielabel. Bevat geen persoonsgegevens en geen WOZ-waarde."
+        "buurt en, als het geregistreerd is, het energielabel. Geef een postcode met huisnummer, of een straat, "
+        "huisnummer en plaats. Bevat geen persoonsgegevens en geen WOZ-waarde."
     ),
     annotations=READ_ONLY,
 )
 async def huis_info(
-    postcode: Annotated[str, Field(description="Postcode, bijvoorbeeld 2511CV")],
     huisnummer: Annotated[int, Field(ge=1, description="Huisnummer zonder letter of toevoeging")],
+    postcode: Annotated[str | None, Field(description="Postcode, bijvoorbeeld 2311EZ")] = None,
+    straat: Annotated[str | None, Field(description="Straatnaam, bijvoorbeeld Rapenburg. Alleen nodig zonder postcode")] = None,
+    plaats: Annotated[str | None, Field(description="Woonplaats, bijvoorbeeld Leiden. Alleen nodig zonder postcode")] = None,
     toevoeging: Annotated[str | None, Field(description="Huisletter of toevoeging, bijvoorbeeld A of 2")] = None,
 ) -> dict[str, Any]:
-    return await huis.huis_info(postcode, huisnummer, toevoeging)
+    return await huis.huis_info(huisnummer, postcode, straat, plaats, toevoeging)
 
 
 @server.tool(
@@ -84,14 +87,39 @@ async def water_actueel(
 
 @server.tool(
     title="Treinvertrek",
-    description="Actuele vertrektijden van treinen vanaf een station, met vertraging, spoor, spoorwijzigingen en uitval.",
+    description=(
+        "Vertrektijden van treinen vanaf een station, met vertraging, spoor, spoorwijzigingen en uitval. "
+        "Zonder tijd krijg je de vertrekken vanaf nu. Gaat ongeveer een uur vooruit; gebruik voor later "
+        "Treinreis plannen."
+    ),
     annotations=READ_ONLY,
 )
 async def trein_vertrek(
     station: Annotated[str, Field(description="Stationsnaam of code, bijvoorbeeld Leiden Centraal of LEDN")],
     aantal: Annotated[int, Field(ge=1, le=25, description="Aantal vertrekken")] = 10,
+    datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
+    tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
 ) -> dict[str, Any]:
-    return await ns.trein_vertrek(station, aantal)
+    return await ns.trein_vertrek(station, aantal, datum, tijd)
+
+
+@server.tool(
+    title="Treinaankomst",
+    description=(
+        "Aankomsttijden van treinen op een station: waar de trein vandaan komt, vertraging, spoor en uitval. "
+        "Handig als je iemand van de trein ophaalt. Zonder tijd krijg je de aankomsten vanaf nu. Gaat ongeveer "
+        "een uur vooruit; gebruik voor later Treinreis plannen. Rijdt een trein door, dan heeft hij bij "
+        "Treinvertrek hetzelfde treinnummer."
+    ),
+    annotations=READ_ONLY,
+)
+async def trein_aankomst(
+    station: Annotated[str, Field(description="Stationsnaam of code, bijvoorbeeld Leiden Centraal of LEDN")],
+    aantal: Annotated[int, Field(ge=1, le=25, description="Aantal aankomsten")] = 10,
+    datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
+    tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
+) -> dict[str, Any]:
+    return await ns.trein_aankomst(station, aantal, datum, tijd)
 
 
 @server.tool(

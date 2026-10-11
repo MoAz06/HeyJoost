@@ -2,12 +2,13 @@
 
 import os
 import re
+from difflib import SequenceMatcher
 from typing import Any
 
 import httpx
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ..common import cached, client, get_json
+from ..common import cached, client, get_json, normalize
 
 LOCATIESERVER = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
 BAG = "https://api.pdok.nl/kadaster/bag/ogc/v2/collections"
@@ -15,6 +16,7 @@ EP_ONLINE = "https://public.ep-online.nl/api/v5/PandEnergielabel/AdresseerbaarOb
 
 DAY = 24 * 3600
 EP_FIELDS = ("Energieklasse", "Registratiedatum", "Geldig_tot", "Opnamedatum", "Gebouwtype", "Gebouwsubtype")
+PLACE_ALIASES = {"denhaag": "sgravenhage", "denbosch": "shertogenbosch"}
 
 
 def _postcode(value: str) -> str:
@@ -22,6 +24,56 @@ def _postcode(value: str) -> str:
     if not re.fullmatch(r"\d{4}[A-Z]{2}", postcode):
         raise ToolError(f"'{value}' is geen geldige postcode. Gebruik vier cijfers en twee letters, bijvoorbeeld 2511CV.")
     return postcode
+
+
+def _place_key(name: str) -> str:
+    key = normalize(name)
+    return PLACE_ALIASES.get(key, key)
+
+
+def _same_street(docs: list[dict], straat: str) -> list[dict]:
+    wanted = normalize(straat)
+
+    def names(doc: dict) -> list[str]:
+        return [normalize(doc.get(field) or "") for field in ("straatnaam", "straatnaam_verkort")]
+
+    exact = [d for d in docs if wanted in names(d)]
+    if exact:
+        return exact
+    # Allow small differences, such as "Laan v Meerdervoort" for "Laan van Meerdervoort".
+    return [d for d in docs if any(n and SequenceMatcher(None, wanted, n).ratio() >= 0.85 for n in names(d))]
+
+
+async def _postcode_for(straat: str, huisnummer: int, plaats: str | None) -> str:
+    query = re.sub(r"[^\w\s'.-]", " ", f"{straat} {plaats or ''}").strip()
+    params = [
+        ("q", query),
+        ("fq", "type:adres"),
+        ("fq", f"huisnummer:{huisnummer}"),
+        ("fl", "postcode,straatnaam,straatnaam_verkort,woonplaatsnaam,gemeentenaam"),
+        ("rows", "50"),
+    ]
+    data = await cached(
+        ("locatieserver-straat", query.lower(), huisnummer),
+        DAY,
+        lambda: get_json(LOCATIESERVER, params=params, source="PDOK Locatieserver"),
+    )
+    docs = _same_street([d for d in data.get("response", {}).get("docs", []) if d.get("postcode")], straat)
+    address = f"{straat} {huisnummer}"
+    if not docs:
+        where = f" in {plaats}" if plaats else ""
+        raise ToolError(f"Geen adres gevonden voor {address}{where}. Controleer de straatnaam, of geef de postcode.")
+
+    # The search returns at most 50 hits, so a list of places is an example, not the full set.
+    places = ", ".join(sorted({d["woonplaatsnaam"] for d in docs if d.get("woonplaatsnaam")})[:10])
+    if plaats:
+        key = _place_key(plaats)
+        docs = [d for d in docs if key in (_place_key(d.get("woonplaatsnaam") or ""), _place_key(d.get("gemeentenaam") or ""))]
+        if not docs:
+            raise ToolError(f"{address} niet gevonden in {plaats}. Wel in bijvoorbeeld: {places}.")
+    elif len({d.get("woonplaatsnaam") for d in docs}) > 1:
+        raise ToolError(f"{address} komt in meer dan één plaats voor, bijvoorbeeld: {places}. Geef de plaats mee.")
+    return docs[0]["postcode"]
 
 
 async def _find_address(postcode: str, huisnummer: int, toevoeging: str | None) -> dict:
@@ -100,8 +152,19 @@ async def _energy_label(object_id: str) -> dict | str:
     return picked
 
 
-async def huis_info(postcode: str, huisnummer: int, toevoeging: str | None = None) -> dict:
-    postcode = _postcode(postcode)
+async def huis_info(
+    huisnummer: int,
+    postcode: str | None = None,
+    straat: str | None = None,
+    plaats: str | None = None,
+    toevoeging: str | None = None,
+) -> dict:
+    if postcode:
+        postcode = _postcode(postcode)
+    elif straat:
+        postcode = await _postcode_for(straat, huisnummer, plaats)
+    else:
+        raise ToolError("Geef bij het huisnummer een postcode, of een straat en plaats.")
     address = await _find_address(postcode, huisnummer, toevoeging)
     result: dict[str, Any] = {
         "adres": address.get("weergavenaam"),

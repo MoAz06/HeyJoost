@@ -6,10 +6,11 @@ Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MC
 
 | Tool | Wat je krijgt | Bron | Key nodig |
 |---|---|---|---|
-| `huis_info` | Bouwjaar, oppervlakte, gebruiksdoel, wijk en buurt van een adres, plus het energielabel | BAG (Kadaster) via PDOK, EP-online (RVO) | Alleen voor het energielabel |
+| `huis_info` | Bouwjaar, oppervlakte, gebruiksdoel, wijk en buurt van een adres, plus het energielabel. Met postcode of met straat en plaats | BAG (Kadaster) via PDOK, EP-online (RVO) | Alleen voor het energielabel |
 | `schoolvakanties` | Schoolvakanties per regio en schooljaar | Rijksoverheid open data | Nee |
 | `water_actueel` | Actuele waterstand ten opzichte van NAP en watertemperatuur bij een plaats | Rijkswaterstaat Waterinfo | Nee |
-| `trein_vertrek` | Vertrektijden met vertraging, spoor en uitval | NS Reisinformatie API | Ja (NS) |
+| `trein_vertrek` | Vertrektijden met vertraging, spoor en uitval, tot ongeveer een uur vooruit | NS Reisinformatie API | Ja (NS) |
+| `trein_aankomst` | Aankomsttijden: waar de trein vandaan komt, vertraging en spoor. Handig als je iemand ophaalt | NS Reisinformatie API | Ja (NS) |
 | `trein_reis` | Reisadvies met overstappen, drukte en prijs | NS Reisinformatie API | Ja (NS) |
 | `vlucht_info` | Status, gate en bagageband van een vlucht via Schiphol | Schiphol Public Flight API | Ja (Schiphol) |
 
