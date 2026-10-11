@@ -40,6 +40,8 @@ CALLS = [
     ("ov_vertrek", {"halte": "Kurhaus", "plaats": "Scheveningen", "aantal": 3}),
     ("ov_vertrek", {"halte": "Leidseplein", "plaats": "Amsterdam", "lijn": "tram 2", "aantal": 3}),
     ("ov_vertrek", {"halte": "Neude", "plaats": "Utrecht", "aantal": 3, "datum": TOMORROW, "tijd": "08:00"}),
+    ("ov_vertrek", {"halte": "Den Haag Centraal", "naar": "Kurhaus", "aantal": 3, "datum": TOMORROW, "tijd": "15:00"}),
+    ("ov_vertrek", {"halte": "Kort Rapenburg", "plaats": "Leiden", "naar": "Leiden Centraal", "datum": TOMORROW, "tijd": "09:30"}),
     ("ov_vertrek", {"halte": "Xyzabc", "plaats": "Leiden"}),
     ("vlucht_info", {"vluchtnummer": "KL1001"}),
 ]

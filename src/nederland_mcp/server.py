@@ -165,8 +165,10 @@ async def trein_reis(
         "uitval als de vervoerder die doorgeeft. Werkt met de naam van de halte en de plaats, bijvoorbeeld Spui "
         "in Den Haag of Leidseplein in Amsterdam. Bij een treinstation komen alle bus- en tramhaltes rond het "
         "station mee, elk met halte en perron. Zonder tijd krijg je de vertrekken vanaf nu; met datum en tijd ook "
-        "later, volgens de dienstregeling. Een negatieve vertraging betekent te vroeg. 'andere_haltes' noemt "
-        "haltes met een andere naam die ook gevonden zijn. Treinen staan in Treinvertrek."
+        "later, volgens de dienstregeling. Met naar krijg je alleen de bussen en trams die daarna bij die halte "
+        "stoppen, met de aankomsttijd daar ('stopt_bij' en 'aankomst'). Een negatieve vertraging betekent te "
+        "vroeg. 'andere_haltes' noemt haltes met een andere naam die ook gevonden zijn. Treinen staan in "
+        "Treinvertrek."
     ),
     annotations=READ_ONLY,
 )
@@ -175,10 +177,11 @@ async def ov_vertrek(
     plaats: Annotated[str | None, Field(description="Plaats of wijk van de halte, bijvoorbeeld Den Haag of Scheveningen")] = None,
     aantal: Annotated[int, Field(ge=1, le=25, description="Aantal vertrekken")] = 10,
     lijn: Annotated[str | None, Field(description="Alleen deze lijn of soort, bijvoorbeeld 2, tram 2, 400, E of metro")] = None,
+    naar: Annotated[str | None, Field(description="Alleen vertrekken die daarna bij deze halte stoppen, bijvoorbeeld Leiden Centraal of Kurhaus")] = None,
     datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
     tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
 ) -> dict[str, Any]:
-    return await ov.ov_vertrek(halte, plaats, aantal, lijn, datum, tijd)
+    return await ov.ov_vertrek(halte, plaats, aantal, lijn, datum, tijd, naar)
 
 
 @server.tool(

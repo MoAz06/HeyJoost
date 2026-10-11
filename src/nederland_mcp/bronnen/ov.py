@@ -36,6 +36,8 @@ STATION_RADIUS = 250
 SAME_STOP_RADIUS = 400
 STATION_NAME = re.compile(r"^(station|cs)\b|\b(station|centraal|cs)$|hoofdstation$", re.IGNORECASE)
 STATION_WORDS = {"station", "centraal", "hoofdstation"}
+# Stop names that count as the town's main station when 'naar' asks only for "station".
+MAIN_STOP_WORDS = {"centraal", "hoofdstation", "stationsplein"}
 WORD_ALIASES = {"cs": ("centraal", "station"), "hs": ("hollands", "spoor")}
 # A town's stops lie in its municipality, or this close to its centre (for districts like Scheveningen).
 TOWN_RADIUS = 3000
@@ -60,12 +62,19 @@ def _words(text: str) -> list[str]:
     return words
 
 
-def _coverage(wanted: list[str], name: str) -> float:
-    """Share of the asked words that occur in a stop name, allowing small typos."""
+def _coverage(wanted: list[str], name: str, strict: bool = False) -> float:
+    """Share of the asked words that occur in a stop name, allowing small typos. Strict also rules out
+    longer words that only start the same, such as Kurhausweg for Kurhaus."""
     words = _words(name)
     if not wanted or not words:
         return 0.0
-    found = sum(1 for w in wanted if max(SequenceMatcher(None, w, word).ratio() for word in words) >= 0.8)
+
+    def close(asked: str, word: str) -> bool:
+        if strict and abs(len(asked) - len(word)) > 2:
+            return False
+        return SequenceMatcher(None, asked, word).ratio() >= 0.8
+
+    found = sum(1 for w in wanted if w in words or any(close(w, word) for word in words))
     return found / len(wanted)
 
 
@@ -203,17 +212,79 @@ def _same_stop(best: dict, hits: list[dict]) -> list[dict]:
     return [best, *others[:2]]
 
 
+def _without_town(wanted: list[str], town: str) -> list[str] | None:
+    """The asked words minus the stop's town, also when written differently (Den Haag, 's-Gravenhage)."""
+    key = place_key(town)
+    for start in range(len(wanted)):
+        for end in range(start + 1, len(wanted) + 1):
+            if place_key(" ".join(wanted[start:end])) == key:
+                return wanted[:start] + wanted[end:]
+    return None
+
+
+def _is_target(wanted: list[str], name: str) -> bool:
+    """The stop name answers 'naar': the asked words besides the town are in its own name."""
+    town, own = name.split(", ", 1) if ", " in name else ("", name)
+    rest = _without_town(wanted, town) if town else None
+    if rest is None:
+        rest = wanted
+    if not rest:
+        return True
+    own_words = set(_words(own))
+    # Only station words asked, as in "station Leiden" or "Leiden Centraal": the town's main station.
+    # "Centraal" has to be in the name then, so Hoofddorp's plain "Station" is no Centraal Station.
+    if set(rest) <= STATION_WORDS:
+        main = set(rest) - {"station"}
+        if main:
+            return bool(own_words & {"centraal", "hoofdstation"})
+        return bool(own_words & MAIN_STOP_WORDS) or own_words == {"station"}
+    if _coverage([w for w in rest if w != "station"], own, strict=True) == 1.0:
+        return True
+    # "Kurhaus Scheveningen" still means the stop Kurhaus: every word of its own name was asked.
+    named = list(own_words - STATION_WORDS)
+    return (
+        bool(named)
+        and _coverage(named, " ".join(rest), strict=True) == 1.0
+        and _coverage(rest, own, strict=True) >= 0.5
+    )
+
+
+def _target_stop(st: dict, wanted: list[str], memo: dict[str, bool]) -> dict | None:
+    """The first later stop of this trip that answers 'naar'. A place like Scheveningen is in no stop
+    name but can be in the headsign (Scheveningen Noord), and then the last stop counts."""
+    stops = st.get("nextStops") or []
+    for stop in stops:
+        name = stop.get("name") or ""
+        if name not in memo:
+            memo[name] = _is_target(wanted, name)
+        if memo[name]:
+            return stop
+    if stops and _coverage(wanted, st.get("headsign") or "", strict=True) == 1.0:
+        return stops[-1]
+    return None
+
+
 async def _stop_times(
-    stop: dict, radius: int | None, n: int, when: str | None, keep: Callable[[dict], bool], enough: int
+    stop: dict,
+    radius: int | None,
+    n: int,
+    when: str | None,
+    keep: Callable[[dict], bool],
+    enough: int,
+    pages: int,
+    next_stops: bool = False,
 ) -> list[dict]:
     params: dict[str, Any] = {"stopId": stop["id"], "n": n, "mode": MODES, "language": "nl"}
     if radius:
         params["radius"] = radius
+    # The stops after each departure make the answer about five times bigger, so only when 'naar' needs them.
+    if next_stops:
+        params["fetchStops"] = "true"
     if when:
         params["time"] = when
     found: list[dict] = []
-    # A filter on one line can need more than one page at a busy stop; three pages is the limit.
-    for _ in range(3):
+    # A filter can need more than one page at a busy stop.
+    for _ in range(pages):
         query = dict(params)
         data = await cached(
             ("ov-stoptimes", tuple(sorted(query.items()))),
@@ -228,7 +299,7 @@ async def _stop_times(
     return found
 
 
-def _row(st: dict, day: date) -> dict[str, Any]:
+def _row(st: dict, day: date, target: dict | None = None) -> dict[str, Any]:
     place = st.get("place") or {}
     planned, actual = parse_time(place.get("scheduledDeparture")), parse_time(place.get("departure"))
     live = bool(st.get("realTime"))
@@ -245,6 +316,11 @@ def _row(st: dict, day: date) -> dict[str, Any]:
         "live": live,
         "geannuleerd": bool(st.get("cancelled") or st.get("tripCancelled")),
     }
+    if target is not None:
+        arrival, expected = parse_time(target.get("scheduledArrival")), parse_time(target.get("arrival"))
+        row["stopt_bij"] = target.get("name")
+        row["aankomst"] = fmt_time(arrival)
+        row["aankomst_verwacht"] = fmt_time(expected) if live else None
     if planned and planned.date() != day:
         row["datum"] = planned.date().isoformat()
     return row
@@ -276,11 +352,13 @@ async def ov_vertrek(
     lijn: str | None = None,
     datum: str | None = None,
     tijd: str | None = None,
+    naar: str | None = None,
 ) -> dict:
     halte = halte.strip()
     if not halte:
         raise ToolError("Geef de naam van een halte, bijvoorbeeld Spui of Leidseplein.")
     plaats = plaats.strip() if plaats and plaats.strip() else None
+    naar = naar.strip() if naar and naar.strip() else None
     best, candidates = await _find(halte, plaats)
 
     aantal = max(1, min(aantal, 25))
@@ -288,25 +366,43 @@ async def ov_vertrek(
     when = moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ") if moment else None
     kind, line = _line_filter(lijn)
     wanted = normalize(line or "") or None
+    target = (_words(naar) or None) if naar else None
     lines_seen: set[tuple[str, str]] = set()
+    headsigns: list[str] = []
+    memo: dict[str, bool] = {}
+    passed = 0
 
     def keep(st: dict) -> bool:
+        nonlocal passed
         if not (st.get("place") or {}).get("departure"):
             return False
         soort, name = SOORT.get(st.get("mode"), ""), st.get("routeShortName") or ""
         lines_seen.add((soort, name))
-        return (wanted is None or normalize(name) == wanted) and (kind is None or soort == kind)
+        if not ((wanted is None or normalize(name) == wanted) and (kind is None or soort == kind)):
+            return False
+        passed += 1
+        if target is None:
+            return True
+        if st.get("headsign") and st["headsign"] not in headsigns:
+            headsigns.append(st["headsign"])
+        return _target_stop(st, target, memo) is not None
 
     if _is_station(best):
         stops, radius = [best], STATION_RADIUS
     else:
         stops, radius = _same_stop(best, candidates), None
-    n = 50 if wanted or kind else aantal + 5
-    batches = await asyncio.gather(*(_stop_times(s, radius, n, when, keep, aantal) for s in stops))
+    n = 50 if wanted or kind or target else aantal + 5
+    # Transitous was told 1 to 3 stoptimes calls per question, so the stops share three pages.
+    pages = max(1, 3 // len(stops))
+    batches = await asyncio.gather(
+        *(_stop_times(s, radius, n, when, keep, aantal, pages, next_stops=target is not None) for s in stops)
+    )
 
+    # One trip can call at two stops around a station (Leiden Centraal and its Westzijde); the first counts.
+    # Trip ids start with the date and time, so a trip on another day is another id.
     seen, merged = set(), []
     for st in sorted((st for batch in batches for st in batch), key=lambda st: st["place"]["departure"]):
-        key = (st.get("tripId"), st["place"].get("scheduledDeparture"))
+        key = st.get("tripId") or (st.get("routeShortName"), st["place"].get("scheduledDeparture"))
         if key not in seen:
             seen.add(key)
             merged.append(st)
@@ -314,19 +410,22 @@ async def ov_vertrek(
 
     if not merged:
         at = f" vanaf {moment.strftime('%Y-%m-%d %H:%M')}" if moment else ""
+        period = at or " de komende tijd"
+        if target and passed:
+            hint = f" Wel richtingen: {', '.join(headsigns[:8])}." if headsigns else ""
+            raise ToolError(f"Er vertrekt{period} niks van {best['name']} dat bij '{naar}' stopt.{hint}")
         if wanted or kind:
             running = sorted(((s, name) for s, name in lines_seen if name), key=lambda x: (x[0], len(x[1]), x[1]))
             names = ", ".join(f"{s} {name}" for s, name in running[:15])
             hint = f" Wel bijvoorbeeld: {names}." if names else ""
-            when = at or " de komende tijd"
             if wanted:
                 label = f"{kind or 'lijn'} {line}"
-                raise ToolError(f"{label[0].upper()}{label[1:]} vertrekt{when} niet bij {best['name']}.{hint}")
-            raise ToolError(f"Er vertrekt{when} geen {kind} bij {best['name']}.{hint}")
+                raise ToolError(f"{label[0].upper()}{label[1:]} vertrekt{period} niet bij {best['name']}.{hint}")
+            raise ToolError(f"Er vertrekt{period} geen {kind} bij {best['name']}.{hint}")
         raise ToolError(f"Geen vertrekken gevonden bij {best['name']}{at}.")
 
     day = (moment or now_local()).date()
-    rows = [_row(st, day) for st in merged]
+    rows = [_row(st, day, _target_stop(st, target, memo) if target else None) for st in merged]
     # Suggestions for when this was not the stop meant; stops already in the list are left out.
     shown = {normalize(_short(s["name"])) for s in stops} | {normalize(row["halte"]) for row in rows}
     others = [
