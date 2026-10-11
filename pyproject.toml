@@ -1,0 +1,21 @@
+[project]
+name = "nederland-mcp"
+version = "0.1.0"
+description = "Nederlandse open data voor AI-assistenten (MCP-server): huis, schoolvakanties, water, trein en vlucht."
+readme = "README.md"
+authors = [
+    { name = "Mohamed Azahrioui" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp[cli]>=2.3.0",
+    "tzdata>=2026.5",
+]
+
+[project.scripts]
+nederland-mcp = "nederland_mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
