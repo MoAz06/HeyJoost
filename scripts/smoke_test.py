@@ -35,6 +35,12 @@ CALLS = [
     ("trein_aankomst", {"station": "Utrecht", "aantal": 2, "datum": SOON.date().isoformat(), "tijd": SOON.strftime("%H:%M")}),
     ("trein_vertrek", {"station": "Utrecht", "aantal": 2, "datum": TOMORROW, "tijd": "08:00"}),
     ("trein_reis", {"van": "Den Haag Centraal", "naar": "Leiden Centraal"}),
+    ("ov_vertrek", {"halte": "Spui", "plaats": "Den Haag", "aantal": 4}),
+    ("ov_vertrek", {"halte": "Utrecht Centraal", "aantal": 4}),
+    ("ov_vertrek", {"halte": "Kurhaus", "plaats": "Scheveningen", "aantal": 3}),
+    ("ov_vertrek", {"halte": "Leidseplein", "plaats": "Amsterdam", "lijn": "tram 2", "aantal": 3}),
+    ("ov_vertrek", {"halte": "Neude", "plaats": "Utrecht", "aantal": 3, "datum": TOMORROW, "tijd": "08:00"}),
+    ("ov_vertrek", {"halte": "Xyzabc", "plaats": "Leiden"}),
     ("vlucht_info", {"vluchtnummer": "KL1001"}),
 ]
 

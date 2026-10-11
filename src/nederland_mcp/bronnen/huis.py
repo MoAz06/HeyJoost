@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ..common import cached, client, get_json, normalize
+from ..common import cached, client, get_json, normalize, place_key
 
 LOCATIESERVER = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
 BAG = "https://api.pdok.nl/kadaster/bag/ogc/v2/collections"
@@ -16,7 +16,6 @@ EP_ONLINE = "https://public.ep-online.nl/api/v5/PandEnergielabel/AdresseerbaarOb
 
 DAY = 24 * 3600
 EP_FIELDS = ("Energieklasse", "Registratiedatum", "Geldig_tot", "Opnamedatum", "Gebouwtype", "Gebouwsubtype")
-PLACE_ALIASES = {"denhaag": "sgravenhage", "denbosch": "shertogenbosch"}
 
 
 def _postcode(value: str) -> str:
@@ -24,11 +23,6 @@ def _postcode(value: str) -> str:
     if not re.fullmatch(r"\d{4}[A-Z]{2}", postcode):
         raise ToolError(f"'{value}' is geen geldige postcode. Gebruik vier cijfers en twee letters, bijvoorbeeld 2511CV.")
     return postcode
-
-
-def _place_key(name: str) -> str:
-    key = normalize(name)
-    return PLACE_ALIASES.get(key, key)
 
 
 def _same_street(docs: list[dict], straat: str) -> list[dict]:
@@ -67,8 +61,8 @@ async def _postcode_for(straat: str, huisnummer: int, plaats: str | None) -> str
     # The search returns at most 50 hits, so a list of places is an example, not the full set.
     places = ", ".join(sorted({d["woonplaatsnaam"] for d in docs if d.get("woonplaatsnaam")})[:10])
     if plaats:
-        key = _place_key(plaats)
-        docs = [d for d in docs if key in (_place_key(d.get("woonplaatsnaam") or ""), _place_key(d.get("gemeentenaam") or ""))]
+        key = place_key(plaats)
+        docs = [d for d in docs if key in (place_key(d.get("woonplaatsnaam") or ""), place_key(d.get("gemeentenaam") or ""))]
         if not docs:
             raise ToolError(f"{address} niet gevonden in {plaats}. Wel in bijvoorbeeld: {places}.")
     elif len({d.get("woonplaatsnaam") for d in docs}) > 1:

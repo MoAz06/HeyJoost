@@ -4,7 +4,8 @@ import logging
 import re
 import time
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import date, datetime
+from datetime import time as dt_time
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -14,7 +15,9 @@ from mcp.server.mcpserver.exceptions import ToolError
 from . import __version__
 
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
-USER_AGENT = f"heyjoost/{__version__} (+https://heyjoost.nl)"
+# Name, version and contact, as public APIs like Transitous ask.
+USER_AGENT = f"heyjoost/{__version__} (+https://heyjoost.nl; help@heyjoost.nl)"
+PLACE_ALIASES = {"denhaag": "sgravenhage", "denbosch": "shertogenbosch"}
 
 # Request URLs contain what users asked for (addresses, places), so keep them out of the logs.
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -111,3 +114,24 @@ def normalize(text: str) -> str:
     """Lowercase and strip everything except letters and digits, for name matching."""
     text = text.lower().replace("'s-", "s").replace("ij", "y")
     return re.sub(r"[^a-z0-9]", "", text)
+
+
+def place_key(name: str) -> str:
+    """Normalized place name, with Den Haag and Den Bosch mapped to their official names."""
+    key = normalize(name)
+    return PLACE_ALIASES.get(key, key)
+
+
+def parse_moment(datum: str | None, tijd: str | None) -> datetime:
+    """A local moment from the tools' datum (JJJJ-MM-DD) and tijd (UU:MM); a missing part means today or now."""
+    now = now_local()
+    try:
+        day = date.fromisoformat(datum.strip()) if datum else now.date()
+        if tijd:
+            hour, minute = map(int, re.fullmatch(r"(\d{1,2})[:.](\d{2})", tijd.strip()).groups())
+            at = dt_time(hour, minute)
+        else:
+            at = dt_time(now.hour, now.minute)
+    except (ValueError, AttributeError) as exc:
+        raise ToolError("Gebruik datum als JJJJ-MM-DD en tijd als UU:MM, bijvoorbeeld 2026-10-12 en 08:30.") from exc
+    return datetime.combine(day, at, tzinfo=AMSTERDAM)

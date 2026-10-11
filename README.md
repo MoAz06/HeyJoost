@@ -12,6 +12,7 @@ Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MC
 | `trein_vertrek` | Vertrektijden met vertraging, spoor en uitval, tot ongeveer een uur vooruit | NS Reisinformatie API | Ja (NS) |
 | `trein_aankomst` | Aankomsttijden: waar de trein vandaan komt, vertraging en spoor. Handig als je iemand ophaalt | NS Reisinformatie API | Ja (NS) |
 | `trein_reis` | Reisadvies met overstappen, drukte en prijs | NS Reisinformatie API | Ja (NS) |
+| `ov_vertrek` | Vertrektijden van bus, tram, metro en veerboot vanaf een halte, met live vertraging en uitval. Bij een treinstation alle haltes eromheen | Data van de vervoerders via OpenOV, opgehaald via Transitous | Nee |
 | `vlucht_info` | Status, gate en bagageband van een vlucht via Schiphol | Schiphol Public Flight API | Ja (Schiphol) |
 
 Elk antwoord heeft een veld `bron`, zodat je assistent altijd kan zeggen waar het vandaan komt. Er zitten geen persoonsgegevens in, en je kunt er geen mensen mee opzoeken.
@@ -36,7 +37,7 @@ Zet dit in `claude_desktop_config.json` en pas het pad aan:
   "mcpServers": {
     "heyjoost": {
       "command": "uv",
-      "args": ["--directory", "/pad/naar/nederland-mcp", "run", "nederland-mcp"]
+      "args": ["--directory", "/pad/naar/HeyJoost", "run", "nederland-mcp"]
     }
   }
 }
@@ -45,7 +46,7 @@ Zet dit in `claude_desktop_config.json` en pas het pad aan:
 ### In Claude Code
 
 ```bash
-claude mcp add heyjoost -- uv --directory /pad/naar/nederland-mcp run nederland-mcp
+claude mcp add heyjoost -- uv --directory /pad/naar/HeyJoost run nederland-mcp
 ```
 
 ### Als webserver (hosting)
@@ -72,10 +73,11 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 |---|---|
 | BAG en Locatieserver via PDOK | Open data, publiek domein |
 | Rijksoverheid schoolvakanties | CC0 |
-| Rijkswaterstaat Waterinfo | Open data. Actuele metingen zijn ongecontroleerd. Licentie nog nalopen voor publieke lancering |
+| Rijkswaterstaat Waterinfo | Publiek domein volgens data.overheid.nl (dataset Waterinfo Rijkswateren). Actuele metingen zijn ongecontroleerd |
 | NS Reisinformatie API | Het product Ns-App heeft geen eigen gebruiksvoorwaarden. Gratis gebruikers mogen 300 aanvragen per 5 minuten doen. Voor meer, of voor betaald gebruik, contact opnemen met NS |
 | Schiphol Public Flight API | [Voorwaarden](https://developer.schiphol.nl/terms-and-conditions) (december 2025): alleen om reizigers en ophalers te helpen, realtime, maximaal 24 uur cachen, niet in bulk doorgeven of doorverkopen. Commercieel gebruik alleen met toestemming van Schiphol. Keys elke 90 dagen vernieuwen |
 | EP-online | Voorwaarden RVO, key hoort bij een KvK-nummer |
+| Transitous (bus, tram, metro) | [Gebruiksbeleid](https://transitous.org/api/): alleen voor open-source projecten, niet commercieel. User-Agent met naam, versie en contact, en een zichtbare link naar [transitous.org/sources](https://transitous.org/sources/) plus de OpenStreetMap-vermelding. Bij veel gebruikers of voor routeplanning eerst contact opnemen via hun Matrix-kanaal. Geen garantie op beschikbaarheid |
 
 ## Hoe het in elkaar zit
 
@@ -83,6 +85,10 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 - `src/nederland_mcp/site/`: de website (startpagina, privacy, voorwaarden).
 - `src/nederland_mcp/bronnen/`: één bestand per bron.
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
-- Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, adressen en vakanties een dag, water 5 minuten, treinen en vluchten 30 tot 60 seconden.
+- Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, haltes, adressen en vakanties een dag, water 5 minuten, treinen, bussen en vluchten 30 tot 60 seconden.
 - Foutmeldingen zijn in het Nederlands en vertellen wat je kunt doen.
 - Wat gebruikers opvragen (adressen, plaatsen) komt niet in de logs.
+
+## Licentie
+
+De code valt onder de [MIT-licentie](LICENSE). De data blijft van de bronnen hierboven, met hun eigen voorwaarden. De naam Hey Joost en het logo vallen niet onder de licentie.

@@ -85,10 +85,7 @@ section { padding: 56px 0; border-top: 1px solid var(--line); }
 section h2 { font-size: clamp(27px, 4vw, 36px); letter-spacing: -0.015em; margin: 0 0 8px; }
 .sub { color: var(--muted); margin: 0 0 28px; }
 
-/* Five cards: three on top, two wider ones below, so none ends up alone on a row. */
-.cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
-.cards .card { grid-column: span 2; }
-.cards .card:nth-last-child(-n+2) { grid-column: span 3; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px; }
 .card .ico { font-size: 28px; line-height: 1; }
 .card h3 { margin: 10px 0 6px; font-size: 18px; }
@@ -142,7 +139,6 @@ footer p { margin: 10px 0 0; }
 @media (max-width: 760px) {
   .hero { grid-template-columns: 1fr; gap: 32px; padding: 16px 0 48px; }
   .setup, .cards { grid-template-columns: 1fr; }
-  .cards .card, .cards .card:nth-last-child(-n+2) { grid-column: auto; }
   .nav a:not(.keep) { display: none; }
   section { padding: 44px 0; }
 }

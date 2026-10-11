@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
 from . import __version__
-from .bronnen import huis, ns, schiphol, vakanties, water
+from .bronnen import huis, ns, ov, schiphol, vakanties, water
 
 WEBSITE = "https://heyjoost.nl"
 SITE = Path(__file__).parent / "site"
@@ -21,7 +21,7 @@ SITE = Path(__file__).parent / "site"
 # Written as facts, not orders: directories reject servers that tell the assistant how to behave.
 INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
-    "schoolvakanties, waterstanden en watertemperatuur, NS-treinen en Schiphol-vluchten.\n"
+    "schoolvakanties, waterstanden en watertemperatuur, NS-treinen, bus, tram en metro, en Schiphol-vluchten.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -30,7 +30,9 @@ INSTRUCTIONS = (
 server = MCPServer(
     name="heyjoost",
     title="Hey Joost",
-    description="Live Nederland in je AI: treinen, vluchten, water, schoolvakanties en huizen, uit officiële bronnen.",
+    description=(
+        "Live Nederland in je AI: treinen, bus en tram, vluchten, water, schoolvakanties en huizen, uit officiële bronnen."
+    ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
     # Inline, so the icon works on any host and before the domain is live.
@@ -154,6 +156,29 @@ async def trein_reis(
     aankomst: Annotated[bool, Field(description="True als de tijd de gewenste aankomsttijd is")] = False,
 ) -> dict[str, Any]:
     return await ns.trein_reis(van, naar, datum, tijd, aankomst)
+
+
+@server.tool(
+    title="Bus, tram en metro",
+    description=(
+        "Vertrektijden van bus, tram, metro en veerboot vanaf een halte in Nederland, met live vertraging en "
+        "uitval als de vervoerder die doorgeeft. Werkt met de naam van de halte en de plaats, bijvoorbeeld Spui "
+        "in Den Haag of Leidseplein in Amsterdam. Bij een treinstation komen alle bus- en tramhaltes rond het "
+        "station mee, elk met halte en perron. Zonder tijd krijg je de vertrekken vanaf nu; met datum en tijd ook "
+        "later, volgens de dienstregeling. Een negatieve vertraging betekent te vroeg. 'andere_haltes' noemt "
+        "haltes met een andere naam die ook gevonden zijn. Treinen staan in Treinvertrek."
+    ),
+    annotations=READ_ONLY,
+)
+async def ov_vertrek(
+    halte: Annotated[str, Field(description="Naam van de halte, bijvoorbeeld Spui, Leidseplein of Leiden Centraal")],
+    plaats: Annotated[str | None, Field(description="Plaats of wijk van de halte, bijvoorbeeld Den Haag of Scheveningen")] = None,
+    aantal: Annotated[int, Field(ge=1, le=25, description="Aantal vertrekken")] = 10,
+    lijn: Annotated[str | None, Field(description="Alleen deze lijn, bijvoorbeeld 2, 400 of E")] = None,
+    datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
+    tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
+) -> dict[str, Any]:
+    return await ov.ov_vertrek(halte, plaats, aantal, lijn, datum, tijd)
 
 
 @server.tool(

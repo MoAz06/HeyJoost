@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, vluchten, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, vluchten, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ff6b00">
 <meta property="og:title" content="Hey Joost">
 <meta property="og:description" content="Joost mag het weten? Joost wéét het. Live Nederland in je AI.">
@@ -30,7 +30,7 @@
     <div class="hero">
       <div>
         <h1>Joost mag het weten?<br><em>Joost wéét het.</em></h1>
-        <p class="lead">Hey Joost geeft je AI live Nederland: je trein, je vlucht, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, je vlucht, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
         <div class="actions">
           <a class="btn" href="#erin">Zet Joost in je AI</a>
           <a class="btn ghost" href="#probeer">Wat kan ik vragen?</a>
@@ -52,6 +52,7 @@
       <p class="sub">Alles live, en bij elk antwoord staat waar het vandaan komt.</p>
       <div class="cards">
         <div class="card"><div class="ico">🚆</div><h3>Treinen</h3><p>Vertrek- en aankomsttijden, vertraging, spoor en uitval. Plus reisadvies met overstappen, drukte en prijs.</p></div>
+        <div class="card"><div class="ico">🚋</div><h3>Bus, tram en metro</h3><p>Live vertrektijden vanaf elke halte in Nederland, met vertraging en uitval. Ook de veerpont.</p></div>
         <div class="card"><div class="ico">✈️</div><h3>Vluchten</h3><p>Status, gate, terminal en bagageband van je vlucht via Schiphol.</p></div>
         <div class="card"><div class="ico">🌊</div><h3>Water</h3><p>Waterstand en watertemperatuur bij jou in de buurt, gemeten door Rijkswaterstaat.</p></div>
         <div class="card"><div class="ico">🎒</div><h3>Schoolvakanties</h3><p>Wanneer is de vakantie in noord, midden of zuid? Voor dit en het volgende schooljaar.</p></div>
@@ -95,6 +96,8 @@
       <div class="prompts">
         <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?">🚆 Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</button>
         <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?">🚉 Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</button>
+        <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?">🚋 Wanneer gaat tram 2 vanaf het Spui in Den Haag?</button>
+        <button class="prompt" type="button" data-copy="Welke bussen gaan er zo vanaf Utrecht Centraal, en van welk perron?">🚌 Welke bussen gaan er zo vanaf Utrecht Centraal, en van welk perron?</button>
         <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?">💶 Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</button>
         <button class="prompt" type="button" data-copy="Wat is de status van vlucht KL1001?">✈️ Wat is de status van vlucht KL1001?</button>
         <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?">🌊 Hoe warm is het zeewater in Scheveningen?</button>
@@ -105,20 +108,21 @@
 
     <section id="bronnen">
       <h2>Waar Joost het vandaan haalt</h2>
-      <p class="sub">Alleen officiële bronnen, live opgehaald.</p>
+      <p class="sub">Officiële open data, live opgehaald.</p>
       <ul class="sources">
         <li><b>NS Reisinformatie API</b><br>treinen</li>
+        <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b><br>bus, tram en metro, met haltes van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
         <li><b>Schiphol Public Flight API</b><br>vluchten</li>
         <li><b>Rijkswaterstaat Waterinfo</b><br>waterstanden en temperatuur</li>
         <li><b>Rijksoverheid</b><br>schoolvakanties</li>
         <li><b>BAG via PDOK (Kadaster)</b><br>adressen en gebouwen</li>
       </ul>
-      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, Schiphol of de overheid. Gaat het ergens om, zoals een trein of vlucht halen? Kijk dan ook even in de officiële app.</p>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, Schiphol, de vervoerders of de overheid. Gaat het ergens om, zoals een trein of vlucht halen? Kijk dan ook even in de officiële app.</p>
     </section>
   </main>
 
   <footer>
-    <div class="links"><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
+    <div class="links"><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
     <p>Gemaakt door Mohamed Azahrioui. Volg Joost op <a href="https://www.tiktok.com/@heyjoost.nl">TikTok</a> en <a href="https://www.instagram.com/heyjoost.nl/">Instagram</a>.</p>
   </footer>
 </div>

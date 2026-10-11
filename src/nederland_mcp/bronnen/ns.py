@@ -4,14 +4,12 @@ Needs NS_API_KEY (a subscription key from apiportal.ns.nl).
 """
 
 import os
-import re
-from datetime import date, datetime
-from datetime import time as dt_time
+from datetime import datetime
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ..common import AMSTERDAM, cached, fmt_time, get_json, normalize, now_local, parse_time
+from ..common import cached, fmt_time, get_json, normalize, parse_moment, parse_time
 
 BASE = "https://gateway.apiportal.ns.nl/reisinformatie-api/api"
 SOURCE = "NS Reisinformatie"
@@ -74,7 +72,7 @@ async def _board(kind: str, station: str, aantal: int, datum: str | None, tijd: 
     found = await _station(station)
     aantal = max(1, min(aantal, 25))
     params = {"station": found.get("code"), "maxJourneys": aantal}
-    moment = _moment(datum, tijd) if datum or tijd else None
+    moment = parse_moment(datum, tijd) if datum or tijd else None
     if moment:
         params["dateTime"] = moment.isoformat(timespec="seconds")
     data = await cached(
@@ -128,23 +126,9 @@ async def trein_aankomst(station: str, aantal: int = 10, datum: str | None = Non
     return {"station": _station_name(found), "aankomsttijden": arrivals, "bron": BRON}
 
 
-def _moment(datum: str | None, tijd: str | None) -> datetime:
-    now = now_local()
-    try:
-        day = date.fromisoformat(datum.strip()) if datum else now.date()
-        if tijd:
-            hour, minute = map(int, re.fullmatch(r"(\d{1,2})[:.](\d{2})", tijd.strip()).groups())
-            at = dt_time(hour, minute)
-        else:
-            at = dt_time(now.hour, now.minute)
-    except (ValueError, AttributeError) as exc:
-        raise ToolError("Gebruik datum als JJJJ-MM-DD en tijd als UU:MM, bijvoorbeeld 2026-10-12 en 08:30.") from exc
-    return datetime.combine(day, at, tzinfo=AMSTERDAM)
-
-
 async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | None = None, aankomst: bool = False) -> dict:
     origin, destination = await _station(van), await _station(naar)
-    moment = _moment(datum, tijd)
+    moment = parse_moment(datum, tijd)
 
     params = {
         "fromStation": origin.get("code"),
