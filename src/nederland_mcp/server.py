@@ -1,30 +1,44 @@
-"""The MCP server: Dutch public data as tools for AI assistants."""
+"""The Hey Joost MCP server: Dutch public data as tools for AI assistants, plus its website."""
 
+import base64
+import html
+import re
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
-from mcp.types import ToolAnnotations
+from mcp.types import Icon, ToolAnnotations
 from pydantic import BeforeValidator, Field
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse
+from starlette.responses import HTMLResponse, Response
 
 from . import __version__
 from .bronnen import huis, ns, schiphol, vakanties, water
 
+WEBSITE = "https://heyjoost.nl"
+SITE = Path(__file__).parent / "site"
+
+# Written as facts, not orders: directories reject servers that tell the assistant how to behave.
 INSTRUCTIONS = (
-    "Deze server geeft officiële, actuele Nederlandse open data: adresgegevens uit de BAG, schoolvakanties, "
-    "waterstanden en watertemperatuur, NS-treinreizen en Schiphol-vluchten.\n"
-    "- Noem in je antwoord altijd de bron uit het veld 'bron'.\n"
+    "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
+    "schoolvakanties, waterstanden en watertemperatuur, NS-treinen en Schiphol-vluchten.\n"
+    "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
-    "- Antwoord in de taal van de gebruiker.\n"
-    "- Deze data bevat geen persoonsgegevens. Gebruik de tools niet om mensen op te zoeken."
+    "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
 )
 
 server = MCPServer(
-    name="nederland-mcp",
-    title="Nederland MCP",
-    description="Nederlandse open data voor AI-assistenten: huis, schoolvakanties, water, trein en vlucht.",
+    name="heyjoost",
+    title="Hey Joost",
+    description="Live Nederland in je AI: treinen, vluchten, water, schoolvakanties en huizen, uit officiële bronnen.",
     instructions=INSTRUCTIONS,
+    website_url=WEBSITE,
+    # Inline, so the icon works on any host and before the domain is live.
+    icons=[Icon(
+        src="data:image/svg+xml;base64," + base64.b64encode((SITE / "favicon.svg").read_bytes()).decode(),
+        mime_type="image/svg+xml",
+        sizes=["any"],
+    )],
     version=__version__,
 )
 
@@ -37,10 +51,10 @@ LOWER = BeforeValidator(lambda value: value.strip().lower() if isinstance(value,
 @server.tool(
     title="Huis-check",
     description=(
-        "Feiten over een Nederlands adres uit de BAG (Kadaster): bouwjaar, oppervlakte, gebruiksdoel, wijk, "
-        "buurt en, als het geregistreerd is, het energielabel. Geef straat, huisnummer en plaats: de tool zoekt "
-        "het adres zelf op, dus zoek de postcode niet eerst op. Een postcode met huisnummer werkt ook. Bevat geen "
-        "persoonsgegevens en geen WOZ-waarde."
+        "Feiten over een Nederlands adres uit de BAG (Kadaster): bouwjaar, oppervlakte, gebruiksdoel, wijk en "
+        "buurt. Werkt met straat, huisnummer en plaats: de tool zoekt het adres en de postcode zelf op, dus een "
+        "postcode is niet nodig. Met postcode en huisnummer werkt het ook. Bevat geen persoonsgegevens en geen "
+        "WOZ-waarde."
     ),
     annotations=READ_ONLY,
 )
@@ -91,7 +105,7 @@ async def water_actueel(
     title="Treinvertrek",
     description=(
         "Vertrektijden van treinen vanaf een station, met vertraging, spoor, spoorwijzigingen en uitval. "
-        "Zonder tijd krijg je de vertrekken vanaf nu. Gaat ongeveer een uur vooruit; gebruik voor later "
+        "Zonder tijd krijg je de vertrekken vanaf nu. Gaat ongeveer een uur vooruit; voor latere tijden is er "
         "Treinreis plannen."
     ),
     annotations=READ_ONLY,
@@ -110,7 +124,7 @@ async def trein_vertrek(
     description=(
         "Aankomsttijden van treinen op een station: waar de trein vandaan komt, vertraging, spoor en uitval. "
         "Handig als je iemand van de trein ophaalt. Zonder tijd krijg je de aankomsten vanaf nu. Gaat ongeveer "
-        "een uur vooruit; gebruik voor later Treinreis plannen. Rijdt een trein door, dan heeft hij bij "
+        "een uur vooruit; voor latere tijden is er Treinreis plannen. Rijdt een trein door, dan heeft hij bij "
         "Treinvertrek hetzelfde treinnummer."
     ),
     annotations=READ_ONLY,
@@ -157,6 +171,37 @@ async def vlucht_info(
     return await schiphol.vlucht_info(vluchtnummer, datum)
 
 
+# The home page shows the MCP URL of the host it was reached on, so a local run shows its own address.
+HOST = re.compile(r"(?P<name>[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?")
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
+HOME = (SITE / "index.html").read_text(encoding="utf-8")
+
+
+def _mcp_url(request: Request) -> str:
+    match = HOST.fullmatch(request.headers.get("host", ""))
+    if not match:
+        return f"{WEBSITE}/mcp"
+    scheme = "http" if match["name"].lower() in LOCAL_HOSTS else "https"
+    return f"{scheme}://{match[0]}/mcp"
+
+
 @server.custom_route("/", methods=["GET"])
-async def home(request: Request) -> PlainTextResponse:
-    return PlainTextResponse("Nederland MCP draait. Koppel je AI-assistent aan /mcp.")
+async def home(request: Request) -> HTMLResponse:
+    return HTMLResponse(HOME.replace("{{MCP_URL}}", html.escape(_mcp_url(request))))
+
+
+def _serve(path: str, filename: str, media_type: str, max_age: int) -> None:
+    body = (SITE / filename).read_bytes()
+    headers = {"Cache-Control": f"public, max-age={max_age}"}
+
+    async def page(request: Request) -> Response:
+        return Response(body, media_type=media_type, headers=headers)
+
+    server.custom_route(path, methods=["GET"], name=filename)(page)
+
+
+_serve("/privacy", "privacy.html", "text/html", 300)
+_serve("/voorwaarden", "voorwaarden.html", "text/html", 300)
+_serve("/style.css", "style.css", "text/css", 300)
+_serve("/favicon.svg", "favicon.svg", "image/svg+xml", 86400)
+_serve("/robots.txt", "robots.txt", "text/plain", 86400)

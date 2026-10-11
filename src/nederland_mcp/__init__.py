@@ -1,9 +1,9 @@
-"""Nederland MCP: Dutch public data (BAG, school holidays, water, NS, Schiphol) as an MCP server."""
+"""Hey Joost: Dutch public data (BAG, school holidays, water, NS, Schiphol) as an MCP server."""
 
 import argparse
 import os
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 
 def main() -> None:
@@ -11,7 +11,7 @@ def main() -> None:
 
     load_dotenv(find_dotenv(usecwd=True))
 
-    parser = argparse.ArgumentParser(prog="nederland-mcp", description="Nederlandse open data als MCP-server.")
+    parser = argparse.ArgumentParser(prog="nederland-mcp", description="Hey Joost: Nederlandse open data als MCP-server.")
     parser.add_argument("--http", action="store_true", help="draai als HTTP-server in plaats van via stdio")
     parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"), help="adres (standaard 127.0.0.1)")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")), help="poort (standaard 8000)")

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hey Joost: live Nederland in je AI</title>
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, vluchten, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
+<meta name="theme-color" content="#ff6b00">
+<meta property="og:title" content="Hey Joost">
+<meta property="og:description" content="Joost mag het weten? Joost wéét het. Live Nederland in je AI.">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/" aria-label="Hey Joost, naar de start">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>
+      Hey Joost
+    </a>
+    <nav class="nav">
+      <a href="#wat">Wat Joost weet</a>
+      <a href="#erin" class="keep">Erin zetten</a>
+      <a href="#probeer">Probeer</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div>
+        <h1>Joost mag het weten?<br><em>Joost wéét het.</em></h1>
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein, je vlucht, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <div class="actions">
+          <a class="btn" href="#erin">Zet Joost in je AI</a>
+          <a class="btn ghost" href="#probeer">Wat kan ik vragen?</a>
+        </div>
+        <p class="works">Werkt met Claude en ChatGPT.</p>
+      </div>
+      <div class="chat" aria-label="Voorbeeld van een gesprek">
+        <div class="msg user">Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
+        <div class="tool"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij de NS</span></div>
+        <div class="msg ai">Om 19:39 van spoor 12. Hij rijdt op tijd, het is rustig en je bent er om 19:58. Een kaartje kost € 4,60.</div>
+        <div class="msg user">En is het zeewater in Scheveningen nog te doen?</div>
+        <div class="tool"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij Rijkswaterstaat</span></div>
+        <div class="msg ai">Bij de meetpunten vlakbij is het nu 17,6 °C. Fris, maar te doen.</div>
+      </div>
+    </div>
+
+    <section id="wat">
+      <h2>Wat Joost weet</h2>
+      <p class="sub">Alles live, en bij elk antwoord staat waar het vandaan komt.</p>
+      <div class="cards">
+        <div class="card"><div class="ico">🚆</div><h3>Treinen</h3><p>Vertrek- en aankomsttijden, vertraging, spoor en uitval. Plus reisadvies met overstappen, drukte en prijs.</p></div>
+        <div class="card"><div class="ico">✈️</div><h3>Vluchten</h3><p>Status, gate, terminal en bagageband van je vlucht via Schiphol.</p></div>
+        <div class="card"><div class="ico">🌊</div><h3>Water</h3><p>Waterstand en watertemperatuur bij jou in de buurt, gemeten door Rijkswaterstaat.</p></div>
+        <div class="card"><div class="ico">🎒</div><h3>Schoolvakanties</h3><p>Wanneer is de vakantie in noord, midden of zuid? Voor dit en het volgende schooljaar.</p></div>
+        <div class="card"><div class="ico">🏠</div><h3>Huis-check</h3><p>Bouwjaar, oppervlakte, gebruik en buurt van elk adres in Nederland, uit de BAG.</p></div>
+      </div>
+    </section>
+
+    <section id="erin">
+      <h2>Zo zet je Joost erin</h2>
+      <p class="sub">Eén keer instellen. Daarna vraagt je AI het zelf aan Joost als dat nodig is.</p>
+      <div class="url"><code>{{MCP_URL}}</code><button class="copy" type="button" data-copy="{{MCP_URL}}">Kopieer</button></div>
+      <div class="setup">
+        <div class="card">
+          <span class="tag">Werkt ook gratis</span>
+          <h3>Claude</h3>
+          <ol>
+            <li>Ga naar <b>Customize</b> en dan <b>Connectors</b>.</li>
+            <li>Klik op <b>+ Add</b> en kies <b>Add custom connector</b>.</li>
+            <li>Vul als naam <b>Hey Joost</b> in en plak de URL hierboven.</li>
+            <li>Kies <b>No sign in</b> en klik op <b>Add</b>.</li>
+            <li>Zet Joost aan in een chat via <b>+</b> en <b>Connectors</b>.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <span class="tag">Plus of Pro</span>
+          <h3>ChatGPT</h3>
+          <ol>
+            <li>Zet de ontwikkelaarsmodus aan via <b>Settings</b>, <b>Apps</b>, <b>Advanced settings</b>.</li>
+            <li>Ga naar <b>chatgpt.com/plugins</b>, klik op <b>+</b> en kies <b>Add custom MCP server</b>.</li>
+            <li>Vul als naam <b>Hey Joost</b> in, plak de URL hierboven en kies <b>No authentication</b>.</li>
+            <li>Typ in een chat <b>@</b> en kies Hey Joost.</li>
+          </ol>
+          <p class="small">Werkt op chatgpt.com, nog niet in de app.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="probeer">
+      <h2>Probeer eens</h2>
+      <p class="sub">Tik op een vraag om hem te kopiëren en plak hem in je AI.</p>
+      <div class="prompts">
+        <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?">🚆 Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</button>
+        <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?">🚉 Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</button>
+        <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?">💶 Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</button>
+        <button class="prompt" type="button" data-copy="Wat is de status van vlucht KL1001?">✈️ Wat is de status van vlucht KL1001?</button>
+        <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?">🌊 Hoe warm is het zeewater in Scheveningen?</button>
+        <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?">🎄 Wanneer is de kerstvakantie in regio midden?</button>
+        <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?">🏠 Wat is het bouwjaar van Rapenburg 70 in Leiden?</button>
+      </div>
+    </section>
+
+    <section id="bronnen">
+      <h2>Waar Joost het vandaan haalt</h2>
+      <p class="sub">Alleen officiële bronnen, live opgehaald.</p>
+      <ul class="sources">
+        <li><b>NS Reisinformatie API</b><br>treinen</li>
+        <li><b>Schiphol Public Flight API</b><br>vluchten</li>
+        <li><b>Rijkswaterstaat Waterinfo</b><br>waterstanden en temperatuur</li>
+        <li><b>Rijksoverheid</b><br>schoolvakanties</li>
+        <li><b>BAG via PDOK (Kadaster)</b><br>adressen en gebouwen</li>
+      </ul>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, Schiphol of de overheid. Gaat het ergens om, zoals een trein of vlucht halen? Kijk dan ook even in de officiële app.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="links"><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="mailto:hallo@heyjoost.nl">hallo@heyjoost.nl</a></div>
+    <p>Gemaakt door Mohamed Azahrioui. Volg Joost op <a href="https://www.tiktok.com/@heyjoost.nl">TikTok</a> en <a href="https://www.instagram.com/heyjoost.nl/">Instagram</a>.</p>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-copy]");
+    if (!button) return;
+    try {
+      await navigator.clipboard.writeText(button.dataset.copy);
+      toast("Gekopieerd");
+    } catch {
+      toast("Kopiëren lukte niet. Selecteer de tekst zelf.");
+    }
+  });
+
+  function toast(text) {
+    const el = document.getElementById("toast");
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => el.classList.remove("show"), 1600);
+  }
+</script>
+</body>
+</html>

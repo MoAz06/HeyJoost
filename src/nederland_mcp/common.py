@@ -11,8 +11,10 @@ from zoneinfo import ZoneInfo
 import httpx
 from mcp.server.mcpserver.exceptions import ToolError
 
+from . import __version__
+
 AMSTERDAM = ZoneInfo("Europe/Amsterdam")
-USER_AGENT = "nederland-mcp/0.1"
+USER_AGENT = f"heyjoost/{__version__} (+https://heyjoost.nl)"
 
 # Request URLs contain what users asked for (addresses, places), so keep them out of the logs.
 logging.getLogger("httpx").setLevel(logging.WARNING)

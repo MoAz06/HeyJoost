@@ -1,6 +1,6 @@
-# Nederland MCP
+# Hey Joost
 
-Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MCP-clients). Vraag gewoon "hoe hoog staat het water in Scheveningen?" of "wanneer is de herfstvakantie in regio zuid?" en je assistent haalt het antwoord live bij de officiële bron.
+Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MCP-clients). Te gebruiken via [heyjoost.nl](https://heyjoost.nl): voeg `https://heyjoost.nl/mcp` toe als connector, zonder installeren. Vraag gewoon "hoe hoog staat het water in Scheveningen?" of "wanneer is de herfstvakantie in regio zuid?" en je assistent haalt het antwoord live bij de officiële bron.
 
 ## Wat kan het
 
@@ -34,7 +34,7 @@ Zet dit in `claude_desktop_config.json` en pas het pad aan:
 ```json
 {
   "mcpServers": {
-    "nederland": {
+    "heyjoost": {
       "command": "uv",
       "args": ["--directory", "/pad/naar/nederland-mcp", "run", "nederland-mcp"]
     }
@@ -45,7 +45,7 @@ Zet dit in `claude_desktop_config.json` en pas het pad aan:
 ### In Claude Code
 
 ```bash
-claude mcp add nederland -- uv --directory /pad/naar/nederland-mcp run nederland-mcp
+claude mcp add heyjoost -- uv --directory /pad/naar/nederland-mcp run nederland-mcp
 ```
 
 ### Als webserver (hosting)
@@ -54,7 +54,7 @@ claude mcp add nederland -- uv --directory /pad/naar/nederland-mcp run nederland
 uv run nederland-mcp --http --host 0.0.0.0 --port 8000
 ```
 
-De MCP-url is dan `http://<jouw-host>:8000/mcp`. Mensen voegen hem toe als remote MCP server of custom connector met die url, ze hoeven zelf niks te installeren. De server onthoudt niks tussen aanvragen (stateless), dus je kunt er gerust meerdere naast elkaar draaien. Op `/` staat een korte tekst, handig als health check.
+De MCP-url is dan `http://<jouw-host>:8000/mcp`. Mensen voegen hem toe als remote MCP server of custom connector met die url, ze hoeven zelf niks te installeren. De server onthoudt niks tussen aanvragen (stateless), dus je kunt er gerust meerdere naast elkaar draaien. Op `/` staat de website met uitleg, privacy en voorwaarden (bestanden in `src/nederland_mcp/site/`), ook handig als health check.
 
 Voor hosting staan er een `Dockerfile` en een `railway.json` klaar. Op Railway koppel je de GitHub-repo, kies je regio EU West (Amsterdam) en zet je de keys bij Variables. De poort komt vanzelf uit `$PORT`.
 
@@ -79,7 +79,8 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 
 ## Hoe het in elkaar zit
 
-- `src/nederland_mcp/server.py`: de tools en hun beschrijvingen.
+- `src/nederland_mcp/server.py`: de tools en hun beschrijvingen, plus de routes van de website.
+- `src/nederland_mcp/site/`: de website (startpagina, privacy, voorwaarden).
 - `src/nederland_mcp/bronnen/`: één bestand per bron.
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
 - Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, adressen en vakanties een dag, water 5 minuten, treinen en vluchten 30 tot 60 seconden.
