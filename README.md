@@ -1,6 +1,6 @@
 # Hey Joost
 
-Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MCP-clients). Te gebruiken via [heyjoost.nl](https://heyjoost.nl): voeg `https://heyjoost.nl/mcp` toe als connector, zonder installeren. Vraag gewoon "hoe hoog staat het water in Scheveningen?" of "wanneer is de herfstvakantie in regio zuid?" en je assistent haalt het antwoord live bij de officiële bron.
+Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MCP-clients). Te gebruiken via [heyjoost.nl](https://heyjoost.nl): voeg `https://heyjoost.nl/mcp` toe als connector, zonder installeren. Vraag gewoon "hoe hoog staat het water in Scheveningen?" of "wanneer is de herfstvakantie in regio zuid?" en je assistent haalt het antwoord live bij de officiële bron. Op de website kun je Joost ook direct iets vragen.
 
 ## Wat kan het
 
@@ -66,6 +66,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 - `NS_API_KEY`: gratis via het [NS API-portal](https://apiportal.ns.nl/product#product=NsApp), product NsApp. Gratis gebruikers mogen 300 aanvragen per 5 minuten doen. Op een publieke server delen alle gebruikers die limiet, de cache vangt veel op.
 - `SCHIPHOL_CLIENT_ID` en `SCHIPHOL_CLIENT_SECRET`: maak een Application aan op [developer.schiphol.nl](https://developer.schiphol.nl). De secret zie je maar één keer. De server ruilt ze zelf om voor een token dat 30 minuten geldig is.
 - `EP_ONLINE_API_KEY`: aanvragen via [ep-online.nl](https://www.ep-online.nl). Je hebt een KvK-nummer nodig.
+- `ANTHROPIC_API_KEY`: voor Vraag het Joost, de chat op de website. Maak een key aan op [platform.claude.com](https://platform.claude.com). Zonder key staat de chat uit en werkt de rest gewoon. De chat gebruikt Claude Haiku 5.5 en kost ongeveer een tiende cent per vraag. `VRAAG_DAGBUDGET_USD` (standaard 0.50) is het maximum per dag in dollars, `VRAAG_PER_DAG` (standaard 30) het aantal vragen per bezoeker per dag. Is het dagbudget op, dan verdwijnt de chat tot de volgende dag.
 
 ## Bronnen en voorwaarden
 
@@ -85,6 +86,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 - `src/nederland_mcp/site/`: de website (startpagina, privacy, voorwaarden).
 - `src/nederland_mcp/bronnen/`: één bestand per bron.
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
+- `src/nederland_mcp/vraag.py`: de chat op de website. Claude krijgt dezelfde tools als via MCP, en de server onthoudt geen gesprekken.
 - Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, haltes, adressen en vakanties een dag, water 5 minuten, treinen, bussen en vluchten 30 tot 60 seconden.
 - Foutmeldingen zijn in het Nederlands en vertellen wat je kunt doen.
 - Wat gebruikers opvragen (adressen, plaatsen) komt niet in de logs.

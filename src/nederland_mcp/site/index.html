@@ -10,7 +10,7 @@
 <meta property="og:description" content="Joost mag het weten? Joost wéét het. Live Nederland in je AI.">
 <meta property="og:type" content="website">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/style.css?v={{VERSION}}">
 </head>
 <body>
 <div class="wrap">
@@ -37,13 +37,25 @@
         </div>
         <p class="works">Werkt met Claude en ChatGPT.</p>
       </div>
-      <div class="chat" aria-label="Voorbeeld van een gesprek">
-        <div class="msg user">Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
-        <div class="tool"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij de NS</span></div>
-        <div class="msg ai">Om 19:39 van spoor 12. Hij rijdt op tijd, het is rustig en je bent er om 19:58. Een kaartje kost € 4,60.</div>
-        <div class="msg user">En is het zeewater in Scheveningen nog te doen?</div>
-        <div class="tool"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij Rijkswaterstaat</span></div>
-        <div class="msg ai">Bij de meetpunten vlakbij is het nu 17,6 °C. Fris, maar te doen.</div>
+      <div class="chat" id="chat" data-vraag="{{VRAAG}}" aria-label="Voorbeeld van een gesprek">
+        <div class="chat-top" hidden>
+          <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>
+          <b>Vraag het Joost</b><span class="live">Live</span>
+        </div>
+        <div class="log" id="log" aria-live="polite">
+          <div class="label" hidden>Voorbeeld</div>
+          <div class="msg user">Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
+          <div class="tool"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij de NS</span></div>
+          <div class="msg ai">Om 19:39 van spoor 12. Hij rijdt op tijd, het is rustig en je bent er om 19:58. Een kaartje kost € 4,60.</div>
+          <div class="msg user">En is het zeewater in Scheveningen nog te doen?</div>
+          <div class="tool"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij Rijkswaterstaat</span></div>
+          <div class="msg ai">Bij de meetpunten vlakbij is het nu 17,6 °C. Fris, maar te doen.</div>
+        </div>
+        <form class="ask" id="ask" hidden>
+          <input id="vraag" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost">
+          <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </form>
+        <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Je vraag gaat naar Anthropic, dus deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
       </div>
     </div>
 
@@ -129,9 +141,15 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
+  let askJoost = null;
+
   document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-copy]");
     if (!button) return;
+    if (askJoost && button.classList.contains("prompt")) {
+      askJoost(button.dataset.copy, true);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(button.dataset.copy);
       toast("Gekopieerd");
@@ -146,6 +164,154 @@
     el.classList.add("show");
     clearTimeout(toast.timer);
     toast.timer = setTimeout(() => el.classList.remove("show"), 1600);
+  }
+
+  // Vraag het Joost: the server switches the chat on when it has a key and budget left for today.
+  const chat = document.getElementById("chat");
+  if (chat.dataset.vraag === "aan") startChat();
+
+  function startChat() {
+    const log = document.getElementById("log");
+    const form = document.getElementById("ask");
+    const input = document.getElementById("vraag");
+    const send = form.querySelector("button");
+    const icon = chat.querySelector(".tool svg").outerHTML;
+    const history = [];
+    let busy = false;
+    let example = true;
+
+    chat.classList.add("on");
+    chat.setAttribute("aria-label", "Chat met Joost");
+    chat.querySelectorAll("[hidden]").forEach((el) => { el.hidden = false; });
+    document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      ask(input.value, false);
+    });
+    askJoost = ask;
+
+    async function ask(text, fromPrompt) {
+      text = text.trim();
+      if (!text || busy) return;
+      if (fromPrompt) chat.scrollIntoView({ behavior: "smooth", block: "center" });
+      busy = true;
+      send.disabled = true;
+      log.setAttribute("aria-busy", "true");
+      if (example) {
+        log.textContent = "";
+        example = false;
+      }
+      input.value = "";
+      add("msg user").textContent = text;
+      history.push({ role: "user", text });
+
+      let thinking = line("denkt na");
+      let bubble = null;
+      let shown = "";
+      let answer = "";
+      let failed = false;
+      const done = () => {
+        if (thinking) thinking.remove();
+        thinking = null;
+        log.querySelectorAll(".tool.busy").forEach((el) => {
+          el.classList.remove("busy");
+          el.querySelector("i").textContent = "keek het na " + el.dataset.where;
+        });
+      };
+      const handle = (event) => {
+        if (event.type === "tool") {
+          if (thinking) thinking.remove();
+          thinking = null;
+          const last = log.lastElementChild;
+          if (!(last && last.dataset.where === event.where && last.classList.contains("busy"))) {
+            line("kijkt " + event.where).dataset.where = event.where;
+          }
+          bubble = null;
+        } else if (event.type === "text") {
+          done();
+          if (!bubble) {
+            bubble = add("msg ai");
+            shown = "";
+          }
+          shown += event.text;
+          answer += event.text;
+          bubble.innerHTML = render(shown);
+          log.scrollTop = log.scrollHeight;
+        } else if (event.type === "error") {
+          done();
+          failed = true;
+          add("msg ai fout").textContent = event.text;
+        }
+      };
+
+      try {
+        const response = await fetch("/api/vraag", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: history.slice(-12) }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          handle({ type: "error", text: data.error || "Joost is even niet bereikbaar. Probeer het zo nog eens." });
+        } else {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          for (;;) {
+            const { value, done: end } = await reader.read();
+            if (end) break;
+            buffer += decoder.decode(value, { stream: true });
+            let cut;
+            while ((cut = buffer.indexOf("\n\n")) >= 0) {
+              const chunk = buffer.slice(0, cut);
+              buffer = buffer.slice(cut + 2);
+              if (chunk.startsWith("data: ")) handle(JSON.parse(chunk.slice(6)));
+            }
+          }
+        }
+      } catch {
+        handle({ type: "error", text: "Joost is even niet bereikbaar. Probeer het zo nog eens." });
+      }
+
+      done();
+      if (answer.trim()) {
+        history.push({ role: "assistant", text: answer });
+      } else {
+        history.pop();
+        if (!failed) add("msg ai fout").textContent = "Joost weet het even niet. Probeer het anders te vragen.";
+      }
+      busy = false;
+      send.disabled = false;
+      log.setAttribute("aria-busy", "false");
+      if (matchMedia("(pointer: fine)").matches) input.focus();
+    }
+
+    function add(className) {
+      const el = document.createElement("div");
+      el.className = className;
+      log.append(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    function line(text) {
+      const el = add("tool busy");
+      el.innerHTML = icon + "<span><b>Hey Joost</b> <i></i></span>";
+      el.querySelector("i").textContent = text;
+      return el;
+    }
+
+    // The answer is escaped first, so only the bold text, bullets and links below become markup.
+    function render(text) {
+      return text
+        .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c])
+        .replace(/^#{1,6} +/gm, "")
+        .replace(/^[-*] +/gm, "• ")
+        .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+        .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)]/g, (url) => `<a href="${url}" target="_blank" rel="noopener nofollow">${url}</a>`)
+        .replace(/\n/g, "<br>");
+    }
   }
 </script>
 </body>

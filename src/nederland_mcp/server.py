@@ -12,7 +12,7 @@ from pydantic import BeforeValidator, Field
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
-from . import __version__
+from . import __version__, vraag
 from .bronnen import huis, ns, ov, schiphol, vakanties, water
 
 WEBSITE = "https://heyjoost.nl"
@@ -202,7 +202,8 @@ async def vlucht_info(
 # The home page shows the MCP URL of the host it was reached on, so a local run shows its own address.
 HOST = re.compile(r"(?P<name>[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
-HOME = (SITE / "index.html").read_text(encoding="utf-8")
+# The version in the stylesheet link makes browsers load a changed stylesheet right away.
+HOME = (SITE / "index.html").read_text(encoding="utf-8").replace("{{VERSION}}", __version__)
 
 
 def _mcp_url(request: Request) -> str:
@@ -215,7 +216,13 @@ def _mcp_url(request: Request) -> str:
 
 @server.custom_route("/", methods=["GET"])
 async def home(request: Request) -> HTMLResponse:
-    return HTMLResponse(HOME.replace("{{MCP_URL}}", html.escape(_mcp_url(request))))
+    page = HOME.replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
+    return HTMLResponse(page.replace("{{VRAAG}}", "aan" if vraag.available() else "uit"))
+
+
+@server.custom_route("/api/vraag", methods=["POST"])
+async def ask_joost(request: Request) -> Response:
+    return await vraag.ask(request, server)
 
 
 def _serve(path: str, filename: str, media_type: str, max_age: int) -> None:
