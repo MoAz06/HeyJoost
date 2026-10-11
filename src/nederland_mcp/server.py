@@ -38,17 +38,19 @@ LOWER = BeforeValidator(lambda value: value.strip().lower() if isinstance(value,
     title="Huis-check",
     description=(
         "Feiten over een Nederlands adres uit de BAG (Kadaster): bouwjaar, oppervlakte, gebruiksdoel, wijk, "
-        "buurt en, als het geregistreerd is, het energielabel. Geef een postcode met huisnummer, of een straat, "
-        "huisnummer en plaats. Bevat geen persoonsgegevens en geen WOZ-waarde."
+        "buurt en, als het geregistreerd is, het energielabel. Geef straat, huisnummer en plaats: de tool zoekt "
+        "het adres zelf op, dus zoek de postcode niet eerst op. Een postcode met huisnummer werkt ook. Bevat geen "
+        "persoonsgegevens en geen WOZ-waarde."
     ),
     annotations=READ_ONLY,
 )
 async def huis_info(
+    *,
+    straat: Annotated[str | None, Field(description="Straatnaam, bijvoorbeeld Rapenburg")] = None,
     huisnummer: Annotated[int, Field(ge=1, description="Huisnummer zonder letter of toevoeging")],
-    postcode: Annotated[str | None, Field(description="Postcode, bijvoorbeeld 2311EZ")] = None,
-    straat: Annotated[str | None, Field(description="Straatnaam, bijvoorbeeld Rapenburg. Alleen nodig zonder postcode")] = None,
-    plaats: Annotated[str | None, Field(description="Woonplaats, bijvoorbeeld Leiden. Alleen nodig zonder postcode")] = None,
+    plaats: Annotated[str | None, Field(description="Woonplaats, bijvoorbeeld Leiden")] = None,
     toevoeging: Annotated[str | None, Field(description="Huisletter of toevoeging, bijvoorbeeld A of 2")] = None,
+    postcode: Annotated[str | None, Field(description="Alleen als de gebruiker een postcode noemt, bijvoorbeeld 2311EZ")] = None,
 ) -> dict[str, Any]:
     return await huis.huis_info(huisnummer, postcode, straat, plaats, toevoeging)
 

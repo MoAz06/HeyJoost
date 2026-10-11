@@ -1,6 +1,6 @@
 [project]
 name = "nederland-mcp"
-version = "0.2.0"
+version = "0.2.1"
 description = "Nederlandse open data voor AI-assistenten (MCP-server): huis, schoolvakanties, water, trein en vlucht."
 readme = "README.md"
 authors = [
