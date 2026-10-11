@@ -44,6 +44,8 @@ NEAR_RADIUS = 15000
 # Search box around a town, in degrees: about 11 km each way.
 BOX_LAT, BOX_LON = 0.1, 0.16
 LINE_PREFIX = re.compile(r"^(lijn|bus|tram|metro|veerboot|veerpont|pont)\s*", re.IGNORECASE)
+# A word in front of the line ("tram 2"), or on its own ("metro"), also filters on the kind of transport.
+LINE_KINDS = {"bus": "bus", "tram": "tram", "metro": "metro", "veerboot": "veerboot", "veerpont": "veerboot", "pont": "veerboot"}
 
 
 def _short(name: str) -> str:
@@ -248,6 +250,15 @@ def _row(st: dict, day: date) -> dict[str, Any]:
     return row
 
 
+def _line_filter(lijn: str | None) -> tuple[str | None, str | None]:
+    """Split "tram 2" into a kind and a line; "metro" has no line and "400" no kind."""
+    text = (lijn or "").strip()
+    match = LINE_PREFIX.match(text)
+    kind = LINE_KINDS.get(match[1].lower()) if match else None
+    line = text[match.end():].strip() if match else text
+    return kind, line or None
+
+
 def _alerts(stop_times: list[dict]) -> list[str]:
     texts = []
     for st in stop_times:
@@ -275,20 +286,22 @@ async def ov_vertrek(
     aantal = max(1, min(aantal, 25))
     moment = parse_moment(datum, tijd) if datum or tijd else None
     when = moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ") if moment else None
-    line = normalize(LINE_PREFIX.sub("", lijn.strip())) if lijn and lijn.strip() else None
-    lines_seen: set[str] = set()
+    kind, line = _line_filter(lijn)
+    wanted = normalize(line or "") or None
+    lines_seen: set[tuple[str, str]] = set()
 
     def keep(st: dict) -> bool:
         if not (st.get("place") or {}).get("departure"):
             return False
-        lines_seen.add(st.get("routeShortName") or "")
-        return line is None or normalize(st.get("routeShortName") or "") == line
+        soort, name = SOORT.get(st.get("mode"), ""), st.get("routeShortName") or ""
+        lines_seen.add((soort, name))
+        return (wanted is None or normalize(name) == wanted) and (kind is None or soort == kind)
 
     if _is_station(best):
         stops, radius = [best], STATION_RADIUS
     else:
         stops, radius = _same_stop(best, candidates), None
-    n = 50 if line else aantal + 5
+    n = 50 if wanted or kind else aantal + 5
     batches = await asyncio.gather(*(_stop_times(s, radius, n, when, keep, aantal) for s in stops))
 
     seen, merged = set(), []
@@ -300,11 +313,16 @@ async def ov_vertrek(
     merged = merged[:aantal]
 
     if not merged:
-        if line:
-            running = ", ".join(sorted(filter(None, lines_seen), key=lambda x: (len(x), x))[:15])
-            hint = f" Wel bijvoorbeeld: {running}." if running else ""
-            raise ToolError(f"Lijn {lijn} vertrekt de komende tijd niet bij {best['name']}.{hint}")
         at = f" vanaf {moment.strftime('%Y-%m-%d %H:%M')}" if moment else ""
+        if wanted or kind:
+            running = sorted(((s, name) for s, name in lines_seen if name), key=lambda x: (x[0], len(x[1]), x[1]))
+            names = ", ".join(f"{s} {name}" for s, name in running[:15])
+            hint = f" Wel bijvoorbeeld: {names}." if names else ""
+            when = at or " de komende tijd"
+            if wanted:
+                label = f"{kind or 'lijn'} {line}"
+                raise ToolError(f"{label[0].upper()}{label[1:]} vertrekt{when} niet bij {best['name']}.{hint}")
+            raise ToolError(f"Er vertrekt{when} geen {kind} bij {best['name']}.{hint}")
         raise ToolError(f"Geen vertrekken gevonden bij {best['name']}{at}.")
 
     day = (moment or now_local()).date()

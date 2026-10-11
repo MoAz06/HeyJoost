@@ -174,7 +174,7 @@ async def ov_vertrek(
     halte: Annotated[str, Field(description="Naam van de halte, bijvoorbeeld Spui, Leidseplein of Leiden Centraal")],
     plaats: Annotated[str | None, Field(description="Plaats of wijk van de halte, bijvoorbeeld Den Haag of Scheveningen")] = None,
     aantal: Annotated[int, Field(ge=1, le=25, description="Aantal vertrekken")] = 10,
-    lijn: Annotated[str | None, Field(description="Alleen deze lijn, bijvoorbeeld 2, 400 of E")] = None,
+    lijn: Annotated[str | None, Field(description="Alleen deze lijn of soort, bijvoorbeeld 2, tram 2, 400, E of metro")] = None,
     datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
     tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
 ) -> dict[str, Any]:
