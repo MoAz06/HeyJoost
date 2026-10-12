@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy | Hey Joost</title>
 <meta name="description" content="Welke gegevens Hey Joost gebruikt en wat er mee gebeurt.">
-<meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#110f0c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-sans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css?v={{VERSION}}">
 </head>
 <body>
@@ -36,14 +36,14 @@
     <p>Hey Joost is gemaakt door Mohamed Azahrioui. Vragen over privacy? Mail naar <a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a>.</p>
 
     <h2>Wat Hey Joost ontvangt</h2>
-    <p>Als je AI-assistent Joost gebruikt, stuurt de assistent alleen wat nodig is voor die ene vraag. Bijvoorbeeld een stationsnaam, een halte, een vluchtnummer, een plaats of een adres. We krijgen geen naam, geen account en niet je gesprek. Bij de chat op deze website is dat anders, zie hieronder.</p>
+    <p>Als je AI-assistent Joost gebruikt, stuurt de assistent alleen wat nodig is voor die ene vraag. Bijvoorbeeld een stationsnaam, een halte, een plaats of een adres. We krijgen geen naam, geen account en niet je gesprek. Bij de chat op deze website is dat anders, zie hieronder.</p>
     <p>Wat je in de chat typt, valt onder het privacybeleid van je AI-aanbieder, zoals Anthropic (Claude) of OpenAI (ChatGPT).</p>
 
     <h2>Wat we ermee doen</h2>
     <ul>
-      <li>We zoeken het antwoord op bij de bron: NS, Schiphol, Transitous (bus, tram en metro), Rijkswaterstaat, de Rijksoverheid of het Kadaster (via PDOK). Die bronnen krijgen alleen de vraag, niet wie hem stelde.</li>
+      <li>We zoeken het antwoord op bij de bron: NS, Transitous (bus, tram en metro), Rijkswaterstaat, de Rijksoverheid of het Kadaster (via PDOK). Die bronnen krijgen alleen de vraag, niet wie hem stelde.</li>
       <li>Vraag je naar bus of tram vanaf een adres, dan zoeken we het adres op bij het Kadaster (via PDOK). Transitous krijgt daarna alleen een punt in de buurt, afgerond op ongeveer 100 meter, en nooit het adres zelf.</li>
-      <li>Om de bronnen niet te overbelasten, onthoudt de server antwoorden even in zijn werkgeheugen: vertrektijden en vluchten 30 tot 60 seconden, water 5 minuten, adressen, haltes, plaatsen en vakanties maximaal een dag. Daar staat niet bij wie de vraag stelde, en na een herstart is alles weg.</li>
+      <li>Om de bronnen niet te overbelasten, onthoudt de server antwoorden even in zijn werkgeheugen: vertrektijden 30 tot 60 seconden, water 5 minuten, adressen, haltes, plaatsen en vakanties maximaal een dag. Daar staat niet bij wie de vraag stelde, en na een herstart is alles weg.</li>
       <li>We schrijven geen vragen of adressen weg.</li>
       <li>Geen cookies, geen tracking en geen advertenties. Deze website laadt ook niks van anderen.</li>
     </ul>
@@ -73,13 +73,15 @@
     <h2>Wijzigingen</h2>
     <p>Verandert er iets, dan passen we deze pagina aan en zetten we de nieuwe datum bovenaan.</p>
   </main>
+</div>
 
-  <footer class="foot">
+<footer class="foot">
+  <div class="wrap">
     <div class="foot-top">
       <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>Hey Joost</a>
       <div class="links"><a href="/">Start</a><a href="/voorwaarden">Voorwaarden</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
     </div>
-  </footer>
-</div>
+  </div>
+</footer>
 </body>
 </html>

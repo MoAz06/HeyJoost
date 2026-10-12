@@ -4,32 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, vluchten, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
-<meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#110f0c" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
 <meta property="og:description" content="Joost mag het weten? Joost wéét het. Live Nederland in je AI.">
 <meta property="og:type" content="website">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-sans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css?v={{VERSION}}">
 </head>
 <body>
 <svg class="sprite" aria-hidden="true" focusable="false">
   <symbol id="logo" viewBox="0 0 64 64"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></symbol>
-  <symbol id="i-train" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 10h14M9 13.5h.01M15 13.5h.01M9 17l-2 4M15 17l2 4"/></symbol>
-  <symbol id="i-tram" viewBox="0 0 24 24"><rect x="5" y="7" width="14" height="11" rx="3"/><path d="M5 12.5h14M9 3h6M12 3v4M9 15.25h.01M15 15.25h.01M9 18l-1.5 3M15 18l1.5 3"/></symbol>
-  <symbol id="i-bus" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8.5 6.5h7M8 14.5h.01M16 14.5h.01M7.5 18v2.5M16.5 18v2.5"/></symbol>
-  <symbol id="i-plane" viewBox="0 0 24 24"><path d="M12 2.5c.83 0 1.5.9 1.5 2V9l7 4.5v2L13.5 13v4.5l2.5 1.8V21L12 20l-4 1v-1.7l2.5-1.8V13l-7 2.5v-2l7-4.5V4.5c0-1.1.67-2 1.5-2z"/></symbol>
-  <symbol id="i-waves" viewBox="0 0 24 24"><path d="M2 7q2.5-3 5 0t5 0 5 0 5 0M2 12.5q2.5-3 5 0t5 0 5 0 5 0M2 18q2.5-3 5 0t5 0 5 0 5 0"/></symbol>
-  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></symbol>
-  <symbol id="i-house" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7V19a1.5 1.5 0 0 1-1.5 1.5h-4v-6H9v6H5A1.5 1.5 0 0 1 3.5 19z"/></symbol>
-  <symbol id="i-euro" viewBox="0 0 24 24"><path d="M17.5 6.5a7 7 0 1 0 0 11M4.5 10.5h9M4.5 13.5h9"/></symbol>
-  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
-  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
-  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h12v12H8zM16 8V4H4v12h4"/></symbol>
+  <symbol id="i-groot" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M19 5l-5 5M5 19l5-5"/></symbol>
+  <symbol id="i-klein" viewBox="0 0 24 24"><path d="M14 4v6h6M10 20v-6H4M15 9l5-5M9 15l-5 5"/></symbol>
 </svg>
 <a class="skip" href="#main">Naar de inhoud</a>
 
@@ -43,116 +36,97 @@
     </nav>
     <a class="btn btn-ink" href="#erin">Zet Joost in je AI</a>
   </header>
+</div>
 
-  <main id="main">
+<main id="main">
+  <div class="wrap">
     <div class="hero">
-      <ul class="badges">
-        <li class="badge-live">Live</li>
-        <li>Officiële bronnen</li>
-        <li>Gratis</li>
-      </ul>
-      <h1>Joost mag het weten?<br><span class="nowrap">Joost <em>wéét<svg class="swash" viewBox="0 0 120 12" preserveAspectRatio="none" aria-hidden="true"><path d="M3 8.5C34 3.5 74 2.5 117 6"/></svg></em> het.</span></h1>
+      <h1><span class="muted">Joost mag het weten?</span> <span>Joost <em>wéét</em> het.</span></h1>
 
       <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek">
-        <div class="chat-top" hidden>
-          <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
-          <b>Vraag het Joost</b><span class="live">Live</span>
-        </div>
+        <div class="chat-top" hidden><b>Vraag het Joost</b><span class="live">Live</span><button class="groter" type="button" aria-label="Chat groter maken" title="Groter"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg></button></div>
         <div class="log" id="log" aria-live="polite">
           <div class="label" hidden>Voorbeeld</div>
           <div class="msg user">Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
-          <div class="tool"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij de NS</span></div>
-          <div class="msg ai">Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost € 4,60.</div>
+          <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek het na bij de NS</span></div>
+          <div class="msg ai">Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
           <div class="msg user extra">En is het zeewater in Scheveningen nog te doen?</div>
-          <div class="tool extra"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/></svg><span><b>Hey Joost</b> keek het na bij Rijkswaterstaat</span></div>
+          <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek het na bij Rijkswaterstaat</span></div>
           <div class="msg ai extra">Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
         </div>
         <form class="ask" id="ask" hidden>
           <input id="vraag" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost">
-          <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg></button>
         </form>
         <div class="chips" hidden>
           <button class="chip prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?">Tram 2 vanaf het Spui</button>
-          <button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?">Vlucht KL1001</button>
+          <button class="chip prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?">Huis-check</button>
           <button class="chip prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?">Kerstvakantie</button>
         </div>
         <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Je vraag gaat naar Anthropic, dus deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
       </div>
 
-      <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, je vlucht, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
-      <div class="actions">
-        <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
-        <a class="link-arrow" href="#probeer">Wat kan ik vragen? <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      <div class="intro">
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <div class="actions">
+          <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
+          <a class="link-arrow" href="#probeer">Wat kan ik vragen? <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </div>
+        <p class="works">Werkt met Claude en ChatGPT.</p>
       </div>
-      <p class="works"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Werkt met Claude en ChatGPT.</p>
-    </div>
-
-    <div class="strip">
-      <span>Rechtstreeks uit</span>
-      <ul>
-        <li>NS</li>
-        <li>OpenOV</li>
-        <li>Schiphol</li>
-        <li>Rijkswaterstaat</li>
-        <li>Rijksoverheid</li>
-        <li>Kadaster</li>
-      </ul>
     </div>
 
     <section class="section" id="wat">
-      <h2>Wat Joost weet</h2>
-      <p class="sub">Alles live, en bij elk antwoord staat waar het vandaan komt.</p>
-      <div class="bento">
-        <div class="tile big">
-          <div class="ico"><svg class="i" aria-hidden="true"><use href="#i-train"/></svg></div>
+      <div class="head">
+        <h2>Wat Joost weet</h2>
+        <p class="sub">Alles live, en bij elk antwoord staat waar het vandaan komt.</p>
+      </div>
+      <div class="cols" aria-hidden="true"><span>Voorbeeld</span><span>Onderwerp</span><span>Wat erin zit</span><span>Bron</span></div>
+      <ul class="rows" role="list">
+        <li>
+          <div class="sign" aria-hidden="true"><b>12</b><span>Spoor</span></div>
           <h3>Treinen</h3>
           <p>Vertrek- en aankomsttijden, vertraging, spoor en uitval. Plus reisadvies met overstappen, drukte en prijs.</p>
-          <div class="board" aria-hidden="true">
-            <p class="board-label">Voorbeeld</p>
-            <ol>
-              <li><span class="when">19:39</span><span class="to">Leiden Centraal</span><span class="track">spoor 12</span><span class="ok">op tijd</span></li>
-              <li><span class="when">19:45</span><span class="to">Gouda</span><span class="track">spoor 5</span><span class="late">+3 min</span></li>
-              <li><span class="when">19:51</span><span class="to">Rotterdam Centraal</span><span class="track">spoor 6</span><span class="ok">op tijd</span></li>
-            </ol>
-          </div>
-        </div>
-        <div class="tile">
-          <div class="ico"><svg class="i" aria-hidden="true"><use href="#i-bus"/></svg></div>
+          <p class="src"><span class="vh">Bron: </span>NS</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>08:02</b><span>Tram 2</span></div>
           <h3>Bus, tram en metro</h3>
           <p>Live vertrektijden vanaf elke halte of vanaf je adres, met vertraging en uitval, en welke bus of tram je naar je bestemming brengt.</p>
-        </div>
-        <div class="tile">
-          <div class="ico"><svg class="i" aria-hidden="true"><use href="#i-plane"/></svg></div>
-          <h3>Vluchten</h3>
-          <p>Status, gate, terminal en bagageband van je vlucht via Schiphol.</p>
-        </div>
-        <div class="tile">
-          <div class="ico"><svg class="i" aria-hidden="true"><use href="#i-waves"/></svg></div>
+          <p class="src"><span class="vh">Bron: </span>OpenOV via Transitous</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>17,5°</b><span>Zeewater</span></div>
           <h3>Water</h3>
           <p>Waterstand en watertemperatuur bij jou in de buurt, gemeten door Rijkswaterstaat.</p>
-        </div>
-        <div class="tile">
-          <div class="ico"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg></div>
+          <p class="src"><span class="vh">Bron: </span>Rijkswaterstaat</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>19 dec</b><span>Kerst</span></div>
           <h3>Schoolvakanties</h3>
           <p>Wanneer is de vakantie in noord, midden of zuid? Voor dit en het volgende schooljaar.</p>
-        </div>
-        <div class="tile wide">
-          <div class="ico"><svg class="i" aria-hidden="true"><use href="#i-house"/></svg></div>
-          <div>
-            <h3>Huis-check</h3>
-            <p>Bouwjaar, oppervlakte, gebruik en buurt van elk adres in Nederland, uit de BAG.</p>
-          </div>
-        </div>
-      </div>
+          <p class="src"><span class="vh">Bron: </span>Rijksoverheid</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>1917</b><span>Bouwjaar</span></div>
+          <h3>Huis-check</h3>
+          <p>Bouwjaar, oppervlakte, gebruik en buurt van elk adres in Nederland, uit de BAG.</p>
+          <p class="src"><span class="vh">Bron: </span>Kadaster</p>
+        </li>
+      </ul>
     </section>
+  </div>
 
-    <section class="section" id="erin">
-      <div class="panel">
-        <h2>Zo zet je Joost erin</h2>
-        <p class="sub">Eén keer instellen. Daarna vraagt je AI het zelf aan Joost als dat nodig is.</p>
+  <div class="band">
+    <div class="wrap">
+      <section class="section" id="erin">
+        <div class="head">
+          <h2>Zo zet je Joost erin</h2>
+          <p class="sub">Eén keer instellen. Daarna vraagt je AI het zelf aan Joost als dat nodig is.</p>
+        </div>
         <div class="url"><code>{{MCP_URL}}</code><button class="copy" type="button" data-copy="{{MCP_URL}}"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg>Kopieer</button></div>
         <div class="setup">
-          <div class="step-card">
+          <div>
             <div class="step-head"><h3>Claude</h3><span class="tag">Werkt ook gratis</span></div>
             <ol class="steps" role="list">
               <li>Ga naar <b>Customize</b> en dan <b>Connectors</b>.</li>
@@ -162,7 +136,7 @@
               <li>Zet Joost aan in een chat via <b>+</b> en <b>Connectors</b>.</li>
             </ol>
           </div>
-          <div class="step-card">
+          <div>
             <div class="step-head"><h3>ChatGPT</h3><span class="tag">Plus of Pro</span></div>
             <ol class="steps" role="list">
               <li>Zet de ontwikkelaarsmodus aan via <b>Settings</b>, <b>Apps</b>, <b>Advanced settings</b>.</li>
@@ -173,48 +147,54 @@
             <p class="small">Werkt op chatgpt.com, nog niet in de app.</p>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
+  </div>
 
+  <div class="wrap">
     <section class="section" id="probeer">
-      <h2>Probeer eens</h2>
-      <p class="sub">Tik op een vraag om hem te kopiëren en plak hem in je AI.</p>
+      <div class="head">
+        <h2>Probeer eens</h2>
+        <p class="sub">Tik op een vraag om hem te kopiëren en plak hem in je AI.</p>
+      </div>
       <div class="prompts">
-        <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-train"/></svg></span>Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</button>
-        <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-clock"/></svg></span>Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</button>
-        <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-tram"/></svg></span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</button>
-        <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-bus"/></svg></span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</button>
-        <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-euro"/></svg></span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</button>
-        <button class="prompt" type="button" data-copy="Wat is de status van vlucht KL1001?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-plane"/></svg></span>Wat is de status van vlucht KL1001?</button>
-        <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-waves"/></svg></span>Hoe warm is het zeewater in Scheveningen?</button>
-        <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg></span>Wanneer is de kerstvakantie in regio midden?</button>
-        <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="pi"><svg class="i" aria-hidden="true"><use href="#i-house"/></svg></span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</button>
+        <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?"><span class="topic" aria-hidden="true">Trein</span><span>Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?"><span class="topic" aria-hidden="true">Ophalen</span><span>Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="topic" aria-hidden="true">Tram</span><span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="topic" aria-hidden="true">Water</span><span>Hoe warm is het zeewater in Scheveningen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </div>
     </section>
 
     <section class="section" id="bronnen">
-      <h2>Waar Joost het vandaan haalt</h2>
-      <p class="sub">Officiële open data, live opgehaald.</p>
+      <div class="head">
+        <h2>Waar Joost het vandaan haalt</h2>
+        <p class="sub">Officiële open data, live opgehaald.</p>
+      </div>
       <ul class="sources">
-        <li><b>NS Reisinformatie API</b><br>treinen</li>
-        <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b><br>bus, tram en metro, met haltes van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
-        <li><b>Schiphol Public Flight API</b><br>vluchten</li>
-        <li><b>Rijkswaterstaat Waterinfo</b><br>waterstanden en temperatuur</li>
-        <li><b>Rijksoverheid</b><br>schoolvakanties</li>
-        <li><b>BAG via PDOK (Kadaster)</b><br>adressen en gebouwen</li>
+        <li><b>NS Reisinformatie API</b>treinen</li>
+        <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b>bus, tram en metro, met haltes van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
+        <li><b>Rijkswaterstaat Waterinfo</b>waterstanden en temperatuur</li>
+        <li><b>Rijksoverheid</b>schoolvakanties</li>
+        <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
       </ul>
-      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, Schiphol, de vervoerders of de overheid. Gaat het ergens om, zoals een trein of vlucht halen? Kijk dan ook even in de officiële app.</p>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, de vervoerders of de overheid. Gaat het ergens om, zoals een trein halen? Kijk dan ook even in de officiële app.</p>
     </section>
-  </main>
+  </div>
+</main>
 
-  <footer class="foot">
+<footer class="foot">
+  <div class="wrap">
     <div class="foot-top">
       <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
       <div class="links"><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
     </div>
     <p>Gemaakt door Mohamed Azahrioui. Volg Joost op <a href="https://www.tiktok.com/@heyjoost.nl">TikTok</a> en <a href="https://www.instagram.com/heyjoost.nl/">Instagram</a>.</p>
-  </footer>
-</div>
+  </div>
+</footer>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
@@ -262,6 +242,37 @@
     chat.querySelectorAll("[hidden]").forEach((el) => { el.hidden = false; });
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
 
+    // Bigger, like the expand button in other chat windows: the chat moves into a dialog over the page and back.
+    const toggle = chat.querySelector(".groter");
+    const big = document.createElement("dialog");
+    const spot = document.createElement("div");
+    big.className = "groot";
+    big.setAttribute("aria-label", "Vraag het Joost");
+    spot.className = "chat";
+    spot.setAttribute("aria-hidden", "true");
+    document.body.append(big);
+    toggle.hidden = !big.showModal;
+
+    toggle.addEventListener("click", () => {
+      if (big.open) {
+        big.close();
+        return;
+      }
+      spot.style.height = chat.offsetHeight + "px";
+      chat.replaceWith(spot);
+      big.append(chat);
+      big.showModal();
+      resize(true);
+    });
+    big.addEventListener("close", () => {
+      spot.replaceWith(chat);
+      resize(false);
+      toggle.focus();
+    });
+    big.addEventListener("click", (event) => {
+      if (event.target === big) big.close();
+    });
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       ask(input.value, false);
@@ -271,7 +282,7 @@
     async function ask(text, fromPrompt) {
       text = text.trim();
       if (!text || busy) return;
-      if (fromPrompt) chat.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: "smooth", block: "center" });
       busy = true;
       send.disabled = true;
       log.setAttribute("aria-busy", "true");
@@ -362,6 +373,14 @@
       send.disabled = false;
       log.setAttribute("aria-busy", "false");
       if (matchMedia("(pointer: fine)").matches) input.focus();
+    }
+
+    function resize(open) {
+      toggle.setAttribute("aria-label", open ? "Chat kleiner maken" : "Chat groter maken");
+      toggle.title = open ? "Kleiner" : "Groter";
+      toggle.querySelector("use").setAttribute("href", open ? "#i-klein" : "#i-groot");
+      log.scrollTop = log.scrollHeight;
+      if (open && matchMedia("(pointer: fine)").matches) input.focus();
     }
 
     function add(className) {

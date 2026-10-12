@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
 from . import __version__, vraag
-from .bronnen import huis, ns, ov, schiphol, vakanties, water
+from .bronnen import huis, ns, ov, vakanties, water
 
 WEBSITE = "https://heyjoost.nl"
 SITE = Path(__file__).parent / "site"
@@ -21,7 +21,7 @@ SITE = Path(__file__).parent / "site"
 # Written as facts, not orders: directories reject servers that tell the assistant how to behave.
 INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
-    "schoolvakanties, waterstanden en watertemperatuur, NS-treinen, bus, tram en metro, en Schiphol-vluchten.\n"
+    "schoolvakanties, waterstanden en watertemperatuur, NS-treinen, en bus, tram en metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -31,7 +31,7 @@ server = MCPServer(
     name="heyjoost",
     title="Hey Joost",
     description=(
-        "Live Nederland in je AI: treinen, bus en tram, vluchten, water, schoolvakanties en huizen, uit officiële bronnen."
+        "Live Nederland in je AI: treinen, bus en tram, water, schoolvakanties en huizen, uit officiële bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -186,21 +186,6 @@ async def ov_vertrek(
     return await ov.ov_vertrek(halte, plaats, aantal, lijn, datum, tijd, naar)
 
 
-@server.tool(
-    title="Vluchtstatus Schiphol",
-    description=(
-        "Status van een vlucht van of naar Schiphol: geplande, verwachte en werkelijke tijd, gate, terminal, "
-        "bagageband en status. Alleen vluchten via Schiphol."
-    ),
-    annotations=READ_ONLY,
-)
-async def vlucht_info(
-    vluchtnummer: Annotated[str, Field(description="Vluchtnummer, bijvoorbeeld KL1001 of HV5131")],
-    datum: Annotated[str | None, Field(description="Geplande datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
-) -> dict[str, Any]:
-    return await schiphol.vlucht_info(vluchtnummer, datum)
-
-
 # The home page shows the MCP URL of the host it was reached on, so a local run shows its own address.
 HOST = re.compile(r"(?P<name>[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
@@ -244,6 +229,7 @@ _serve("/voorwaarden", "voorwaarden.html", "text/html", 300)
 _serve("/style.css", "style.css", "text/css", 300)
 _serve("/favicon.svg", "favicon.svg", "image/svg+xml", 86400)
 # A font file never changes under the same name, so browsers may keep it for a year.
-_serve("/fonts/inter.woff2", "fonts/inter.woff2", "font/woff2", 31536000)
-_serve("/fonts/bricolage-grotesque.woff2", "fonts/bricolage-grotesque.woff2", "font/woff2", 31536000)
+_serve("/fonts/plex-sans.woff2", "fonts/plex-sans.woff2", "font/woff2", 31536000)
+_serve("/fonts/plex-mono-400.woff2", "fonts/plex-mono-400.woff2", "font/woff2", 31536000)
+_serve("/fonts/plex-mono-600.woff2", "fonts/plex-mono-600.woff2", "font/woff2", 31536000)
 _serve("/robots.txt", "robots.txt", "text/plain", 86400)
