@@ -22,8 +22,8 @@ SITE = Path(__file__).parent / "site"
 # Written as facts, not orders: directories reject servers that tell the assistant how to behave.
 INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
-    "schoolvakanties, waterstanden en watertemperatuur, het weer, de regenradar en de weerwaarschuwingen van "
-    "het KNMI, NS-treinen, en bus, tram en metro.\n"
+    "schoolvakanties, waterstanden, watertemperatuur en eb en vloed, het weer, de regenradar en de "
+    "weerwaarschuwingen van het KNMI, NS-treinen met storingen en werkzaamheden, en bus, tram en metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -41,8 +41,8 @@ server = HeyJoost(
     name="heyjoost",
     title="Hey Joost",
     description=(
-        "Live Nederland in je AI: treinen, bus en tram, weer en regenradar, water, schoolvakanties en huizen, uit "
-        "officiële bronnen."
+        "Live Nederland in je AI: treinen en storingen, bus en tram, weer en regenradar, eb en vloed, "
+        "schoolvakanties en huizen, uit officiële bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -103,7 +103,8 @@ async def schoolvakanties(
     description=(
         "Actuele waterstand (ten opzichte van NAP) en watertemperatuur bij een plaats in Nederland, gemeten "
         "door Rijkswaterstaat. Werkt het best voor plaatsen aan de kust, grote rivieren en meren. Geeft de "
-        "dichtstbijzijnde meetpunten met afstand en meettijd."
+        "dichtstbijzijnde meetpunten met afstand en meettijd. Eb en vloed en de verwachte waterstand staan in Eb en "
+        "vloed."
     ),
     annotations=READ_ONLY,
 )
@@ -112,6 +113,26 @@ async def water_actueel(
     soort: Annotated[Literal["waterstand", "watertemperatuur", "beide"], LOWER, Field(description="Wat je wilt weten")] = "beide",
 ) -> dict[str, Any]:
     return await water.water_actueel(plaats, soort)
+
+
+@server.tool(
+    title="Eb en vloed",
+    description=(
+        "Hoogwater en laagwater (eb en vloed) bij een plaats aan de Nederlandse kust, in Zeeland, op de Waddenzee "
+        "en aan de grote rivieren, van Rijkswaterstaat. Zonder datum krijg je vandaag en morgen, met een datum die "
+        "dag, tot een jaar vooruit. Voor vandaag en morgen rekent de verwachting de wind en de rivieren mee "
+        "('volgens': 'verwachting'), met de getijtabel ernaast; daarna is het de getijtabel. Hoogtes zijn in cm "
+        "ten opzichte van NAP. Bij plaatsen zonder eb en vloed, zoals aan de Maas of het IJsselmeer, krijg je de "
+        "verwachte waterstand voor de komende twee dagen, met de hoogste en laagste stand. 'meetpunt' en "
+        "'afstand_km' zeggen waar het gemeten wordt."
+    ),
+    annotations=READ_ONLY,
+)
+async def water_verwachting(
+    plaats: Annotated[str, Field(description="Plaats of meetpunt, bijvoorbeeld Scheveningen, Harlingen, Vlissingen of Venlo")],
+    datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag en morgen")] = None,
+) -> dict[str, Any]:
+    return await water.water_verwachting(plaats, datum)
 
 
 @server.tool(
@@ -135,7 +156,7 @@ async def weer(
 @server.tool(
     title="Regenradar",
     description=(
-        "Regen op een plek in Nederland voor de komende twee uur, per vijf minuten, uit de neerslagradar van het "
+        "Regen op een plek in Nederland voor de komende twee uur, per tien minuten, uit de neerslagradar van het "
         "KNMI. Zegt of het droog blijft, wanneer de regen begint of stopt en hoe hard het regent, in millimeter "
         "per uur. De 'samenvatting' zet dat in één zin. Voor later dan twee uur is er Weer."
     ),
@@ -205,7 +226,8 @@ async def trein_aankomst(
     description=(
         "Reisadvies met de trein tussen twee stations: vertrek, aankomst, overstappen, vertraging, drukte en "
         "prijs. Zonder datum en tijd wordt er gezocht vanaf nu. Met aankomst=true komen alleen reizen die op tijd "
-        "aankomen, en staat de reis die het laatst op tijd aankomt bovenaan."
+        "aankomen, en staat de reis die het laatst op tijd aankomt bovenaan. Rijdt er door werkzaamheden of een "
+        "storing een bus in plaats van de trein, dan staat het bericht van NS in 'meldingen'."
     ),
     annotations=READ_ONLY,
 )
@@ -217,6 +239,26 @@ async def trein_reis(
     aankomst: Annotated[bool, Field(description="True als de tijd de gewenste aankomsttijd is")] = False,
 ) -> dict[str, Any]:
     return await ns.trein_reis(van, naar, datum, tijd, aankomst)
+
+
+@server.tool(
+    title="Storingen en werkzaamheden",
+    description=(
+        "Storingen en werkzaamheden op het spoor, van NS: wat er aan de hand is, waar, van wanneer tot wanneer, "
+        "of er bussen rijden en het reisadvies van NS. Zonder datum krijg je de storingen van nu, de werkzaamheden "
+        "van nu en die van de komende drie dagen. Met datum (en tot) de werkzaamheden in die periode, tot 31 dagen "
+        "tegelijk. Met een station alleen wat op het spoor langs dat station speelt, en waar de vervangende bus "
+        "daar vertrekt. Landelijke berichten, zoals een staking, staan in 'landelijke_berichten'. Voor een reis "
+        "van A naar B op een bepaald moment is er ook Treinreis plannen."
+    ),
+    annotations=READ_ONLY,
+)
+async def trein_storingen(
+    station: Annotated[str | None, Field(description="Stationsnaam, bijvoorbeeld Leiden Centraal of Utrecht. Leeg = heel Nederland")] = None,
+    datum: Annotated[str | None, Field(description="Eerste dag als JJJJ-MM-DD. Leeg = nu en de komende dagen")] = None,
+    tot: Annotated[str | None, Field(description="Laatste dag als JJJJ-MM-DD, voor een periode zoals een weekend. Leeg = alleen de datum")] = None,
+) -> dict[str, Any]:
+    return await ns.trein_storingen(station, datum, tot)
 
 
 @server.tool(

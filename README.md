@@ -9,12 +9,14 @@ Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MC
 | `huis_info` | Bouwjaar, oppervlakte, gebruiksdoel, wijk en buurt van een adres, plus het energielabel. Met postcode of met straat en plaats | BAG (Kadaster) via PDOK, EP-online (RVO) | Alleen voor het energielabel |
 | `schoolvakanties` | Schoolvakanties per regio en schooljaar | Rijksoverheid open data | Nee |
 | `water_actueel` | Actuele waterstand ten opzichte van NAP en watertemperatuur bij een plaats | Rijkswaterstaat Waterinfo | Nee |
+| `water_verwachting` | Eb en vloed: hoog- en laagwater voor vandaag en morgen of een dag tot een jaar vooruit. Voor de komende twee dagen met de verwachting van Rijkswaterstaat (wind en rivieren meegerekend), met de getijtabel ernaast. Aan rivieren en meren zonder getij de verwachte waterstand | Rijkswaterstaat Waterinfo (WaterWebservices) | Nee |
 | `weer` | Het weer nu, per uur voor de komende 24 uur en per dag voor de week: temperatuur, neerslag, wind in Beaufort en windstoten. Met een datum die dag per uur. Voor een plaats, wijk, station of postcode. Geldt er een KNMI-waarschuwing voor die plek, dan staat die erbij | KNMI (HARMONIE-AROME) en ECMWF via Open-Meteo, waarschuwingen van het KNMI | Nee (waarschuwingen: ja, KNMI) |
 | `regen` | Regen voor de komende twee uur per tien minuten, uit de neerslagradar, met een samenvatting zoals "droog tot 14:20, dan lichte regen" | KNMI Data Platform (WMS) | Ja (KNMI) |
 | `weerwaarschuwingen` | Code geel, oranje of rood: wat, waar, wanneer en wat je moet doen. Voor een plaats, een provincie of heel Nederland | KNMI Data Platform (Open Data API) | Ja (KNMI) |
 | `trein_vertrek` | Vertrektijden met vertraging, spoor en uitval, tot ongeveer een uur vooruit | NS Reisinformatie API | Ja (NS) |
 | `trein_aankomst` | Aankomsttijden: waar de trein vandaan komt, vertraging en spoor. Handig als je iemand ophaalt | NS Reisinformatie API | Ja (NS) |
-| `trein_reis` | Reisadvies met overstappen, drukte en prijs | NS Reisinformatie API | Ja (NS) |
+| `trein_reis` | Reisadvies met overstappen, drukte en prijs. Rijdt er een bus in plaats van de trein, dan staat het bericht van NS erbij | NS Reisinformatie API | Ja (NS) |
+| `trein_storingen` | Storingen en werkzaamheden op het spoor: wat, waar, wanneer, de bussen die dan rijden en het advies van NS. Nu en de komende drie dagen, of een periode tot 31 dagen. Voor heel Nederland of het spoor langs één station | NS Reisinformatie API | Ja (NS) |
 | `ov_vertrek` | Vertrektijden van bus, tram, metro en veerboot vanaf een halte, met live vertraging en uitval. Bij een treinstation alle haltes eromheen. Vanaf een adres of straat de drie dichtstbijzijnde haltes, met de afstand. Met `naar` alleen de ritten die bij een bepaalde halte stoppen, met de aankomsttijd daar. Bij een staking in het streekvervoer het bericht van NS erbij | Data van de vervoerders via OpenOV, opgehaald via Transitous. Stakingsberichten van NS | Nee |
 
 Elk antwoord heeft een veld `bron`, zodat je assistent altijd kan zeggen waar het vandaan komt. Er zitten geen persoonsgegevens in, en je kunt er geen mensen mee opzoeken.
@@ -79,7 +81,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 |---|---|
 | BAG en Locatieserver via PDOK | Open data, publiek domein |
 | Rijksoverheid schoolvakanties | CC0 |
-| Rijkswaterstaat Waterinfo | Publiek domein volgens data.overheid.nl (dataset Waterinfo Rijkswateren). Actuele metingen zijn ongecontroleerd |
+| Rijkswaterstaat Waterinfo | Publiek domein volgens data.overheid.nl (dataset Waterinfo Rijkswateren), en CC0 volgens [rijkswaterstaatdata.nl](https://rijkswaterstaatdata.nl/waterdata/). Actuele metingen zijn ongecontroleerd. Het getij (astronomisch) staat er tot ongeveer een jaar vooruit in, de verwachting met wind ongeveer twee dagen. Niet elk meetpunt in de catalogus heeft een getijtabel, dus de server probeert de drie dichtstbijzijnde |
 | NS Reisinformatie API | Het product Ns-App heeft geen eigen gebruiksvoorwaarden. Gratis gebruikers mogen 300 aanvragen per 5 minuten doen. Voor meer, of voor betaald gebruik, contact opnemen met NS |
 | EP-online | Voorwaarden RVO, key hoort bij een KvK-nummer |
 | Schiphol Public Flight API | Alleen in de chat op je eigen website, niet via MCP. Eén vlucht per keer, alleen gisteren tot en met morgen, een limiet per bezoeker en per dag, Schiphol als bron bij elk antwoord en hooguit een minuut in de cache |
@@ -95,7 +97,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
 - `src/nederland_mcp/vraag.py`: de chat op de website. Claude krijgt dezelfde tools als via MCP, plus vluchten van Schiphol, en de server onthoudt geen gesprekken.
 - `src/nederland_mcp/tellers.py`: anonieme tellingen per dag, zoals hoe vaak de site, de chat en elke tool gebruikt worden. Ze staan elk uur als één regel in de log: zoek op `Tellers`. Wie iets vroeg of wat, staat er niet in.
-- Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, haltes, adressen, plaatsen en vakanties een dag, het weer 15 minuten, de regenradar 10 minuten, water en weerwaarschuwingen 5 minuten, treinen, bussen en vluchten 30 tot 60 seconden.
+- Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, haltes, adressen, plaatsen en vakanties een dag, het getij 12 uur, de waterverwachting een half uur, het weer en werkzaamheden op het spoor 15 minuten, de regenradar 10 minuten, water en weerwaarschuwingen 5 minuten, storingen op het spoor 2 minuten, treinen, bussen en vluchten 30 tot 60 seconden.
 - Foutmeldingen zijn in het Nederlands en vertellen wat je kunt doen.
 - Wat gebruikers opvragen (adressen, plaatsen) komt niet in de logs.
 

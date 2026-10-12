@@ -1,21 +1,35 @@
-"""NS Reisinformatie API: stations, departures, arrivals and journey planning.
+"""NS Reisinformatie API: stations, departures, arrivals, journey planning, disruptions and planned works.
 
 Needs NS_API_KEY (a subscription key from apiportal.ns.nl).
 """
 
+import asyncio
 import os
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ..common import cached, fmt_time, get_json, normalize, parse_moment, parse_time
+from ..common import AMSTERDAM, cached, fmt_datetime, fmt_time, get_json, normalize, now_local, parse_moment, parse_time
 
 BASE = "https://gateway.apiportal.ns.nl/reisinformatie-api/api"
 SOURCE = "NS Reisinformatie"
 BRON = "NS Reisinformatie API"
 CROWD = {"LOW": "rustig", "MEDIUM": "gemiddeld", "HIGH": "druk"}
 BOARDS = {"departures": "vertrektijden", "arrivals": "aankomsttijden"}
+STATUS = {
+    "NORMAL": "normaal",
+    "ALTERNATIVE_TRANSPORT": "vervangend vervoer",
+    "CANCELLED": "rijdt niet",
+    "DISRUPTION": "storing",
+    "MAINTENANCE": "werkzaamheden",
+    "CHANGE": "gewijzigd",
+    "UNCERTAIN": "onzeker",
+}
+# Without a date, works that start within this time come along as "binnenkort".
+SOON = timedelta(days=3)
+MAX_DAYS = 31
+MAX_ITEMS = 20
 
 
 def _headers() -> dict:
@@ -23,6 +37,17 @@ def _headers() -> dict:
     if not key:
         raise ToolError("Treininformatie is nog niet beschikbaar: de server heeft geen NS API-key (NS_API_KEY).")
     return {"Ocp-Apim-Subscription-Key": key}
+
+
+async def _messages(kind: str, active: bool, ttl: int) -> list[dict]:
+    """NS's messages of one type: DISRUPTION, MAINTENANCE or CALAMITY. Not active means all, also those to come."""
+    params = {"type": kind, "isActive": str(active).lower()}
+    data = await cached(
+        ("ns-disruptions", kind, active),
+        ttl,
+        lambda: get_json(f"{BASE}/v3/disruptions", params=params, headers=_headers(), source=SOURCE),
+    )
+    return data if isinstance(data, list) else []
 
 
 async def berichten() -> list[str]:
@@ -35,8 +60,7 @@ async def berichten() -> list[str]:
 
     async def fetch() -> Any:
         try:
-            params = {"type": "CALAMITY", "isActive": "true"}
-            return await get_json(f"{BASE}/v3/disruptions", params=params, headers=_headers(), source=SOURCE)
+            return await _messages("CALAMITY", True, 600)
         except ToolError:
             return []
 
@@ -186,17 +210,20 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
     trips = []
     for departure, arrival, trip, legs in chosen:
         fare = trip.get("productFare") or {}
-        trips.append({
+        option = {
             "vertrek": fmt_time(departure),
             "aankomst": fmt_time(arrival),
             "reistijd_min": trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes"),
             "overstappen": trip.get("transfers"),
-            "status": trip.get("status"),
+            "status": STATUS.get(trip.get("status"), trip.get("status")),
             "drukte": CROWD.get(trip.get("crowdForecast"), trip.get("crowdForecast")),
             "prijs_euro": fare["priceInCents"] / 100 if fare.get("priceInCents") else None,
             "delen": [_leg(leg) for leg in legs],
             "link": (trip.get("shareUrl") or {}).get("uri"),
-        })
+        }
+        if notes := _notes(trip):
+            option["meldingen"] = notes
+        trips.append(option)
     if not trips:
         raise ToolError(f"Geen reisadvies gevonden van {_station_name(origin)} naar {_station_name(destination)}.")
     return {
@@ -206,6 +233,18 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
         "reisadviezen": trips,
         "bron": BRON,
     }
+
+
+def _notes(trip: dict) -> list[str]:
+    """NS's messages on a trip, such as works with buses instead of trains."""
+    primary = ((trip.get("primaryMessage") or {}).get("message") or {}).get("text")
+    found = [primary, *(m.get("text") for m in trip.get("messages") or [])]
+    found += [m.get("text") for leg in trip.get("legs") or [] for m in leg.get("messages") or []]
+    notes: list[str] = []
+    for text in found:
+        if text and text.strip() not in notes:
+            notes.append(text.strip())
+    return notes
 
 
 def _options(trips: list[dict]) -> list[tuple[datetime, datetime, dict, list[dict]]]:
@@ -238,3 +277,132 @@ def _leg(leg: dict) -> dict[str, Any]:
         "aankomst": fmt_time(parse_time(destination.get("actualDateTime") or destination.get("plannedDateTime"))),
         "geannuleerd": bool(leg.get("cancelled")),
     }
+
+
+def _period(datum: str | None, tot: str | None) -> tuple[date, date] | None:
+    """The asked days, from datum up to and including tot. None means now and the coming days."""
+    if not datum and not tot:
+        return None
+    today = now_local().date()
+    try:
+        first = date.fromisoformat(datum.strip()) if datum else today
+        last = date.fromisoformat(tot.strip()) if tot else first
+    except ValueError as exc:
+        raise ToolError(f"Gebruik de datum als JJJJ-MM-DD, bijvoorbeeld {today.isoformat()}.") from exc
+    first, last = min(first, last), max(first, last)
+    if last < today:
+        raise ToolError("NS geeft alleen storingen van nu en werkzaamheden die nog komen, niet die van eerdere dagen.")
+    first = max(first, today)
+    if (last - first).days >= MAX_DAYS:
+        raise ToolError(f"Vraag hooguit {MAX_DAYS} dagen tegelijk.")
+    return first, last
+
+
+def _codes(item: dict) -> set[str]:
+    """Station codes on the stretch of track a message is about."""
+    codes: set[str] = set()
+    for part in item.get("publicationSections") or []:
+        for section in (part.get("section") or {}, (part.get("consequence") or {}).get("section") or {}):
+            codes.update(s["stationCode"] for s in section.get("stations") or [] if s.get("stationCode"))
+    return codes
+
+
+def _spans(item: dict) -> list[tuple[datetime, datetime | None, dict]]:
+    """The periods of a message, each with its own text. Without an end it lasts until further notice."""
+    spans = []
+    for span in item.get("timespans") or [{}]:
+        start = parse_time(span.get("start") or item.get("start"))
+        if start:
+            spans.append((start, parse_time(span.get("end") or item.get("end")), span))
+    return spans
+
+
+def _row(item: dict, span: dict, start: datetime, end: datetime | None, code: str | None) -> dict:
+    row: dict[str, Any] = {
+        "traject": (item.get("title") or "").strip().rstrip("."),
+        "wat": (span.get("situation") or {}).get("label"),
+        "wanneer": span.get("period") or item.get("period")
+        or f"vanaf {fmt_datetime(start)}" + (f" tot {fmt_datetime(end)}" if end else ""),
+        "verwachting": (item.get("expectedDuration") or {}).get("description"),
+        "extra_reistijd": (span.get("additionalTravelTime") or {}).get("label"),
+    }
+    # The buses or taxis that run in this period, and where they leave at the asked station.
+    transport, leaves = [], None
+    for alternative in item.get("alternativeTransportTimespans") or []:
+        a_start, a_end = parse_time(alternative.get("start")), parse_time(alternative.get("end"))
+        if (a_start and end and a_start >= end) or (a_end and a_end <= start):
+            continue
+        offered = alternative.get("alternativeTransport") or {}
+        if offered.get("label") and offered["label"] not in transport:
+            transport.append(offered["label"])
+        for location in offered.get("location") or []:
+            if code and (location.get("station") or {}).get("stationCode") == code and location.get("description"):
+                leaves = leaves or location["description"]
+    row["vervangend_vervoer"] = transport
+    row["vervangend_vervoer_vertrekt"] = leaves
+    row["advies"] = " ".join(advice.strip() for advice in span.get("advices") or [] if advice and advice.strip())
+    return {key: value for key, value in row.items() if value}
+
+
+async def trein_storingen(station: str | None = None, datum: str | None = None, tot: str | None = None) -> dict:
+    days = _period(datum, tot)
+    found = await _station(station) if station and station.strip() else None
+    code = found.get("code") if found else None
+    disruptions, works, calamities = await asyncio.gather(
+        _messages("DISRUPTION", True, 120),
+        _messages("MAINTENANCE", False, 900),
+        _messages("CALAMITY", True, 600),
+    )
+    now = now_local()
+    if days:
+        begin = datetime.combine(days[0], datetime.min.time(), AMSTERDAM)
+        until = datetime.combine(days[1] + timedelta(days=1), datetime.min.time(), AMSTERDAM)
+    else:
+        begin, until = now, now + SOON
+
+    def rows(items: list[dict], keep: Any) -> list[dict]:
+        kept: list[tuple[datetime, dict]] = []
+        for item in items:
+            if code and code not in _codes(item):
+                continue
+            for start, end, span in _spans(item):
+                if not keep(start, end):
+                    continue
+                row = _row(item, span, start, end, code)
+                if all(row != other for _, other in kept):
+                    kept.append((start, row))
+        return [row for _, row in sorted(kept, key=lambda pair: pair[0])]
+
+    def during(start: datetime, end: datetime | None) -> bool:
+        return start < until and (end is None or end > begin)
+
+    where = f" op het spoor langs {_station_name(found)}" if found else ""
+    result: dict[str, Any] = {}
+    if found:
+        result["station"] = _station_name(found)
+    if days:
+        result["periode"] = f"{days[0].isoformat()} tot en met {days[1].isoformat()}"
+    national = [
+        {key: value for key, value in (("titel", item.get("title")), ("bericht", item.get("description")),
+                                       ("meer", item.get("url"))) if value}
+        for item in calamities
+    ]
+    if national:
+        result["landelijke_berichten"] = national
+
+    def add(key: str, found_rows: list[dict], empty: str) -> None:
+        result[key] = found_rows[:MAX_ITEMS] or empty
+        if len(found_rows) > MAX_ITEMS:
+            result[f"{key}_niet_getoond"] = (
+                f"Nog {len(found_rows) - MAX_ITEMS} meer. Noem een station voor alleen het spoor daarlangs.")
+
+    add("storingen", rows(disruptions, during), f"Geen storingen bekend{where}.")
+    if days:
+        add("werkzaamheden", rows(works, during), f"Geen werkzaamheden{where} in deze periode.")
+    else:
+        add("werkzaamheden_nu", rows(works, lambda start, end: start <= now and (end is None or end > now)),
+            f"Nu geen werkzaamheden{where}.")
+        add("werkzaamheden_binnenkort", rows(works, lambda start, end: now < start < until),
+            f"Geen werkzaamheden{where} in de komende drie dagen.")
+    result["bron"] = BRON
+    return result

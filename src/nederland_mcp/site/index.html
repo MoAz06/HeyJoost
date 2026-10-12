@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, het weer en de regenradar, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, het weer en de regenradar, eb en vloed, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
@@ -95,7 +95,7 @@
         <li>
           <div class="sign" aria-hidden="true"><b>12</b><span>Spoor</span></div>
           <h3>Treinen</h3>
-          <p>Vertrek- en aankomsttijden, vertraging, spoor en uitval. Plus reisadvies met overstappen, drukte en prijs.</p>
+          <p>Vertrek- en aankomsttijden, vertraging, spoor en uitval. Plus reisadvies met overstappen, drukte en prijs, en storingen en werkzaamheden op het spoor, met de bussen die dan rijden.</p>
           <p class="src"><span class="vh">Bron: </span>NS</p>
         </li>
         <li>
@@ -119,7 +119,7 @@
         <li>
           <div class="sign" aria-hidden="true"><b>17,5°</b><span>Zeewater</span></div>
           <h3>Water</h3>
-          <p>Waterstand en watertemperatuur bij jou in de buurt, gemeten door Rijkswaterstaat.</p>
+          <p>Waterstand en watertemperatuur bij jou in de buurt, en eb en vloed: hoog- en laagwater met de wind erbij, aan de kust en de grote rivieren.</p>
           <p class="src"><span class="vh">Bron: </span>Rijkswaterstaat</p>
         </li>
         <li>
@@ -186,7 +186,9 @@
         <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="topic" aria-hidden="true">Tram</span><span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?"><span class="topic" aria-hidden="true">Spoor</span><span>Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="topic" aria-hidden="true">Water</span><span>Hoe warm is het zeewater in Scheveningen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoe laat is het laagwater morgen bij Harlingen?"><span class="topic" aria-hidden="true">Getij</span><span>Hoe laat is het laagwater morgen bij Harlingen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?"><span class="topic" aria-hidden="true">Strand</span><span>Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
@@ -199,12 +201,12 @@
         <p class="sub">Officiële open data, live opgehaald.</p>
       </div>
       <ul class="sources">
-        <li><b>NS Reisinformatie API</b>treinen</li>
+        <li><b>NS Reisinformatie API</b>treinen, storingen en werkzaamheden</li>
         <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b>bus, tram en metro, met haltes van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
         <!--vluchten--><li><b>Schiphol Public Flight API</b>vluchten, alleen in de chat</li><!--/vluchten-->
         <li><b>KNMI en ECMWF via Open-Meteo</b>het weer: <a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
         <li><b>KNMI Data Platform</b>de regenradar en de weerwaarschuwingen, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
-        <li><b>Rijkswaterstaat Waterinfo</b>waterstanden en temperatuur</li>
+        <li><b>Rijkswaterstaat Waterinfo</b>waterstanden, temperatuur, eb en vloed</li>
         <li><b>Rijksoverheid</b>schoolvakanties</li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
       </ul>
