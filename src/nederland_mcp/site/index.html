@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, het weer, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, het weer en de regenradar, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
@@ -113,8 +113,8 @@
         <li>
           <div class="sign long" aria-hidden="true"><b>0,4 mm</b><span>Regen</span></div>
           <h3>Weer</h3>
-          <p>Regen, temperatuur en wind per uur voor vandaag en morgen, en per dag voor de hele week. Voor elke plaats of wijk.</p>
-          <p class="src"><span class="vh">Bron: </span>KNMI via Open-Meteo</p>
+          <p>Regen, temperatuur en wind per uur en per dag, de regenradar voor de komende twee uur en de weerwaarschuwingen. Voor elke plaats of wijk.</p>
+          <p class="src"><span class="vh">Bron: </span>KNMI, ook via Open-Meteo</p>
         </li>
         <li>
           <div class="sign" aria-hidden="true"><b>17,5°</b><span>Zeewater</span></div>
@@ -182,6 +182,7 @@
         <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?"><span class="topic" aria-hidden="true">Trein</span><span>Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?"><span class="topic" aria-hidden="true">Ophalen</span><span>Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Moet ik morgen een paraplu meenemen in Amsterdam?"><span class="topic" aria-hidden="true">Weer</span><span>Moet ik morgen een paraplu meenemen in Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?"><span class="topic" aria-hidden="true">Regen</span><span>Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="topic" aria-hidden="true">Tram</span><span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
@@ -202,11 +203,12 @@
         <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b>bus, tram en metro, met haltes van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
         <!--vluchten--><li><b>Schiphol Public Flight API</b>vluchten, alleen in de chat</li><!--/vluchten-->
         <li><b>KNMI en ECMWF via Open-Meteo</b>het weer: <a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
+        <li><b>KNMI Data Platform</b>de regenradar en de weerwaarschuwingen, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
         <li><b>Rijkswaterstaat Waterinfo</b>waterstanden en temperatuur</li>
         <li><b>Rijksoverheid</b>schoolvakanties</li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
       </ul>
-      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Weerwaarschuwingen staan op <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a>.</p>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Bij zwaar weer heeft <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a> altijd de laatste stand.</p>
     </section>
   </div>
 </main>

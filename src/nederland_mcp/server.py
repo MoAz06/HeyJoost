@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
 from . import __version__, tellers, vraag
-from .bronnen import huis, ns, ov, schiphol, vakanties, water
+from .bronnen import huis, knmi, ns, ov, schiphol, vakanties, water
 from .bronnen import weer as weerbron
 
 WEBSITE = "https://heyjoost.nl"
@@ -22,7 +22,8 @@ SITE = Path(__file__).parent / "site"
 # Written as facts, not orders: directories reject servers that tell the assistant how to behave.
 INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
-    "schoolvakanties, waterstanden en watertemperatuur, het weer, NS-treinen, en bus, tram en metro.\n"
+    "schoolvakanties, waterstanden en watertemperatuur, het weer, de regenradar en de weerwaarschuwingen van "
+    "het KNMI, NS-treinen, en bus, tram en metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -40,7 +41,8 @@ server = HeyJoost(
     name="heyjoost",
     title="Hey Joost",
     description=(
-        "Live Nederland in je AI: treinen, bus en tram, weer, water, schoolvakanties en huizen, uit officiële bronnen."
+        "Live Nederland in je AI: treinen, bus en tram, weer en regenradar, water, schoolvakanties en huizen, uit "
+        "officiële bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -117,8 +119,9 @@ async def water_actueel(
     description=(
         "Het weer op een plek in Nederland: nu, per uur voor de komende 24 uur en per dag voor de komende week. "
         "Met temperatuur, neerslag in millimeters, wind in Beaufort en windstoten. Met een datum krijg je die dag "
-        "per uur. Uit de weermodellen van het KNMI (HARMONIE-AROME) en ECMWF, via Open-Meteo. Bevat geen "
-        "weerwaarschuwingen."
+        "per uur. Uit de weermodellen van het KNMI (HARMONIE-AROME) en ECMWF, via Open-Meteo. Geldt er voor die "
+        "plek een weerwaarschuwing van het KNMI, dan staat die in 'let_op'. Of het de komende twee uur gaat "
+        "regenen, staat precies in Regenradar."
     ),
     annotations=READ_ONLY,
 )
@@ -127,6 +130,37 @@ async def weer(
     datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD, tot 6 dagen vooruit. Leeg = nu, de komende 24 uur en de week")] = None,
 ) -> dict[str, Any]:
     return await weerbron.weer(plaats, datum)
+
+
+@server.tool(
+    title="Regenradar",
+    description=(
+        "Regen op een plek in Nederland voor de komende twee uur, per vijf minuten, uit de neerslagradar van het "
+        "KNMI. Zegt of het droog blijft, wanneer de regen begint of stopt en hoe hard het regent, in millimeter "
+        "per uur. De 'samenvatting' zet dat in één zin. Voor later dan twee uur is er Weer."
+    ),
+    annotations=READ_ONLY,
+)
+async def regen(
+    plaats: Annotated[str, Field(description="Plaats, wijk of postcode, bijvoorbeeld Leiden, Scheveningen of 2311")],
+) -> dict[str, Any]:
+    return await knmi.regen(plaats)
+
+
+@server.tool(
+    title="Weerwaarschuwingen",
+    description=(
+        "De weerwaarschuwingen van het KNMI: code geel, oranje of rood, voor wat (zoals windstoten, gladheid of "
+        "onweersbuien), waar en van wanneer tot wanneer, met de uitleg van het KNMI. Met een plaats of provincie "
+        "krijg je de waarschuwingen die daar gelden, en in 'elders_in_nederland' de rest van het land. Zonder "
+        "plaats krijg je alles. Waarschuwingen gaan tot 48 uur vooruit."
+    ),
+    annotations=READ_ONLY,
+)
+async def weerwaarschuwingen(
+    plaats: Annotated[str | None, Field(description="Plaats, wijk, postcode of provincie, bijvoorbeeld Leiden of Zeeland. Leeg = heel Nederland")] = None,
+) -> dict[str, Any]:
+    return await knmi.waarschuwingen(plaats)
 
 
 @server.tool(

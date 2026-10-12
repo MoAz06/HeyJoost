@@ -9,7 +9,9 @@ Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MC
 | `huis_info` | Bouwjaar, oppervlakte, gebruiksdoel, wijk en buurt van een adres, plus het energielabel. Met postcode of met straat en plaats | BAG (Kadaster) via PDOK, EP-online (RVO) | Alleen voor het energielabel |
 | `schoolvakanties` | Schoolvakanties per regio en schooljaar | Rijksoverheid open data | Nee |
 | `water_actueel` | Actuele waterstand ten opzichte van NAP en watertemperatuur bij een plaats | Rijkswaterstaat Waterinfo | Nee |
-| `weer` | Het weer nu, per uur voor de komende 24 uur en per dag voor de week: temperatuur, neerslag, wind in Beaufort en windstoten. Met een datum die dag per uur. Voor een plaats, wijk, station of postcode | KNMI (HARMONIE-AROME) en ECMWF via Open-Meteo | Nee |
+| `weer` | Het weer nu, per uur voor de komende 24 uur en per dag voor de week: temperatuur, neerslag, wind in Beaufort en windstoten. Met een datum die dag per uur. Voor een plaats, wijk, station of postcode. Geldt er een KNMI-waarschuwing voor die plek, dan staat die erbij | KNMI (HARMONIE-AROME) en ECMWF via Open-Meteo, waarschuwingen van het KNMI | Nee (waarschuwingen: ja, KNMI) |
+| `regen` | Regen voor de komende twee uur per tien minuten, uit de neerslagradar, met een samenvatting zoals "droog tot 14:20, dan lichte regen" | KNMI Data Platform (WMS) | Ja (KNMI) |
+| `weerwaarschuwingen` | Code geel, oranje of rood: wat, waar, wanneer en wat je moet doen. Voor een plaats, een provincie of heel Nederland | KNMI Data Platform (Open Data API) | Ja (KNMI) |
 | `trein_vertrek` | Vertrektijden met vertraging, spoor en uitval, tot ongeveer een uur vooruit | NS Reisinformatie API | Ja (NS) |
 | `trein_aankomst` | Aankomsttijden: waar de trein vandaan komt, vertraging en spoor. Handig als je iemand ophaalt | NS Reisinformatie API | Ja (NS) |
 | `trein_reis` | Reisadvies met overstappen, drukte en prijs | NS Reisinformatie API | Ja (NS) |
@@ -67,6 +69,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 
 - `NS_API_KEY`: gratis via het [NS API-portal](https://apiportal.ns.nl/product#product=NsApp), product NsApp. Gratis gebruikers mogen 300 aanvragen per 5 minuten doen. Op een publieke server delen alle gebruikers die limiet, de cache vangt veel op.
 - `EP_ONLINE_API_KEY`: aanvragen via [ep-online.nl](https://www.ep-online.nl). Je hebt een KvK-nummer nodig.
+- `KNMI_OPEN_DATA_API_KEY` en `KNMI_WMS_API_KEY`: gratis via het [KNMI Data Platform](https://developer.dataplatform.knmi.nl/), na inloggen bij Open Data API en bij WMS API. Eén account per persoon, elke API heeft zijn eigen key. De Open Data-key is voor de weerwaarschuwingen, de WMS-key voor de regenradar.
 - `ANTHROPIC_API_KEY`: voor Vraag het Joost, de chat op de website. Maak een key aan op [platform.claude.com](https://platform.claude.com). Zonder key staat de chat uit en werkt de rest gewoon. De chat gebruikt Claude Haiku 5.5 en kost ongeveer een tiende cent per vraag. `VRAAG_DAGBUDGET_USD` (standaard 0.50) is het maximum per dag in dollars, `VRAAG_PER_DAG` (standaard 30) het aantal vragen per bezoeker per dag. Is het dagbudget op, dan verdwijnt de chat tot de volgende dag.
 - `SCHIPHOL_CLIENT_ID` en `SCHIPHOL_CLIENT_SECRET`: voor vluchten in de chat, via een app op [developer.schiphol.nl](https://developer.schiphol.nl). Zonder deze keys noemt de site geen vluchten. `VLUCHT_PER_DAG` (standaard 10) is het aantal vluchten per bezoeker per dag, `VLUCHT_SITE_PER_DAG` (standaard 300) het maximum voor de hele site.
 
@@ -80,6 +83,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 | NS Reisinformatie API | Het product Ns-App heeft geen eigen gebruiksvoorwaarden. Gratis gebruikers mogen 300 aanvragen per 5 minuten doen. Voor meer, of voor betaald gebruik, contact opnemen met NS |
 | EP-online | Voorwaarden RVO, key hoort bij een KvK-nummer |
 | Schiphol Public Flight API | Alleen in de chat op je eigen website, niet via MCP. Eén vlucht per keer, alleen gisteren tot en met morgen, een limiet per bezoeker en per dag, Schiphol als bron bij elk antwoord en hooguit een minuut in de cache |
+| KNMI Data Platform (regenradar, weerwaarschuwingen) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), gratis, ook commercieel ([fair-use-beleid](https://developer.dataplatform.knmi.nl/fair-use)): noem het KNMI als bron en wek niet de indruk dat het KNMI Hey Joost steunt. Keys zijn persoonlijk. De WMS-key mag 1.000 aanvragen per uur en 20 per seconde doen, de Open Data-key 1.000 per uur. De regenradar vraagt elk tijdstip apart op, omdat de server bij meerdere tijdstippen tegelijk alleen het eerste geeft. Het KNMI vervangt de waarschuwingen op 2 november 2026 door een nieuwe dataset met gebieden op de kaart; de server gebruikt die vanzelf zodra hij echt is, en tot dan de oude per provincie |
 | Open-Meteo (weer) | Gratis voor niet-commercieel gebruik, tot 10.000 aanvragen per dag. De data valt onder [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): noem Open-Meteo als bron, met een link naar [open-meteo.com](https://open-meteo.com/) bij de data. Voor commercieel gebruik is een abonnement nodig |
 | Transitous (bus, tram, metro) | [Gebruiksbeleid](https://transitous.org/api/): alleen voor open-source projecten, niet commercieel. User-Agent met naam, versie en contact, en een zichtbare link naar [transitous.org/sources](https://transitous.org/sources/) plus de OpenStreetMap-vermelding. Bij veel gebruikers of voor routeplanning eerst contact opnemen via hun Matrix-kanaal. Geen garantie op beschikbaarheid |
 
@@ -91,7 +95,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
 - `src/nederland_mcp/vraag.py`: de chat op de website. Claude krijgt dezelfde tools als via MCP, plus vluchten van Schiphol, en de server onthoudt geen gesprekken.
 - `src/nederland_mcp/tellers.py`: anonieme tellingen per dag, zoals hoe vaak de site, de chat en elke tool gebruikt worden. Ze staan elk uur als één regel in de log: zoek op `Tellers`. Wie iets vroeg of wat, staat er niet in.
-- Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, haltes, adressen, plaatsen en vakanties een dag, het weer 15 minuten, water 5 minuten, treinen, bussen en vluchten 30 tot 60 seconden.
+- Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: stations, haltes, adressen, plaatsen en vakanties een dag, het weer 15 minuten, de regenradar 10 minuten, water en weerwaarschuwingen 5 minuten, treinen, bussen en vluchten 30 tot 60 seconden.
 - Foutmeldingen zijn in het Nederlands en vertellen wat je kunt doen.
 - Wat gebruikers opvragen (adressen, plaatsen) komt niet in de logs.
 

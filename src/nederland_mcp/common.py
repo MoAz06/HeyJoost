@@ -71,7 +71,19 @@ async def post_form(url: str, form: dict, *, source: str) -> Any:
     return await _request("POST", url, source=source, data=form)
 
 
+async def get_bytes(url: str, *, params: dict | None = None, headers: dict | None = None, source: str) -> bytes:
+    """The raw body, for sources that answer in XML or files."""
+    return (await _response("GET", url, source=source, params=params, headers=headers)).content
+
+
 async def _request(method: str, url: str, *, source: str, **kwargs: Any) -> Any:
+    response = await _response(method, url, source=source, **kwargs)
+    if response.status_code == 204 or not response.content:
+        return {}
+    return response.json()
+
+
+async def _response(method: str, url: str, *, source: str, **kwargs: Any) -> httpx.Response:
     try:
         response = await client().request(method, url, **kwargs)
     except httpx.HTTPError as exc:
@@ -82,9 +94,7 @@ async def _request(method: str, url: str, *, source: str, **kwargs: Any) -> Any:
         raise ToolError(f"{source} krijgt te veel aanvragen. Probeer het over een minuut opnieuw.")
     if response.status_code >= 400:
         raise ToolError(f"{source} gaf een fout (HTTP {response.status_code}).")
-    if response.status_code == 204 or not response.content:
-        return {}
-    return response.json()
+    return response
 
 
 def now_local() -> datetime:
