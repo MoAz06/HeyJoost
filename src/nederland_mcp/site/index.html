@@ -4,13 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen, bus en tram, het weer, waterstanden, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
 <meta property="og:description" content="Joost mag het weten? Joost wéét het. Live Nederland in je AI.">
 <meta property="og:type" content="website">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Joost">
 <link rel="preload" href="/fonts/plex-sans.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
@@ -23,6 +26,10 @@
   <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h12v12H8zM16 8V4H4v12h4"/></symbol>
   <symbol id="i-groot" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M19 5l-5 5M5 19l5-5"/></symbol>
   <symbol id="i-klein" viewBox="0 0 24 24"><path d="M14 4v6h6M10 20v-6H4M15 9l5-5M9 15l-5 5"/></symbol>
+  <symbol id="i-deel" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 12v9h14v-9"/></symbol>
+  <symbol id="i-ster" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1.1 6.2L12 17.4l-5.6 2.9 1.1-6.2L3 9.7l6.2-.9z"/></symbol>
+  <symbol id="i-weg" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-telefoon" viewBox="0 0 24 24"><path d="M7 2h10v20H7zM12 8v6M9 11h6"/></symbol>
 </svg>
 <a class="skip" href="#main">Naar de inhoud</a>
 
@@ -59,19 +66,20 @@
           <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg></button>
         </form>
         <div class="chips" hidden>
+          <button class="chip prompt" type="button" data-copy="Wat voor weer wordt het morgen in Utrecht?">Weer morgen</button>
           <button class="chip prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?">Tram 2 vanaf het Spui</button>
           <button class="chip prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?">Huis-check</button>
           <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?">Vlucht KL1001</button><!--/vluchten-->
-          <button class="chip prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?">Kerstvakantie</button>
         </div>
         <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Je vraag gaat naar Anthropic, dus deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
       </div>
 
       <div class="intro">
-        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het weer, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
         <div class="actions">
           <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
           <a class="link-arrow" href="#probeer">Wat kan ik vragen? <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <button class="link-arrow beginscherm" type="button" hidden><svg class="i" aria-hidden="true"><use href="#i-telefoon"/></svg>Zet Joost op je beginscherm</button>
         </div>
         <p class="works">Werkt met Claude en ChatGPT.</p>
       </div>
@@ -102,6 +110,12 @@
           <p>Status, gate en bagageband van je vlucht van of naar Schiphol, voor gisteren, vandaag en morgen. Alleen hier in de chat.</p>
           <p class="src"><span class="vh">Bron: </span>Schiphol</p>
         </li><!--/vluchten-->
+        <li>
+          <div class="sign long" aria-hidden="true"><b>0,4 mm</b><span>Regen</span></div>
+          <h3>Weer</h3>
+          <p>Regen, temperatuur en wind per uur voor vandaag en morgen, en per dag voor de hele week. Voor elke plaats of wijk.</p>
+          <p class="src"><span class="vh">Bron: </span>KNMI via Open-Meteo</p>
+        </li>
         <li>
           <div class="sign" aria-hidden="true"><b>17,5°</b><span>Zeewater</span></div>
           <h3>Water</h3>
@@ -167,10 +181,12 @@
       <div class="prompts">
         <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?"><span class="topic" aria-hidden="true">Trein</span><span>Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?"><span class="topic" aria-hidden="true">Ophalen</span><span>Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Moet ik morgen een paraplu meenemen in Amsterdam?"><span class="topic" aria-hidden="true">Weer</span><span>Moet ik morgen een paraplu meenemen in Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="topic" aria-hidden="true">Tram</span><span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="topic" aria-hidden="true">Water</span><span>Hoe warm is het zeewater in Scheveningen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?"><span class="topic" aria-hidden="true">Strand</span><span>Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </div>
@@ -185,11 +201,12 @@
         <li><b>NS Reisinformatie API</b>treinen</li>
         <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b>bus, tram en metro, met haltes van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
         <!--vluchten--><li><b>Schiphol Public Flight API</b>vluchten, alleen in de chat</li><!--/vluchten-->
+        <li><b>KNMI en ECMWF via Open-Meteo</b>het weer: <a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
         <li><b>Rijkswaterstaat Waterinfo</b>waterstanden en temperatuur</li>
         <li><b>Rijksoverheid</b>schoolvakanties</li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
       </ul>
-      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app.</p>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Weerwaarschuwingen staan op <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a>.</p>
     </section>
   </div>
 </main>
@@ -204,6 +221,31 @@
   </div>
 </footer>
 
+<dialog class="uitleg" id="beginscherm" aria-labelledby="beginscherm-kop">
+  <div class="uitleg-in">
+    <div class="uitleg-top">
+      <h2 id="beginscherm-kop">Zet Joost op je beginscherm</h2>
+      <form method="dialog"><button class="sluit" type="submit" aria-label="Sluiten" title="Sluiten"><svg class="i" aria-hidden="true"><use href="#i-weg"/></svg></button></form>
+    </div>
+    <p>Dan open je Joost met één tik, net als een app.</p>
+    <ol class="steps" role="list" data-voor="ios">
+      <li>Tik op het deelicoon: het vierkantje met de pijl omhoog. Zie je dat niet, tik dan eerst op <b>⋯</b> en dan op <b>Deel</b>.</li>
+      <li>Scroll naar beneden en tik op <b>Zet op beginscherm</b>.</li>
+      <li>Tik op <b>Voeg toe</b>.</li>
+    </ol>
+    <ol class="steps" role="list" data-voor="android" hidden>
+      <li>Tik rechtsboven op <b>⋮</b>.</li>
+      <li>Tik op <b>Toevoegen aan startscherm</b> of <b>App installeren</b>.</li>
+      <li>Tik op <b>Installeren</b> of <b>Toevoegen</b>.</li>
+    </ol>
+    <ol class="steps" role="list" data-voor="app" hidden>
+      <li>Je zit nu in de browser van een app, en daar kan het niet. Tik rechtsboven op <b>⋯</b> of <b>⋮</b>.</li>
+      <li>Tik op <b>Openen in browser</b>, of iets wat erop lijkt.</li>
+      <li>Tik daar op <b>Zet Joost op je beginscherm</b>.</li>
+    </ol>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
   let askJoost = null;
@@ -212,7 +254,7 @@
     const button = event.target.closest("[data-copy]");
     if (!button) return;
     if (askJoost && button.classList.contains("prompt")) {
-      askJoost(button.dataset.copy, true);
+      askJoost(button.dataset.copy, true, button.dataset.via || "voorbeeld");
       return;
     }
     try {
@@ -228,7 +270,51 @@
     el.textContent = text;
     el.classList.add("show");
     clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => el.classList.remove("show"), 1600);
+    toast.timer = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  // Small things this browser remembers for you, like your saved questions. Never sent anywhere.
+  function remember(key, value) {
+    try {
+      if (value === undefined) return JSON.parse(localStorage.getItem("joost." + key));
+      localStorage.setItem("joost." + key, JSON.stringify(value));
+    } catch {
+      return null;
+    }
+  }
+
+  // Zet Joost op je beginscherm: with the browser's own install question when it has one, otherwise with the steps.
+  const installButton = document.querySelector(".beginscherm");
+  const installSteps = document.getElementById("beginscherm");
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const canInstall = !standalone && matchMedia("(pointer: coarse)").matches && !!installSteps.showModal;
+  let installPrompt = null;
+
+  installButton.hidden = !canInstall;
+  installButton.addEventListener("click", install);
+  installSteps.addEventListener("click", (event) => {
+    if (event.target === installSteps) installSteps.close();
+  });
+  addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPrompt = event;
+  });
+  addEventListener("appinstalled", () => {
+    installButton.hidden = true;
+    toast("Joost staat op je beginscherm");
+  });
+
+  function install() {
+    if (installPrompt) {
+      installPrompt.prompt();
+      installPrompt = null;
+      return;
+    }
+    const ua = navigator.userAgent;
+    const kind = /Instagram|FBAN|FBAV|FB_IAB|TikTok|musical_ly|Bytedance|Snapchat|LinkedInApp/i.test(ua) ? "app"
+      : /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "ios" : "android";
+    installSteps.querySelectorAll("[data-voor]").forEach((el) => { el.hidden = el.dataset.voor !== kind; });
+    installSteps.showModal();
   }
 
   // Vraag het Joost: the server switches the chat on when it has a key and budget left for today.
@@ -242,8 +328,12 @@
     const send = form.querySelector("button");
     const icon = chat.querySelector(".tool svg").outerHTML;
     const history = [];
+    const chips = chat.querySelector(".chips");
+    const examples = [...chips.children];
+    let saved = (remember("vast") || []).filter((text) => typeof text === "string").slice(0, 6);
     let busy = false;
     let example = true;
+    let tipped = false;
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
@@ -283,11 +373,27 @@
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      ask(input.value, false);
+      ask(input.value, false, "getypt");
     });
     askJoost = ask;
+    showSaved();
 
-    async function ask(text, fromPrompt) {
+    // A shared link carries its question after the #, so it never reaches the server or its logs.
+    askFromLink();
+    addEventListener("hashchange", askFromLink);
+
+    function askFromLink() {
+      const shared = location.hash.match(/^#vraag=(.+)/);
+      if (!shared) return;
+      window.history.replaceState(null, "", location.pathname + location.search);
+      try {
+        ask(decodeURIComponent(shared[1]).slice(0, 500), true, "link");
+      } catch {
+        // A broken link: then there is simply no question.
+      }
+    }
+
+    async function ask(text, fromPrompt, via) {
       text = text.trim();
       if (!text || busy) return;
       if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -329,6 +435,7 @@
           if (!bubble) {
             bubble = add("msg ai");
             shown = "";
+            if (answer) answer += "\n\n";
           }
           shown += event.text;
           answer += event.text;
@@ -345,7 +452,8 @@
         const response = await fetch("/api/vraag", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history.slice(-12) }),
+          // Where the question came from and whether Joost is on a home screen, only for the counts per day.
+          body: JSON.stringify({ messages: history.slice(-12), via, app: standalone }),
         });
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
@@ -373,6 +481,8 @@
       done();
       if (answer.trim()) {
         history.push({ role: "assistant", text: answer });
+        actions(text, answer);
+        if (canInstall && !tipped && !remember("tip")) tip();
       } else {
         history.pop();
         if (!failed) add("msg ai fout").textContent = "Joost weet het even niet. Probeer het anders te vragen.";
@@ -406,14 +516,117 @@
       return el;
     }
 
+    function button(label, name, symbol) {
+      const el = document.createElement("button");
+      el.type = "button";
+      el.setAttribute("aria-label", name);
+      el.innerHTML = `<svg class="i" aria-hidden="true"><use href="#${symbol}"/></svg>`;
+      el.append(label);
+      return el;
+    }
+
+    // Under every answer: share it, or keep the question to ask again with one tap.
+    function actions(question, answer) {
+      const row = add("acties");
+      const share = button("Deel", "Deel dit antwoord", "i-deel");
+      const keep = button("Bewaar", "Bewaar deze vraag", "i-ster");
+      keep.dataset.vraag = question;
+      keep.setAttribute("aria-pressed", saved.includes(question));
+      share.addEventListener("click", () => shareAnswer(question, answer));
+      keep.addEventListener("click", () => {
+        const on = !saved.includes(question);
+        save(on ? [question, ...saved] : saved.filter((text) => text !== question));
+        toast(on ? "Bewaard bij je vaste vragen" : "Niet meer bewaard");
+      });
+      row.append(share, keep);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function shareAnswer(question, answer) {
+      const plain = answer.replace(/\*\*/g, "").replace(/^#{1,6} +/gm, "").replace(/^[-*] +/gm, "• ").trim();
+      const link = location.origin + "/#vraag=" + encodeURIComponent(question);
+      const text = `${question}\n\n${plain}\n\nVraag het Joost: ${link}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ text });
+          return;
+        } catch (error) {
+          if (error.name === "AbortError") return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        toast("Gekopieerd, plak het waar je wilt");
+      } catch {
+        toast("Delen lukte niet");
+      }
+    }
+
+    // Saved questions take the place of the examples under the chat. They stay in this browser only.
+    function save(list) {
+      saved = list.slice(0, 6);
+      remember("vast", saved);
+      showSaved();
+      log.querySelectorAll(".acties [data-vraag]").forEach((el) => {
+        el.setAttribute("aria-pressed", saved.includes(el.dataset.vraag));
+      });
+    }
+
+    function showSaved() {
+      chips.replaceChildren(...(saved.length ? saved.map(savedChip) : examples));
+    }
+
+    function savedChip(text) {
+      const wrap = document.createElement("span");
+      const chip = document.createElement("button");
+      const label = document.createElement("span");
+      const remove = button("", "Vergeet vaste vraag: " + text, "i-weg");
+      wrap.className = "vaste";
+      chip.type = "button";
+      chip.className = "chip prompt";
+      chip.dataset.copy = text;
+      chip.dataset.via = "vast";
+      chip.title = text;
+      chip.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-ster"/></svg>';
+      label.textContent = text;
+      chip.append(label);
+      remove.className = "weg";
+      remove.title = "Vergeet";
+      remove.addEventListener("click", () => {
+        save(saved.filter((other) => other !== text));
+        toast("Vergeten");
+        (chips.querySelector("button") || input).focus();
+      });
+      wrap.append(chip, remove);
+      return wrap;
+    }
+
+    // Once, after the first answer on a phone: Joost is quicker from the home screen.
+    function tip() {
+      tipped = true;
+      remember("tip", true);
+      const el = add("tip");
+      const go = document.createElement("button");
+      go.type = "button";
+      go.textContent = "Zo doe je dat";
+      go.addEventListener("click", install);
+      el.append("Tip: zet Joost op je beginscherm, dan heb je hem met één tik. ", go);
+      log.scrollTop = log.scrollHeight;
+    }
+
     // The answer is escaped first, so only the bold text, bullets and links below become markup.
+    // A bare domain like knmi.nl becomes a link too.
     function render(text) {
+      const link = (href, label) => `<a href="${href}" target="_blank" rel="noopener nofollow">${label}</a>`;
       return text
         .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c])
         .replace(/^#{1,6} +/gm, "")
         .replace(/^[-*] +/gm, "• ")
         .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
-        .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)]/g, (url) => `<a href="${url}" target="_blank" rel="noopener nofollow">${url}</a>`)
+        .replace(
+          /(https?:\/\/[^\s<]+[^\s<.,;:!?)])|(^|[\s(>])((?:[a-z0-9-]+\.)+(?:nl|com|org|eu))\b/gi,
+          (match, url, before, domain) => url ? link(url, url) : before + link("https://" + domain, domain),
+        )
         .replace(/\n/g, "<br>");
     }
   }

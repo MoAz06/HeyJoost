@@ -21,6 +21,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
+from . import tellers
 from .bronnen import schiphol
 from .common import now_local
 
@@ -84,7 +85,13 @@ WHERE = {
     "schoolvakanties": "bij de Rijksoverheid",
     "huis_info": "in de BAG",
     "vlucht_info": "bij Schiphol",
+    "weer": "bij Open-Meteo (KNMI)",
 }
+# Named in every answer that uses their data: Schiphol as promised, Open-Meteo for its licence (CC BY 4.0).
+# The word to look for in the answer, and what to add when Claude left it out.
+CREDITS = {"vlucht_info": ("schiphol", "Schiphol"), "weer": ("open-meteo", "KNMI via Open-Meteo.com")}
+# Where a question came from, as the page reports it. Only counted, never stored with anything else.
+ORIGINS = ("getypt", "voorbeeld", "vast", "link")
 
 # Not an MCP tool: Schiphol only allows flights in this chat. Only offered when the server has a Schiphol key.
 FLIGHT_TOOL = {
@@ -105,7 +112,7 @@ FLIGHT_TOOL = {
 
 SYSTEM = """Je bent Joost, de assistent op heyjoost.nl. Je bent een AI (Claude, van Anthropic). Vraagt iemand of je een mens bent, dan zeg je eerlijk dat je een AI bent.
 
-Je helpt met live informatie over Nederland, via je tools: treinen van de NS (vertrek, aankomst en reisadvies met prijs en drukte), bus, tram, metro en veerboot, {vluchten}waterstand en watertemperatuur, schoolvakanties, en feiten over adressen en gebouwen uit de BAG.
+Je helpt met live informatie over Nederland, via je tools: treinen van de NS (vertrek, aankomst en reisadvies met prijs en drukte), bus, tram, metro en veerboot, {vluchten}het weer (temperatuur, regen en wind, tot een week vooruit), waterstand en watertemperatuur, schoolvakanties, en feiten over adressen en gebouwen uit de BAG.
 
 Zo antwoord je:
 - Zoek actuele feiten altijd op met een tool. Verzin nooit tijden, sporen, perrons, vertragingen of prijzen.
@@ -122,8 +129,9 @@ Zo antwoord je:
 - Gaat het om iets belangrijks, zoals een trein halen, zeg dan dat de officiële app de laatste stand heeft.
 
 Grenzen:
-- Je helpt alleen met deze onderwerpen. Vraagt iemand iets anders, zoals huiswerk, code, nieuws, het weer of een verhaal, zeg dan vriendelijk dat je hier alleen live info over Nederland geeft, en dat iemand Hey Joost ook in een eigen AI kan zetten, zoals Claude of ChatGPT. Hoe dat moet, staat op deze pagina.
+- Je helpt alleen met deze onderwerpen. Vraagt iemand iets anders, zoals huiswerk, code, nieuws of een verhaal, zeg dan vriendelijk dat je hier alleen live info over Nederland geeft, en dat iemand Hey Joost ook in een eigen AI kan zetten, zoals Claude of ChatGPT. Hoe dat moet, staat op deze pagina.
 {vluchtgrenzen}
+- Het weer is een verwachting uit weermodellen. Weerwaarschuwingen heb je niet: bij zwaar weer verwijs je naar knmi.nl. Noem bij het weer als bron precies "KNMI via Open-Meteo.com".
 - Zoek geen mensen op en vraag niet naar persoonsgegevens. Een adres gebruik je alleen voor feiten over het gebouw of de haltes in de buurt. Voor haltes is een straat en plaats genoeg, dus vraag niet om een huisnummer of postcode.
 - Gaat het over een noodgeval, verwijs dan naar 112."""
 # Filled in by _system(), with or without flights.
@@ -214,7 +222,8 @@ async def ask(request: Request, tools: MCPServer) -> Response:
         if len(body) > MAX_BODY:
             return _refuse(413, TOO_LONG)
     try:
-        messages = _messages(json.loads(body))
+        data = json.loads(body)
+        messages = _messages(data)
     except ValueError as exc:
         return _refuse(400, str(exc) if str(exc) in (TOO_LONG, CONFUSED) else CONFUSED)
 
@@ -232,8 +241,15 @@ async def ask(request: Request, tools: MCPServer) -> Response:
         return _refuse(503, CROWDED)
     if day.asked.get(visitor, 0) >= _per_day():
         return _refuse(429, f"Je hebt vandaag al {_per_day()} vragen gesteld. Morgen weer! Of zet Joost in je eigen AI, dan kan het altijd.")
+    if visitor not in day.asked:
+        tellers.tel("chat bezoeker")
     day.asked[visitor] = day.asked.get(visitor, 0) + 1
     _busy[visitor] = now
+    tellers.tel("chat")
+    if data.get("via") in ORIGINS:
+        tellers.tel(f"chat via {data['via']}")
+    if data.get("app") is True:
+        tellers.tel("chat in app")
     return StreamingResponse(_events(tools, messages, visitor), media_type="text/event-stream", headers=STREAM_HEADERS)
 
 
@@ -301,7 +317,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         {"type": "text", "text": _now()},
     ]
     lookups: dict[str, int] = {}
-    said, flown = "", False
+    said, used = "", set()
     cost = 0.0
     for round_ in range(MAX_ROUNDS):
         day.spent += ROUND_RESERVE
@@ -338,15 +354,14 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
             break
         blocks = [_param(block) for block in message.content if block.type != "text" or block.text]
         results = await asyncio.gather(*(_lookup(tools, use, lookups, visitor) for use in uses))
-        flown = flown or any(
-            use.name == FLIGHT_TOOL["name"] and not result["is_error"] for use, result in zip(uses, results)
-        )
+        used.update(use.name for use, result in zip(uses, results) if not result["is_error"])
         messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": results}]
     if message.stop_reason == "max_tokens":
         yield {"type": "text", "text": " …"}
-    if flown and "Schiphol" not in said:
-        # Every answer with flight data names Schiphol, as promised to Schiphol, even if Claude forgets.
-        yield {"type": "text", "text": "\n\nBron: Schiphol"}
+    missing = [credit for name, (word, credit) in CREDITS.items() if name in used and word not in said.lower()]
+    if missing:
+        # Even if Claude forgets, the answer names these sources.
+        yield {"type": "text", "text": "\n\nBron: " + ", ".join(missing)}
     log.info(
         "Vraag het Joost: %d rondes, %d opzoekingen, $%.4f, vandaag $%.3f van $%.2f",
         round_ + 1, sum(lookups.values()), cost, day.spent, _budget(),
@@ -367,6 +382,8 @@ def _param(block: Any) -> dict[str, Any]:
 
 async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: str) -> dict[str, Any]:
     result: dict[str, Any] = {"type": "tool_result", "tool_use_id": use.id}
+    # Each lookup runs in its own task, so this only marks the chat's own calls for the counts.
+    tellers.via.set("chat")
     lookups[use.name] = lookups.get(use.name, 0) + 1
     if (
         sum(lookups.values()) > MAX_LOOKUPS
@@ -409,6 +426,7 @@ async def _flight(question: Any, visitor: str) -> str:
         raise ToolError(FLIGHTS_DONE)
     day.all_flights += 1
     day.flights[visitor] = day.flights.get(visitor, 0) + 1
+    tellers.tool(FLIGHT_TOOL["name"])
     return json.dumps(await schiphol.vlucht_info(number, datum), ensure_ascii=False)
 
 

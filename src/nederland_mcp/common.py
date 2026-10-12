@@ -21,6 +21,9 @@ PLACE_ALIASES = {"denhaag": "sgravenhage", "denbosch": "shertogenbosch"}
 
 # Request URLs contain what users asked for (addresses, places), so keep them out of the logs.
 logging.getLogger("httpx").setLevel(logging.WARNING)
+# The MCP library logs a failed tool call with its message, which often repeats the question (a postcode, a
+# street), so only its warnings and errors go to the log.
+logging.getLogger("mcp.server.mcpserver.server").setLevel(logging.WARNING)
 
 _client: httpx.AsyncClient | None = None
 _cache: dict[tuple, tuple[float, Any]] = {}

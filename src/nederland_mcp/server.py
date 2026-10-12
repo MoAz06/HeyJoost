@@ -12,8 +12,9 @@ from pydantic import BeforeValidator, Field
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
-from . import __version__, vraag
+from . import __version__, tellers, vraag
 from .bronnen import huis, ns, ov, schiphol, vakanties, water
+from .bronnen import weer as weerbron
 
 WEBSITE = "https://heyjoost.nl"
 SITE = Path(__file__).parent / "site"
@@ -21,17 +22,25 @@ SITE = Path(__file__).parent / "site"
 # Written as facts, not orders: directories reject servers that tell the assistant how to behave.
 INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
-    "schoolvakanties, waterstanden en watertemperatuur, NS-treinen, en bus, tram en metro.\n"
+    "schoolvakanties, waterstanden en watertemperatuur, het weer, NS-treinen, en bus, tram en metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
 )
 
-server = MCPServer(
+class HeyJoost(MCPServer):
+    """Counts every tool call, through MCP and from the chat alike (the chat marks its own, see tellers.via)."""
+
+    async def call_tool(self, name: str, arguments: dict[str, Any], context: Any = None) -> Any:
+        tellers.tool(name)
+        return await super().call_tool(name, arguments, context)
+
+
+server = HeyJoost(
     name="heyjoost",
     title="Hey Joost",
     description=(
-        "Live Nederland in je AI: treinen, bus en tram, water, schoolvakanties en huizen, uit officiële bronnen."
+        "Live Nederland in je AI: treinen, bus en tram, weer, water, schoolvakanties en huizen, uit officiële bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -101,6 +110,23 @@ async def water_actueel(
     soort: Annotated[Literal["waterstand", "watertemperatuur", "beide"], LOWER, Field(description="Wat je wilt weten")] = "beide",
 ) -> dict[str, Any]:
     return await water.water_actueel(plaats, soort)
+
+
+@server.tool(
+    title="Weer",
+    description=(
+        "Het weer op een plek in Nederland: nu, per uur voor de komende 24 uur en per dag voor de komende week. "
+        "Met temperatuur, neerslag in millimeters, wind in Beaufort en windstoten. Met een datum krijg je die dag "
+        "per uur. Uit de weermodellen van het KNMI (HARMONIE-AROME) en ECMWF, via Open-Meteo. Bevat geen "
+        "weerwaarschuwingen."
+    ),
+    annotations=READ_ONLY,
+)
+async def weer(
+    plaats: Annotated[str, Field(description="Plaats, wijk, station of postcode, bijvoorbeeld Leiden, Scheveningen of Utrecht Centraal")],
+    datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD, tot 6 dagen vooruit. Leeg = nu, de komende 24 uur en de week")] = None,
+) -> dict[str, Any]:
+    return await weerbron.weer(plaats, datum)
 
 
 @server.tool(
@@ -213,6 +239,8 @@ def _mcp_url(request: Request) -> str:
 
 @server.custom_route("/", methods=["GET"])
 async def home(request: Request) -> HTMLResponse:
+    if request.method == "GET":
+        tellers.tel("site")
     page = HOME[vraag.flights()].replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
     return HTMLResponse(page.replace("{{VRAAG}}", "aan" if vraag.available() else "uit"))
 
@@ -243,3 +271,9 @@ _serve("/fonts/plex-sans.woff2", "fonts/plex-sans.woff2", "font/woff2", 31536000
 _serve("/fonts/plex-mono-400.woff2", "fonts/plex-mono-400.woff2", "font/woff2", 31536000)
 _serve("/fonts/plex-mono-600.woff2", "fonts/plex-mono-600.woff2", "font/woff2", 31536000)
 _serve("/robots.txt", "robots.txt", "text/plain", 86400)
+# For "Zet Joost op je beginscherm". iPhones look for the touch icon in the root, even without a link to it.
+_serve("/manifest.webmanifest", "manifest.webmanifest", "application/manifest+json", 86400)
+_serve("/apple-touch-icon.png", "icons/apple-touch-icon.png", "image/png", 86400)
+_serve("/icons/joost-192.png", "icons/joost-192.png", "image/png", 86400)
+_serve("/icons/joost-512.png", "icons/joost-512.png", "image/png", 86400)
+_serve("/icons/joost-maskable-512.png", "icons/joost-maskable-512.png", "image/png", 86400)
