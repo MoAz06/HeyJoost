@@ -64,6 +64,10 @@ async def post_json(url: str, body: Any, *, source: str) -> Any:
     return await _request("POST", url, source=source, json=body)
 
 
+async def post_form(url: str, form: dict, *, source: str) -> Any:
+    return await _request("POST", url, source=source, data=form)
+
+
 async def _request(method: str, url: str, *, source: str, **kwargs: Any) -> Any:
     try:
         response = await client().request(method, url, **kwargs)

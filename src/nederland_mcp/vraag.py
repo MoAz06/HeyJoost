@@ -21,6 +21,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
+from .bronnen import schiphol
 from .common import now_local
 
 log = logging.getLogger(__name__)
@@ -40,6 +41,8 @@ MAX_ROUNDS = 5
 MAX_LOOKUPS = 6
 # Transitous was told a few calls per question, so one question looks up at most three stops.
 MAX_STOP_LOOKUPS = 3
+# Flights only exist in this chat, with the limits agreed with Schiphol (see bronnen/schiphol.py).
+MAX_FLIGHT_LOOKUPS = 2
 MAX_QUESTION = 500
 MAX_REPLY = 4000
 MAX_MESSAGES = 12
@@ -61,6 +64,15 @@ ENOUGH = (
     "Niet opgezocht: dit is het maximum voor één vraag, het is dus niet mislukt. Antwoord met wat je al weet, "
     "zeg eerlijk wat je niet hebt opgezocht en dat de gebruiker dat apart kan vragen."
 )
+FLIGHTS_DONE = (
+    "Niet opgezocht: deze bezoeker heeft vandaag al het maximum aan vluchten opgezocht, het is dus niet mislukt. "
+    "Zeg dat vluchten morgen weer kunnen, en verwijs voor nu naar schiphol.nl of de app van de luchtvaartmaatschappij."
+)
+FLIGHTS_FULL = (
+    "Niet opgezocht: het maximum aan vluchten voor vandaag is bereikt, voor de hele site, het is dus niet mislukt. "
+    "Zeg dat vluchten morgen weer kunnen, en verwijs voor nu naar schiphol.nl of de app van de luchtvaartmaatschappij."
+)
+FAILED = "Dit lukte even niet bij de bron. Probeer het later nog eens."
 
 # Shown while Joost looks something up: "Hey Joost kijkt bij de NS".
 WHERE = {
@@ -71,11 +83,29 @@ WHERE = {
     "water_actueel": "bij Rijkswaterstaat",
     "schoolvakanties": "bij de Rijksoverheid",
     "huis_info": "in de BAG",
+    "vlucht_info": "bij Schiphol",
+}
+
+# Not an MCP tool: Schiphol only allows flights in this chat. Only offered when the server has a Schiphol key.
+FLIGHT_TOOL = {
+    "name": "vlucht_info",
+    "description": (
+        "Status van één vlucht van of naar Schiphol: geplande, verwachte en werkelijke tijd, status, terminal, "
+        "gate en bagageband. Eén vluchtnummer per keer, alleen voor gisteren, vandaag of morgen."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "vluchtnummer": {"type": "string", "description": "Vluchtnummer, bijvoorbeeld KL1001 of HV5131"},
+            "datum": {"type": "string", "description": "Datum als JJJJ-MM-DD: gisteren, vandaag of morgen. Leeg = vandaag"},
+        },
+        "required": ["vluchtnummer"],
+    },
 }
 
 SYSTEM = """Je bent Joost, de assistent op heyjoost.nl. Je bent een AI (Claude, van Anthropic). Vraagt iemand of je een mens bent, dan zeg je eerlijk dat je een AI bent.
 
-Je helpt met live informatie over Nederland, via je tools: treinen van de NS (vertrek, aankomst en reisadvies met prijs en drukte), bus, tram, metro en veerboot, waterstand en watertemperatuur, schoolvakanties, en feiten over adressen en gebouwen uit de BAG.
+Je helpt met live informatie over Nederland, via je tools: treinen van de NS (vertrek, aankomst en reisadvies met prijs en drukte), bus, tram, metro en veerboot, {vluchten}waterstand en watertemperatuur, schoolvakanties, en feiten over adressen en gebouwen uit de BAG.
 
 Zo antwoord je:
 - Zoek actuele feiten altijd op met een tool. Verzin nooit tijden, sporen, perrons, vertragingen of prijzen.
@@ -93,9 +123,19 @@ Zo antwoord je:
 
 Grenzen:
 - Je helpt alleen met deze onderwerpen. Vraagt iemand iets anders, zoals huiswerk, code, nieuws, het weer of een verhaal, zeg dan vriendelijk dat je hier alleen live info over Nederland geeft, en dat iemand Hey Joost ook in een eigen AI kan zetten, zoals Claude of ChatGPT. Hoe dat moet, staat op deze pagina.
-- Vluchtinformatie heb je niet. Vraagt iemand naar een vlucht, verwijs dan naar schiphol.nl of de app van de luchtvaartmaatschappij.
+{vluchtgrenzen}
 - Zoek geen mensen op en vraag niet naar persoonsgegevens. Een adres gebruik je alleen voor feiten over het gebouw of de haltes in de buurt. Voor haltes is een straat en plaats genoeg, dus vraag niet om een huisnummer of postcode.
 - Gaat het over een noodgeval, verwijs dan naar 112."""
+# Filled in by _system(), with or without flights.
+FLIGHT_RULES = (
+    "- Vluchten zoek je op bij Schiphol: één vluchtnummer per keer, en alleen voor gisteren, vandaag of morgen. "
+    "Lijsten met vluchten, of vluchten op andere dagen, heb je niet. Verwijs daarvoor naar schiphol.nl.\n"
+    '- Noem bij vluchtgegevens altijd Schiphol als bron, zoals "Bron: Schiphol".'
+)
+NO_FLIGHTS = (
+    "- Vluchtinformatie heb je niet. Vraagt iemand naar een vlucht, verwijs dan naar schiphol.nl of de app "
+    "van de luchtvaartmaatschappij."
+)
 
 DAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
 MONTHS = (
@@ -105,17 +145,20 @@ MONTHS = (
 
 
 class _Day:
-    """Today's spending and questions per visitor. In memory, so a restart starts the count over."""
+    """Today's spending, and questions and flights per visitor. In memory, so a restart starts the count over."""
 
     def __init__(self) -> None:
         self.date: date | None = None
         self.spent = 0.0
         self.asked: dict[str, int] = {}
+        self.flights: dict[str, int] = {}
+        self.all_flights = 0
 
     def today(self) -> "_Day":
         current = now_local().date()
         if current != self.date:
             self.date, self.spent, self.asked = current, 0.0, {}
+            self.flights, self.all_flights = {}, 0
         return self
 
 
@@ -141,8 +184,21 @@ def _per_day() -> int:
     return int(os.environ.get("VRAAG_PER_DAG") or 30)
 
 
+def _flights_per_day() -> int:
+    return int(os.environ.get("VLUCHT_PER_DAG") or 10)
+
+
+def _flights_per_site() -> int:
+    return int(os.environ.get("VLUCHT_SITE_PER_DAG") or 300)
+
+
 def available() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY")) and _day.today().spent < _budget()
+
+
+def flights() -> bool:
+    """Whether the chat can look up flights now, so the home page only mentions them then."""
+    return available() and schiphol.available() and _day.today().all_flights < _flights_per_site()
 
 
 async def ask(request: Request, tools: MCPServer) -> Response:
@@ -224,24 +280,28 @@ def _messages(data: Any) -> list[dict[str, Any]]:
 
 async def _events(tools: MCPServer, messages: list[dict[str, Any]], visitor: str) -> AsyncIterator[str]:
     try:
-        async for event in _answer(tools, messages):
+        async for event in _answer(tools, messages, visitor):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
     finally:
         _busy.pop(visitor, None)
 
 
-async def _answer(tools: MCPServer, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, str]]:
+async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str) -> AsyncIterator[dict[str, str]]:
     day = _day.today()
     definitions = [
         {"name": tool.name, "description": tool.description or "", "input_schema": tool.input_schema}
         for tool in await tools.list_tools()
     ]
+    with_flights = schiphol.available()
+    if with_flights:
+        definitions.append(FLIGHT_TOOL)
     # The fixed part comes first and is cached; the clock changes every minute.
     system = [
-        {"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": _system(with_flights), "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": _now()},
     ]
     lookups: dict[str, int] = {}
+    said, flown = "", False
     cost = 0.0
     for round_ in range(MAX_ROUNDS):
         day.spent += ROUND_RESERVE
@@ -258,6 +318,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]]) -> AsyncIter
             ) as stream:
                 async for event in stream:
                     if event.type == "text":
+                        said += event.text
                         yield {"type": "text", "text": event.text}
                     elif event.type == "content_block_start" and event.content_block.type == "tool_use":
                         yield {"type": "tool", "where": WHERE.get(event.content_block.name, "bij de bron")}
@@ -276,10 +337,16 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]]) -> AsyncIter
         if message.stop_reason != "tool_use" or not uses:
             break
         blocks = [_param(block) for block in message.content if block.type != "text" or block.text]
-        results = await asyncio.gather(*(_lookup(tools, use, lookups) for use in uses))
+        results = await asyncio.gather(*(_lookup(tools, use, lookups, visitor) for use in uses))
+        flown = flown or any(
+            use.name == FLIGHT_TOOL["name"] and not result["is_error"] for use, result in zip(uses, results)
+        )
         messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": results}]
     if message.stop_reason == "max_tokens":
         yield {"type": "text", "text": " …"}
+    if flown and "Schiphol" not in said:
+        # Every answer with flight data names Schiphol, as promised to Schiphol, even if Claude forgets.
+        yield {"type": "text", "text": "\n\nBron: Schiphol"}
     log.info(
         "Vraag het Joost: %d rondes, %d opzoekingen, $%.4f, vandaag $%.3f van $%.2f",
         round_ + 1, sum(lookups.values()), cost, day.spent, _budget(),
@@ -298,27 +365,51 @@ def _param(block: Any) -> dict[str, Any]:
     return {"type": "text", "text": block.text}
 
 
-async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int]) -> dict[str, Any]:
+async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: str) -> dict[str, Any]:
     result: dict[str, Any] = {"type": "tool_result", "tool_use_id": use.id}
     lookups[use.name] = lookups.get(use.name, 0) + 1
-    if sum(lookups.values()) > MAX_LOOKUPS or lookups.get("ov_vertrek", 0) > MAX_STOP_LOOKUPS:
+    if (
+        sum(lookups.values()) > MAX_LOOKUPS
+        or lookups.get("ov_vertrek", 0) > MAX_STOP_LOOKUPS
+        or lookups.get(FLIGHT_TOOL["name"], 0) > MAX_FLIGHT_LOOKUPS
+    ):
         return {**result, "content": ENOUGH, "is_error": True}
     try:
+        if use.name == FLIGHT_TOOL["name"]:
+            return {**result, "content": await _flight(use.input, visitor), "is_error": False}
         output = await tools.call_tool(use.name, use.input)
     except UnexpectedToolError as exc:
         log.warning("Vraag het Joost: %s faalde (%s)", use.name, type(exc.__cause__).__name__)
-        return {**result, "content": "Dit lukte even niet bij de bron. Probeer het later nog eens.", "is_error": True}
+        return {**result, "content": FAILED, "is_error": True}
     except ToolError as exc:
         return {**result, "content": str(exc), "is_error": True}
     except Exception as exc:
         log.warning("Vraag het Joost: %s faalde (%s)", use.name, type(exc).__name__)
-        return {**result, "content": "Dit lukte even niet bij de bron. Probeer het later nog eens.", "is_error": True}
+        return {**result, "content": FAILED, "is_error": True}
     data = getattr(output, "structured_content", None)
     if data is None:
         text = " ".join(getattr(part, "text", "") for part in getattr(output, "content", []))
     else:
         text = json.dumps(data, ensure_ascii=False)
     return {**result, "content": text or "Geen resultaat.", "is_error": bool(getattr(output, "is_error", False))}
+
+
+async def _flight(question: Any, visitor: str) -> str:
+    """One flight from Schiphol, within the limits per visitor and for the whole site."""
+    number = question.get("vluchtnummer") if isinstance(question, dict) else None
+    datum = question.get("datum") if isinstance(question, dict) else None
+    if not isinstance(number, str) or not isinstance(datum, str | None):
+        raise ToolError("Geef een vluchtnummer, zoals KL1001, en eventueel een datum als JJJJ-MM-DD.")
+    # Checked before counting, so a wrong number or a day outside the window costs no lookup.
+    schiphol.flight(number, datum)
+    day = _day.today()
+    if day.all_flights >= _flights_per_site():
+        raise ToolError(FLIGHTS_FULL)
+    if day.flights.get(visitor, 0) >= _flights_per_day():
+        raise ToolError(FLIGHTS_DONE)
+    day.all_flights += 1
+    day.flights[visitor] = day.flights.get(visitor, 0) + 1
+    return json.dumps(await schiphol.vlucht_info(number, datum), ensure_ascii=False)
 
 
 def _api_error(exc: anthropic.APIError, day: _Day) -> str:
@@ -341,6 +432,12 @@ def _cost(usage: Any) -> float:
         + (usage.cache_creation_input_tokens or 0) * PRICE_CACHE_WRITE
         + (usage.cache_read_input_tokens or 0) * PRICE_CACHE_READ
     ) / 1_000_000
+
+
+def _system(with_flights: bool) -> str:
+    return SYSTEM.replace("{vluchten}", "vluchten van en naar Schiphol, " if with_flights else "").replace(
+        "{vluchtgrenzen}", FLIGHT_RULES if with_flights else NO_FLIGHTS
+    )
 
 
 def _now() -> str:

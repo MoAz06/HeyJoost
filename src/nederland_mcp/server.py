@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
 from . import __version__, vraag
-from .bronnen import huis, ns, ov, vakanties, water
+from .bronnen import huis, ns, ov, schiphol, vakanties, water
 
 WEBSITE = "https://heyjoost.nl"
 SITE = Path(__file__).parent / "site"
@@ -189,8 +189,18 @@ async def ov_vertrek(
 # The home page shows the MCP URL of the host it was reached on, so a local run shows its own address.
 HOST = re.compile(r"(?P<name>[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
+# Flights are only in the chat on this site (see bronnen/schiphol.py), so the pages only mention them when the
+# chat can look them up. <!--vluchten--> and <!--/vluchten--> mark those parts.
+FLIGHTS = re.compile(r"<!--vluchten-->(.*?)<!--/vluchten-->", re.S)
+
+
+def _flights(page: str, keep: bool) -> str:
+    return FLIGHTS.sub(lambda match: match[1] if keep else "", page)
+
+
 # The version in the stylesheet link makes browsers load a changed stylesheet right away.
-HOME = (SITE / "index.html").read_text(encoding="utf-8").replace("{{VERSION}}", __version__)
+_home = (SITE / "index.html").read_text(encoding="utf-8").replace("{{VERSION}}", __version__)
+HOME = {keep: _flights(_home, keep) for keep in (True, False)}
 
 
 def _mcp_url(request: Request) -> str:
@@ -203,7 +213,7 @@ def _mcp_url(request: Request) -> str:
 
 @server.custom_route("/", methods=["GET"])
 async def home(request: Request) -> HTMLResponse:
-    page = HOME.replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
+    page = HOME[vraag.flights()].replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
     return HTMLResponse(page.replace("{{VRAAG}}", "aan" if vraag.available() else "uit"))
 
 
@@ -215,7 +225,7 @@ async def ask_joost(request: Request) -> Response:
 def _serve(path: str, filename: str, media_type: str, max_age: int) -> None:
     body = (SITE / filename).read_bytes()
     if media_type == "text/html":
-        body = body.replace(b"{{VERSION}}", __version__.encode())
+        body = _flights(body.decode(), schiphol.available()).replace("{{VERSION}}", __version__).encode()
     headers = {"Cache-Control": f"public, max-age={max_age}"}
 
     async def page(request: Request) -> Response:

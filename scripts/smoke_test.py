@@ -12,11 +12,13 @@ from datetime import timedelta
 from dotenv import find_dotenv, load_dotenv
 from mcp.server.mcpserver.exceptions import ToolError
 
+from nederland_mcp.bronnen import schiphol
 from nederland_mcp.common import now_local
 from nederland_mcp.server import server
 
 SOON = now_local() + timedelta(minutes=30)
 TOMORROW = (now_local() + timedelta(days=1)).date().isoformat()
+NEXT_WEEK = (now_local() + timedelta(days=7)).date().isoformat()
 
 CALLS = [
     ("huis_info", {"postcode": "2511 cv", "huisnummer": 3}),
@@ -46,6 +48,10 @@ CALLS = [
     ("ov_vertrek", {"halte": "Rapenburg 70", "plaats": "Leiden", "aantal": 3}),
     ("ov_vertrek", {"halte": "Paets van Troostwijkstraat", "plaats": "Den Haag", "naar": "Den Haag Centraal", "aantal": 3, "datum": TOMORROW, "tijd": "09:30"}),
     ("ov_vertrek", {"halte": "Kerkstraat 1"}),
+    # Not an MCP tool: flights are only in the chat on the website.
+    ("vlucht_info", {"vluchtnummer": "KL1001"}),
+    ("vlucht_info", {"vluchtnummer": "KL 1001", "datum": TOMORROW}),
+    ("vlucht_info", {"vluchtnummer": "KL1001", "datum": NEXT_WEEK}),
 ]
 
 
@@ -56,7 +62,10 @@ async def main() -> int:
     for name, arguments in CALLS:
         print(f"\n== {name} {json.dumps(arguments, ensure_ascii=False)}")
         try:
-            result = await server.call_tool(name, arguments)
+            if name == "vlucht_info":
+                data = await schiphol.vlucht_info(**arguments)
+            else:
+                data = (await server.call_tool(name, arguments)).structured_content
         except ToolError as exc:
             if "API-key" in str(exc):
                 skipped += 1
@@ -65,7 +74,7 @@ async def main() -> int:
                 failed += 1
                 print(f"FOUTMELDING: {exc}")
             continue
-        print(json.dumps(result.structured_content, ensure_ascii=False, indent=2)[:1500])
+        print(json.dumps(data, ensure_ascii=False, indent=2)[:1500])
     print(f"\nKlaar. Foutmeldingen: {failed} (een paar zijn expres, zoals de onbekende postcode). Zonder key: {skipped}.")
     return 0
 

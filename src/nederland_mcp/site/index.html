@@ -61,6 +61,7 @@
         <div class="chips" hidden>
           <button class="chip prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?">Tram 2 vanaf het Spui</button>
           <button class="chip prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?">Huis-check</button>
+          <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?">Vlucht KL1001</button><!--/vluchten-->
           <button class="chip prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?">Kerstvakantie</button>
         </div>
         <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Je vraag gaat naar Anthropic, dus deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
@@ -95,6 +96,12 @@
           <p>Live vertrektijden vanaf elke halte of vanaf je adres, met vertraging en uitval, en welke bus of tram je naar je bestemming brengt.</p>
           <p class="src"><span class="vh">Bron: </span>OpenOV via Transitous</p>
         </li>
+        <!--vluchten--><li>
+          <div class="sign" aria-hidden="true"><b>D25</b><span>Gate</span></div>
+          <h3>Vluchten</h3>
+          <p>Status, gate en bagageband van je vlucht van of naar Schiphol, voor gisteren, vandaag en morgen. Alleen hier in de chat.</p>
+          <p class="src"><span class="vh">Bron: </span>Schiphol</p>
+        </li><!--/vluchten-->
         <li>
           <div class="sign" aria-hidden="true"><b>17,5°</b><span>Zeewater</span></div>
           <h3>Water</h3>
@@ -177,11 +184,12 @@
       <ul class="sources">
         <li><b>NS Reisinformatie API</b>treinen</li>
         <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b>bus, tram en metro, met haltes van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
+        <!--vluchten--><li><b>Schiphol Public Flight API</b>vluchten, alleen in de chat</li><!--/vluchten-->
         <li><b>Rijkswaterstaat Waterinfo</b>waterstanden en temperatuur</li>
         <li><b>Rijksoverheid</b>schoolvakanties</li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
       </ul>
-      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, de vervoerders of de overheid. Gaat het ergens om, zoals een trein halen? Kijk dan ook even in de officiële app.</p>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app.</p>
     </section>
   </div>
 </main>
