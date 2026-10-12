@@ -180,7 +180,8 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
         options = _options(earlier.get("trips") or []) + options
     # NS also returns options just outside the asked time, such as a train that already left.
     fitting = [o for o in options if fits(o)]
-    chosen = (fitting[-5:] if aankomst else fitting[:5]) or options[:5]
+    # The best option comes first: for an arrival search that is the last one still on time.
+    chosen = (fitting[-5:][::-1] if aankomst else fitting[:5]) or options[:5]
 
     trips = []
     for departure, arrival, trip, legs in chosen:

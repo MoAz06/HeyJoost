@@ -170,7 +170,8 @@ async def trein_aankomst(
     title="Treinreis plannen",
     description=(
         "Reisadvies met de trein tussen twee stations: vertrek, aankomst, overstappen, vertraging, drukte en "
-        "prijs. Zonder datum en tijd wordt er gezocht vanaf nu."
+        "prijs. Zonder datum en tijd wordt er gezocht vanaf nu. Met aankomst=true komen alleen reizen die op tijd "
+        "aankomen, en staat de reis die het laatst op tijd aankomt bovenaan."
     ),
     annotations=READ_ONLY,
 )
