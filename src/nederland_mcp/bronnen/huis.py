@@ -140,10 +140,9 @@ async def _energy_label(object_id: str) -> dict | str:
     label = data[0] if isinstance(data, list) else data
     if not isinstance(label, dict):
         return "Geen geregistreerd energielabel gevonden voor dit adres."
+    # Only these fields: the full record also names the certificate holder, which can be a person.
     picked = {k: label[k] for k in EP_FIELDS if label.get(k) is not None}
-    if not picked:
-        picked = {k: v for k, v in label.items() if isinstance(v, (str, int, float)) and v not in ("", None)}
-    return picked
+    return picked or "Geen geregistreerd energielabel gevonden voor dit adres."
 
 
 async def huis_info(
