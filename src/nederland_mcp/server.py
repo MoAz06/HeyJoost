@@ -195,8 +195,9 @@ async def trein_reis(
         "tijd krijg je de vertrekken vanaf nu; met datum en tijd ook later, volgens de dienstregeling. Met naar "
         "krijg je alleen de bussen en trams die daarna bij die halte stoppen, met de aankomsttijd daar "
         "('stopt_bij' en 'aankomst'), ook vanaf een adres, bijvoorbeeld naar het station. Een negatieve vertraging "
-        "betekent te vroeg. 'andere_haltes' noemt haltes met een andere naam die ook gevonden zijn. Treinen staan "
-        "in Treinvertrek."
+        "betekent te vroeg. 'andere_haltes' noemt haltes met een andere naam die ook gevonden zijn. Bij een staking "
+        "of een andere grote verstoring van bus, tram of metro staat er een bericht van NS in 'let_op', want de "
+        "dienstregeling toont dan nog alle ritten. Treinen staan in Treinvertrek."
     ),
     annotations=READ_ONLY,
 )

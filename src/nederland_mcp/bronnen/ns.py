@@ -25,6 +25,30 @@ def _headers() -> dict:
     return {"Ocp-Apim-Subscription-Key": key}
 
 
+async def berichten() -> list[str]:
+    """NS's national travel messages, such as a strike. Empty without a key, or when NS does not answer.
+
+    A failure is kept for as long as a message, so a slow NS does not hold up every question.
+    """
+    if not os.environ.get("NS_API_KEY"):
+        return []
+
+    async def fetch() -> Any:
+        try:
+            params = {"type": "CALAMITY", "isActive": "true"}
+            return await get_json(f"{BASE}/v3/disruptions", params=params, headers=_headers(), source=SOURCE)
+        except ToolError:
+            return []
+
+    data = await cached(("ns-berichten",), 600, fetch)
+    texts = []
+    for item in data if isinstance(data, list) else []:
+        text = (item.get("description") or item.get("title") or "").strip()
+        if text:
+            texts.append(f"{text} Meer: {item['url']}" if item.get("url") else text)
+    return texts
+
+
 async def _stations() -> list[dict]:
     data = await cached(
         ("ns-stations",),

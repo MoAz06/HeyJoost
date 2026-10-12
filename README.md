@@ -13,7 +13,7 @@ Actuele Nederlandse open data voor je AI-assistent (Claude, ChatGPT en andere MC
 | `trein_vertrek` | Vertrektijden met vertraging, spoor en uitval, tot ongeveer een uur vooruit | NS Reisinformatie API | Ja (NS) |
 | `trein_aankomst` | Aankomsttijden: waar de trein vandaan komt, vertraging en spoor. Handig als je iemand ophaalt | NS Reisinformatie API | Ja (NS) |
 | `trein_reis` | Reisadvies met overstappen, drukte en prijs | NS Reisinformatie API | Ja (NS) |
-| `ov_vertrek` | Vertrektijden van bus, tram, metro en veerboot vanaf een halte, met live vertraging en uitval. Bij een treinstation alle haltes eromheen. Vanaf een adres of straat de drie dichtstbijzijnde haltes, met de afstand. Met `naar` alleen de ritten die bij een bepaalde halte stoppen, met de aankomsttijd daar | Data van de vervoerders via OpenOV, opgehaald via Transitous | Nee |
+| `ov_vertrek` | Vertrektijden van bus, tram, metro en veerboot vanaf een halte, met live vertraging en uitval. Bij een treinstation alle haltes eromheen. Vanaf een adres of straat de drie dichtstbijzijnde haltes, met de afstand. Met `naar` alleen de ritten die bij een bepaalde halte stoppen, met de aankomsttijd daar. Bij een staking in het streekvervoer het bericht van NS erbij | Data van de vervoerders via OpenOV, opgehaald via Transitous. Stakingsberichten van NS | Nee |
 
 Elk antwoord heeft een veld `bron`, zodat je assistent altijd kan zeggen waar het vandaan komt. Er zitten geen persoonsgegevens in, en je kunt er geen mensen mee opzoeken.
 

@@ -2,6 +2,8 @@
 
 No key needed. Transitous allows light, non-commercial use by open-source projects that send a User-Agent
 with contact details and credit transitous.org/sources and OpenStreetMap.
+
+Strikes and other national messages from NS come along when they concern buses, trams or metros.
 """
 
 import asyncio
@@ -15,6 +17,7 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import ToolError
 
 from ..common import cached, fmt_time, get_json, normalize, now_local, parse_moment, parse_time, place_key
+from . import ns
 
 BASE = "https://api.transitous.org/api"
 SOURCE = "Transitous"
@@ -54,6 +57,9 @@ HOUSE_NUMBER = re.compile(r"[a-z]\.?\s+(\d+)\s*[a-z]?\b", re.IGNORECASE)
 ADDRESS_TYPES = ("adres", "weg", "postcode")
 # Around an address, the nearest stops count up to this far, as the crow flies.
 ADDRESS_RADIUS = 2000
+# NS also passes on strikes and other big disruptions of buses, trams and metros. On a strike day the
+# timetables, and often the live data too, still show every ride.
+LOCAL_TRANSPORT = re.compile(r"\b(bus|tram|metro|streekvervoer|stadsvervoer)", re.IGNORECASE)
 
 
 def _short(name: str) -> str:
@@ -473,6 +479,10 @@ def _alerts(stop_times: list[dict]) -> list[str]:
     return texts[:5]
 
 
+async def _notices() -> list[str]:
+    return [text for text in await ns.berichten() if LOCAL_TRANSPORT.search(text)]
+
+
 async def ov_vertrek(
     halte: str,
     plaats: str | None = None,
@@ -533,10 +543,13 @@ async def ov_vertrek(
     n = 50 if wanted or kind or target else aantal + 5
     # Transitous was told 1 to 3 stoptimes calls per question, so the stops share three pages.
     pages = max(1, 3 // len(stops))
-    batches = await asyncio.gather(*(
-        _stop_times(s, radius, n, when, keep, aantal, pages, next_stops=target is not None)
-        for s, radius in zip(stops, radii)
-    ))
+    batches, notices = await asyncio.gather(
+        asyncio.gather(*(
+            _stop_times(s, radius, n, when, keep, aantal, pages, next_stops=target is not None)
+            for s, radius in zip(stops, radii)
+        )),
+        _notices(),
+    )
 
     # One trip can call at two stops around a station (Leiden Centraal and its Westzijde); the first counts.
     # Trip ids start with the date and time, so a trip on another day is another id.
@@ -552,33 +565,39 @@ async def ov_vertrek(
         at = f" vanaf {moment.strftime('%Y-%m-%d %H:%M')}" if moment else ""
         period = at or " de komende tijd"
         where = f"de haltes bij {point['naam']} ({', '.join(_short(s['name']) for s in stops)})" if point else best["name"]
+        # A strike can be why nothing runs.
+        warning = "".join(f" Let op: {text}" for text in notices)
         if target and passed:
             hint = f" Wel richtingen: {', '.join(headsigns[:8])}." if headsigns else ""
             if STATION_WORDS & set(target):
                 hint += " Verder met de trein? Zoek dan de bus of tram naar een station in de buurt, en de trein met trein_reis."
-            raise ToolError(f"Er vertrekt{period} niks van {where} dat bij '{naar}' stopt.{hint}")
+            raise ToolError(f"Er vertrekt{period} niks van {where} dat bij '{naar}' stopt.{hint}{warning}")
         if wanted or kind:
             running = sorted(((s, name) for s, name in lines_seen if name), key=lambda x: (x[0], len(x[1]), x[1]))
             names = ", ".join(f"{s} {name}" for s, name in running[:15])
             hint = f" Wel bijvoorbeeld: {names}." if names else ""
             if wanted:
                 label = f"{kind or 'lijn'} {line}"
-                raise ToolError(f"{label[0].upper()}{label[1:]} vertrekt{period} niet bij {where}.{hint}")
-            raise ToolError(f"Er vertrekt{period} geen {kind} bij {where}.{hint}")
-        raise ToolError(f"Geen vertrekken gevonden bij {where}{at}.")
+                raise ToolError(f"{label[0].upper()}{label[1:]} vertrekt{period} niet bij {where}.{hint}{warning}")
+            raise ToolError(f"Er vertrekt{period} geen {kind} bij {where}.{hint}{warning}")
+        raise ToolError(f"Geen vertrekken gevonden bij {where}{at}.{warning}")
 
     day = (moment or now_local()).date()
     rows = [_row(st, day, _target_stop(st, target, memo) if target else None) for st in merged]
+    # First in the result, so it is read before the times.
+    warning = {"let_op": notices} if notices else {}
+    bron = f"{BRON} De berichten in let_op komen van NS Reisinformatie." if notices else BRON
     if point:
         for row, st in zip(rows, merged):
             row["afstand_m"] = _meters(point, st["place"])
         nearby = [{"halte": s["name"], "afstand_m": _meters(point, s), "soort": _kinds(s)} for s in stops]
         return {
+            **warning,
             "adres": point["naam"],
             "haltes_in_de_buurt": nearby,
             "vertrektijden": rows,
             "meldingen": _alerts(merged),
-            "bron": BRON,
+            "bron": bron,
         }
     # Suggestions for when this was not the stop meant; stops already in the list are left out.
     shown = {normalize(_short(s["name"])) for s in stops} | {normalize(row["halte"]) for row in rows}
@@ -587,10 +606,11 @@ async def ov_vertrek(
         if normalize(_short(h["name"])) not in shown and not (radii[0] and _distance(best, h) <= radii[0])
     ]
     return {
+        **warning,
         "halte": best["name"],
         "plaats": _town(best),
         "vertrektijden": rows,
         "meldingen": _alerts(merged),
         "andere_haltes": list(dict.fromkeys(others))[:5],
-        "bron": BRON,
+        "bron": bron,
     }
