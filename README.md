@@ -83,7 +83,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 ## Hoe het in elkaar zit
 
 - `src/nederland_mcp/server.py`: de tools en hun beschrijvingen, plus de routes van de website.
-- `src/nederland_mcp/site/`: de website (startpagina, privacy, voorwaarden).
+- `src/nederland_mcp/site/`: de website (startpagina, privacy, voorwaarden), met de lettertypes zelf erbij, zodat de site niks van anderen laadt.
 - `src/nederland_mcp/bronnen/`: één bestand per bron.
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
 - `src/nederland_mcp/vraag.py`: de chat op de website. Claude krijgt dezelfde tools als via MCP, en de server onthoudt geen gesprekken.
@@ -93,4 +93,4 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 
 ## Licentie
 
-De code valt onder de [MIT-licentie](LICENSE). De data blijft van de bronnen hierboven, met hun eigen voorwaarden. De naam Hey Joost en het logo vallen niet onder de licentie.
+De code valt onder de [MIT-licentie](LICENSE). De data blijft van de bronnen hierboven, met hun eigen voorwaarden. De naam Hey Joost en het logo vallen niet onder de licentie. De lettertypes Inter en Bricolage Grotesque vallen onder de SIL Open Font License 1.1, zie `src/nederland_mcp/site/fonts/`.

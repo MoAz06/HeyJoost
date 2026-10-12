@@ -229,6 +229,8 @@ async def ask_joost(request: Request) -> Response:
 
 def _serve(path: str, filename: str, media_type: str, max_age: int) -> None:
     body = (SITE / filename).read_bytes()
+    if media_type == "text/html":
+        body = body.replace(b"{{VERSION}}", __version__.encode())
     headers = {"Cache-Control": f"public, max-age={max_age}"}
 
     async def page(request: Request) -> Response:
@@ -241,4 +243,7 @@ _serve("/privacy", "privacy.html", "text/html", 300)
 _serve("/voorwaarden", "voorwaarden.html", "text/html", 300)
 _serve("/style.css", "style.css", "text/css", 300)
 _serve("/favicon.svg", "favicon.svg", "image/svg+xml", 86400)
+# A font file never changes under the same name, so browsers may keep it for a year.
+_serve("/fonts/inter.woff2", "fonts/inter.woff2", "font/woff2", 31536000)
+_serve("/fonts/bricolage-grotesque.woff2", "fonts/bricolage-grotesque.woff2", "font/woff2", 31536000)
 _serve("/robots.txt", "robots.txt", "text/plain", 86400)

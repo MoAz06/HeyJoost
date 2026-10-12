@@ -5,20 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voorwaarden | Hey Joost</title>
 <meta name="description" content="De voorwaarden voor het gebruik van Hey Joost.">
-<meta name="theme-color" content="#ff6b00">
+<meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#110f0c" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/style.css">
+<link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/style.css?v={{VERSION}}">
 </head>
 <body>
+<a class="skip" href="#main">Naar de inhoud</a>
+
 <div class="wrap">
   <header class="top">
-    <a class="brand" href="/" aria-label="Hey Joost, naar de start">
-      <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>
-      Hey Joost
-    </a>
+    <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>Hey Joost</a>
+    <nav class="nav" aria-label="Menu">
+      <a href="/#wat">Wat Joost weet</a>
+      <a href="/#probeer">Probeer</a>
+      <a href="/#bronnen">Bronnen</a>
+    </nav>
+    <a class="btn btn-ink" href="/#erin">Zet Joost in je AI</a>
   </header>
 
-  <main class="doc">
+  <main class="doc" id="main">
     <h1>Voorwaarden</h1>
     <p class="meta">Laatst bijgewerkt: 12 oktober 2026</p>
 
@@ -52,8 +60,11 @@
     <p>Vragen? Mail naar <a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a>.</p>
   </main>
 
-  <footer>
-    <div class="links"><a href="/">Start</a><a href="/privacy">Privacy</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
+  <footer class="foot">
+    <div class="foot-top">
+      <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>Hey Joost</a>
+      <div class="links"><a href="/">Start</a><a href="/privacy">Privacy</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
+    </div>
   </footer>
 </div>
 </body>
