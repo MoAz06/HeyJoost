@@ -90,8 +90,8 @@ async def huis_info(
         "gemiddelde WOZ-waarde en het aandeel koop- en huurwoningen, inkomen, energieverbruik en zonnepanelen, de "
         "afstand tot huisarts, supermarkt en school, en auto's. Met de gemeente en heel Nederland ernaast om te "
         "vergelijken, en per onderdeel het jaar van de cijfers. Werkt met een buurt, wijk, plaats, straat met "
-        "plaats of postcode. Voor een stadsdeel of een plaats die het CBS niet als één gebied telt, zoals de "
-        "Bijlmer of Haren, komen de wijken naast elkaar. Het zijn gemiddelden voor het hele gebied, nooit over "
+        "plaats of postcode. Voor een gebied dat het CBS niet als één geheel telt, zoals de Bijlmer, Haren of "
+        "Kralingen, komen de wijken of buurten naast elkaar. Het zijn gemiddelden voor het hele gebied, nooit over "
         "één huis of persoon."
     ),
     annotations=READ_ONLY,
@@ -209,7 +209,7 @@ async def weerwaarschuwingen(
     description=(
         "De stroomprijs per kwartier in Nederland, zoals je die met een dynamisch contract betaalt: de prijs op de "
         "stroombeurs (day-ahead), kaal en met energiebelasting en btw, in cent per kWh. Zonder datum krijg je nu, "
-        "vandaag en morgen (die van morgen komen in de loop van de middag), met de goedkoopste momenten vanaf nu: het "
+        "vandaag en morgen (die van morgen pas een stuk na de veiling van 12:00), met de goedkoopste momenten vanaf nu: het "
         "goedkoopste kwartier, uur en blok van drie uur. Met een datum krijg je die dag, tot een maand terug. De "
         "opslag van de leverancier, vaste kosten en netbeheerkosten zitten er niet in."
     ),

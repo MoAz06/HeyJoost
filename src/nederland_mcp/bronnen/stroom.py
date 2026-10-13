@@ -36,7 +36,12 @@ QUARTER = 15 * 60
 # The cheapest stretch of time, in quarters: for a quick job, an hour, and a washing machine or dishwasher.
 STRETCHES = (("kwartier", 1), ("uur", 4), ("drie_uur", 12))
 WEEKDAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
-TOMORROW = "De prijzen voor morgen komen in de loop van de middag, na de veiling van 12:00. Vraag het later nog eens."
+# SMARD, and so Energy-Charts, has the Dutch prices for tomorrow long after the auction: on 13 October 2026 they were
+# still missing at 19:51, while the German ones were in by 16:20.
+TOMORROW = (
+    "De Nederlandse prijzen voor morgen heb ik nog niet. De veiling is om 12:00, maar mijn bron zet ze er pas veel later "
+    "in, soms pas 's avonds laat of 's nachts. Vraag het later nog eens."
+)
 EXPLAIN = (
     "Kaal is de prijs op de stroombeurs (day-ahead), zonder belasting en btw. Met belasting is kaal plus "
     "energiebelasting, met 21% btw over het geheel: wat je met een dynamisch contract per kWh betaalt, zonder de "
