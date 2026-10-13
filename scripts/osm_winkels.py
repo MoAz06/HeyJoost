@@ -18,6 +18,7 @@ from pathlib import Path
 
 import httpx
 
+from nederland_mcp.bronnen.winkels import misplaced
 from nederland_mcp.common import USER_AGENT
 
 OVERPASS = "https://overpass-api.de/api/interpreter"
@@ -32,9 +33,7 @@ out center tags;"""
 KINDS = {
     ("shop", "supermarket"): "supermarkt", ("amenity", "pharmacy"): "apotheek", ("amenity", "atm"): "pinautomaat",
 }
-# Machines for bitcoin are tagged as cash machines too, but give no cash.
-CRYPTO = ("bitcoin", "crypto", "coin", "btc")
-OUT = Path(__file__).parent.parent / "src" / "nederland_mcp" / "data" / "osm_winkels.json"
+OUT =Path(__file__).parent.parent / "src" / "nederland_mcp" / "data" / "osm_winkels.json"
 
 
 def address(tags: dict) -> str:
@@ -56,7 +55,8 @@ def main() -> int:
             continue
         # Closed shops sometimes keep their tags with a prefix; those have no shop= or amenity= left, so they are out.
         name = tags.get("name") or tags.get("brand") or tags.get("operator") or ""
-        if kind == "pinautomaat" and any(word in name.lower() for word in CRYPTO):
+        # Bitcoin machines filed as cash machines, and liquor stores and other shops filed as supermarkets.
+        if misplaced(kind, f"{name} {tags.get('brand') or ''}"):
             continue
         places[kind].append([
             round(point["lat"], 5), round(point["lon"], 5), name, tags.get("brand") or tags.get("operator") or "",

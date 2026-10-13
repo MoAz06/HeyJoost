@@ -37,6 +37,13 @@ MAX_KM = 5
 MAX_ITEMS = 10
 # Machines for bitcoin are tagged as cash machines too, but give no cash.
 CRYPTO = ("bitcoin", "crypto", "coin", "btc")
+# Some liquor stores, butchers and other shops are tagged as supermarkets too. A supermarket with a liquor corner or
+# a butcher has super in its name.
+NO_SUPERMARKET = re.compile(
+    r"\b(slijterij|liquor\w*|drank(en)?handel|wijnhandel|gall & gall|mitra|slagerij|pindakaas\w*|kaas(winkel|handel)"
+    r"|wereldwinkel)\b",
+    re.IGNORECASE,
+)
 LET_OP = "Openingstijden uit OpenStreetMap, ingevuld door vrijwilligers. Ze kunnen afwijken, zeker op feestdagen."
 PHARMACY = (
     "Buiten openingstijden is er een dienstapotheek. Welke dat is, hoor je bij je eigen apotheek (ook op hun "
@@ -229,6 +236,14 @@ async def _point(waar: str, plaats: str | None) -> tuple[float, float, str]:
     return place.lat, place.lon, place.naam
 
 
+def misplaced(kind: str, name: str) -> bool:
+    """Whether OpenStreetMap files this place under a kind it is not: a bitcoin machine, or a shop that is no
+    supermarket."""
+    if kind == "pinautomaat":
+        return any(word in name.lower() for word in CRYPTO)
+    return kind == "supermarkt" and bool(NO_SUPERMARKET.search(name)) and "super" not in name.lower()
+
+
 async def open_in_de_buurt(
     waar: str, soort: str = "supermarkt", plaats: str | None = None, nu_open: bool = False, aantal: int = 5
 ) -> dict[str, Any]:
@@ -245,7 +260,7 @@ async def open_in_de_buurt(
     )
     found = []
     for distance, (_, _, title, brand, address, hours) in near:
-        if kind == "pinautomaat" and any(word in f"{title} {brand}".lower() for word in CRYPTO):
+        if misplaced(kind, f"{title} {brand}"):
             continue
         item: dict[str, Any] = {"naam": title or brand or kind, "adres": address or None}
         # Rounded, so the answer does not pin down the address that was asked.
