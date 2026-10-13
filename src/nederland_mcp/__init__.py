@@ -1,9 +1,9 @@
-"""Hey Joost: Dutch public data (BAG, school holidays, water and tides, weather, rain radar, NS with disruptions, bus and tram) as an MCP server."""
+"""Hey Joost: Dutch public data (BAG, CBS neighbourhood figures, school holidays, water and tides, weather, rain radar, electricity prices, NS with disruptions, bus and tram) as an MCP server."""
 
 import argparse
 import os
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
 
 def main() -> None:

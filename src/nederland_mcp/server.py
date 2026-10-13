@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
 from . import __version__, tellers, vraag
-from .bronnen import huis, knmi, ns, ov, schiphol, vakanties, water
+from .bronnen import buurt, huis, knmi, ns, ov, schiphol, stroom, vakanties, water
 from .bronnen import weer as weerbron
 
 WEBSITE = "https://heyjoost.nl"
@@ -22,8 +22,9 @@ SITE = Path(__file__).parent / "site"
 # Written as facts, not orders: directories reject servers that tell the assistant how to behave.
 INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
-    "schoolvakanties, waterstanden, watertemperatuur en eb en vloed, het weer, de regenradar en de "
-    "weerwaarschuwingen van het KNMI, NS-treinen met storingen en werkzaamheden, en bus, tram en metro.\n"
+    "cijfers over buurten van het CBS, schoolvakanties, waterstanden, watertemperatuur en eb en vloed, het weer, "
+    "de regenradar en de weerwaarschuwingen van het KNMI, de stroomprijs per kwartier, NS-treinen met storingen "
+    "en werkzaamheden, en bus, tram en metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -41,8 +42,8 @@ server = HeyJoost(
     name="heyjoost",
     title="Hey Joost",
     description=(
-        "Live Nederland in je AI: treinen en storingen, bus en tram, weer en regenradar, eb en vloed, "
-        "schoolvakanties en huizen, uit officiële bronnen."
+        "Live Nederland in je AI: treinen en storingen, bus en tram, weer en regenradar, eb en vloed, de "
+        "stroomprijs, buurten, schoolvakanties en huizen, uit officiële bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -80,6 +81,23 @@ async def huis_info(
     postcode: Annotated[str | None, Field(description="Alleen als de gebruiker een postcode noemt, bijvoorbeeld 2311EZ")] = None,
 ) -> dict[str, Any]:
     return await huis.huis_info(huisnummer, postcode, straat, plaats, toevoeging)
+
+
+@server.tool(
+    title="Buurtprofiel",
+    description=(
+        "Cijfers van het CBS over een buurt, wijk of gemeente: inwoners en leeftijden, huishoudens, woningen met de "
+        "gemiddelde WOZ-waarde en het aandeel koop- en huurwoningen, inkomen, energieverbruik en zonnepanelen, de "
+        "afstand tot huisarts, supermarkt en school, en auto's. Met de gemeente en heel Nederland ernaast om te "
+        "vergelijken, en per onderdeel het jaar van de cijfers. Werkt met een buurt, wijk, plaats, straat met "
+        "plaats of postcode. Het zijn gemiddelden voor het hele gebied, nooit over één huis of persoon."
+    ),
+    annotations=READ_ONLY,
+)
+async def buurt_info(
+    plaats: Annotated[str, Field(description="Buurt, wijk, plaats, straat met plaats of postcode, bijvoorbeeld Vogelwijk Den Haag, Rapenburg Leiden of 2311EZ")],
+) -> dict[str, Any]:
+    return await buurt.buurt_info(plaats)
 
 
 @server.tool(
@@ -182,6 +200,23 @@ async def weerwaarschuwingen(
     plaats: Annotated[str | None, Field(description="Plaats, wijk, postcode of provincie, bijvoorbeeld Leiden of Zeeland. Leeg = heel Nederland")] = None,
 ) -> dict[str, Any]:
     return await knmi.waarschuwingen(plaats)
+
+
+@server.tool(
+    title="Stroomprijs",
+    description=(
+        "De stroomprijs per kwartier in Nederland, zoals je die met een dynamisch contract betaalt: de prijs op de "
+        "stroombeurs (day-ahead), kaal en met energiebelasting en btw, in cent per kWh. Zonder datum krijg je nu, "
+        "vandaag en morgen (die van morgen komen in de loop van de middag), met de goedkoopste momenten vanaf nu: het "
+        "goedkoopste kwartier, uur en blok van drie uur. Met een datum krijg je die dag, tot een maand terug. De "
+        "opslag van de leverancier, vaste kosten en netbeheerkosten zitten er niet in."
+    ),
+    annotations=READ_ONLY,
+)
+async def stroomprijs(
+    datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD, van een maand terug tot morgen. Leeg = nu, vandaag en morgen")] = None,
+) -> dict[str, Any]:
+    return await stroom.stroomprijs(datum)
 
 
 @server.tool(

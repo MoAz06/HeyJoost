@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, het weer en de regenradar, eb en vloed, schoolvakanties en huizen. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
@@ -75,7 +75,7 @@
       </div>
 
       <div class="intro">
-        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het weer, het water, de schoolvakanties en je huis. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het weer, het water, de stroomprijs, de schoolvakanties, je huis en je buurt. Rechtstreeks uit de officiële bronnen, en gratis.</p>
         <div class="actions">
           <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
           <a class="link-arrow" href="#probeer">Wat kan ik vragen? <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
@@ -123,6 +123,12 @@
           <p class="src"><span class="vh">Bron: </span>Rijkswaterstaat</p>
         </li>
         <li>
+          <div class="sign long" aria-hidden="true"><b>23,6 ct</b><span>Per kWh</span></div>
+          <h3>Stroomprijs</h3>
+          <p>De stroomprijs per kwartier voor vandaag en morgen, kaal en met belasting, en wanneer stroom het goedkoopst is. Handig met een dynamisch contract.</p>
+          <p class="src"><span class="vh">Bron: </span>Bundesnetzagentur | SMARD.de</p>
+        </li>
+        <li>
           <div class="sign long" aria-hidden="true"><b>19 dec</b><span>Kerst</span></div>
           <h3>Schoolvakanties</h3>
           <p>Wanneer is de vakantie in noord, midden of zuid? Voor dit en het volgende schooljaar.</p>
@@ -133,6 +139,12 @@
           <h3>Huis-check</h3>
           <p>Bouwjaar, oppervlakte, gebruik en buurt van elk adres in Nederland, uit de BAG.</p>
           <p class="src"><span class="vh">Bron: </span>Kadaster</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>57%</b><span>Koophuis</span></div>
+          <h3>Buurten</h3>
+          <p>Wie er wonen, de gemiddelde WOZ-waarde, koop en huur, inkomen, energie en hoe ver de huisarts is. Voor elke buurt, wijk en gemeente, met heel Nederland ernaast.</p>
+          <p class="src"><span class="vh">Bron: </span>CBS</p>
         </li>
       </ul>
     </section>
@@ -190,8 +202,10 @@
         <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="topic" aria-hidden="true">Water</span><span>Hoe warm is het zeewater in Scheveningen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoe laat is het laagwater morgen bij Harlingen?"><span class="topic" aria-hidden="true">Getij</span><span>Hoe laat is het laagwater morgen bij Harlingen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?"><span class="topic" aria-hidden="true">Strand</span><span>Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wanneer is stroom vandaag het goedkoopst om de was te draaien?"><span class="topic" aria-hidden="true">Stroom</span><span>Wanneer is stroom vandaag het goedkoopst om de was te draaien?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?"><span class="topic" aria-hidden="true">Buurt</span><span>Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </div>
     </section>
 
@@ -207,8 +221,10 @@
         <li><b>KNMI en ECMWF via Open-Meteo</b>het weer: <a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
         <li><b>KNMI Data Platform</b>de regenradar en de weerwaarschuwingen, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
         <li><b>Rijkswaterstaat Waterinfo</b>waterstanden, temperatuur, eb en vloed</li>
+        <li><b>Bundesnetzagentur | SMARD.de, via Energy-Charts</b>de stroomprijs per kwartier, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
         <li><b>Rijksoverheid</b>schoolvakanties</li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
+        <li><b>CBS</b>cijfers over buurten, wijken en gemeenten, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
       </ul>
       <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Bij zwaar weer heeft <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a> altijd de laatste stand.</p>
     </section>

@@ -19,6 +19,7 @@ from nederland_mcp.server import server
 SOON = now_local() + timedelta(minutes=30)
 TOMORROW = (now_local() + timedelta(days=1)).date().isoformat()
 NEXT_WEEK = (now_local() + timedelta(days=7)).date().isoformat()
+YESTERDAY = (now_local() - timedelta(days=1)).date().isoformat()
 
 CALLS = [
     ("huis_info", {"postcode": "2511 cv", "huisnummer": 3}),
@@ -26,6 +27,11 @@ CALLS = [
     ("huis_info", {"straat": "Spui", "huisnummer": 70, "plaats": "Den Haag"}),
     ("huis_info", {"straat": "Rapenburg", "huisnummer": 70}),
     ("huis_info", {"postcode": "9999ZZ", "huisnummer": 1}),
+    ("buurt_info", {"plaats": "Vogelwijk Den Haag"}),
+    ("buurt_info", {"plaats": "Rapenburg Leiden"}),
+    ("buurt_info", {"plaats": "2311EZ"}),
+    ("buurt_info", {"plaats": "Voorhout"}),
+    ("buurt_info", {"plaats": "Xyzabc"}),
     ("schoolvakanties", {"regio": "zuid"}),
     ("schoolvakanties", {"schooljaar": "2026-2027", "regio": "Noord"}),
     ("water_actueel", {"plaats": "Hoek van Holland"}),
@@ -47,6 +53,9 @@ CALLS = [
     ("weerwaarschuwingen", {}),
     ("weerwaarschuwingen", {"plaats": "Groningen"}),
     ("weerwaarschuwingen", {"plaats": "Zeeland"}),
+    ("stroomprijs", {}),
+    ("stroomprijs", {"datum": YESTERDAY}),
+    ("stroomprijs", {"datum": "2020-01-01"}),
     ("trein_vertrek", {"station": "Leiden Centraal", "aantal": 3}),
     ("trein_aankomst", {"station": "Leiden Centraal", "aantal": 3}),
     ("trein_aankomst", {"station": "Utrecht", "aantal": 2, "datum": SOON.date().isoformat(), "tijd": SOON.strftime("%H:%M")}),

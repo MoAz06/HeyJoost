@@ -318,13 +318,15 @@ def _spans(item: dict) -> list[tuple[datetime, datetime | None, dict]]:
 
 
 def _row(item: dict, span: dict, start: datetime, end: datetime | None, code: str | None) -> dict:
+    # Most works only say "De extra reistijd verschilt per reis.", which tells nothing.
+    travel = (span.get("additionalTravelTime") or {}).get("label") or ""
     row: dict[str, Any] = {
         "traject": (item.get("title") or "").strip().rstrip("."),
         "wat": (span.get("situation") or {}).get("label"),
         "wanneer": span.get("period") or item.get("period")
         or f"vanaf {fmt_datetime(start)}" + (f" tot {fmt_datetime(end)}" if end else ""),
         "verwachting": (item.get("expectedDuration") or {}).get("description"),
-        "extra_reistijd": (span.get("additionalTravelTime") or {}).get("label"),
+        "extra_reistijd": travel if "verschilt per reis" not in travel else None,
     }
     # The buses or taxis that run in this period, and where they leave at the asked station.
     transport, leaves = [], None
