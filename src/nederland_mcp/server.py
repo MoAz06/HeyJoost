@@ -90,7 +90,9 @@ async def huis_info(
         "gemiddelde WOZ-waarde en het aandeel koop- en huurwoningen, inkomen, energieverbruik en zonnepanelen, de "
         "afstand tot huisarts, supermarkt en school, en auto's. Met de gemeente en heel Nederland ernaast om te "
         "vergelijken, en per onderdeel het jaar van de cijfers. Werkt met een buurt, wijk, plaats, straat met "
-        "plaats of postcode. Het zijn gemiddelden voor het hele gebied, nooit over één huis of persoon."
+        "plaats of postcode. Voor een stadsdeel of een plaats die het CBS niet als één gebied telt, zoals de "
+        "Bijlmer of Haren, komen de wijken naast elkaar. Het zijn gemiddelden voor het hele gebied, nooit over "
+        "één huis of persoon."
     ),
     annotations=READ_ONLY,
 )

@@ -1,4 +1,5 @@
-"""Figures about a buurt, wijk or gemeente from CBS: Kerncijfers wijken en buurten (CC BY 4.0, "Bron: CBS").
+"""Figures about a buurt, wijk or gemeente from CBS: Kerncijfers wijken en buurten (CC BY 4.0, "Bron: CBS"). A town
+or stadsdeel that CBS does not count as one, like Voorhout or the Bijlmer, gets its wijken side by side.
 
 CBS fills each year's table in steps: the newest holds the population first, the housing figures come a year
 later and incomes two years later. So every topic comes from the newest table that has it, with its year, and
@@ -143,6 +144,16 @@ TOPICS = (
     ("vervoer", _vervoer, ("autos_per_huishouden",)),
     ("omgeving", _omgeving, ()),
 )
+# For a town or stadsdeel that CBS splits into wijken: a few figures per wijk, which counts to add up, and which
+# averages to compare with the gemeente and the Netherlands.
+OVERVIEW_TOPICS = {"bevolking": _bevolking, "wonen": _wonen, "inkomen": _inkomen}
+COUNTS = ("inwoners", "huishoudens", "woningen")
+AVERAGES = ("gemiddelde_woz_waarde", "eigendom_pct", "gemiddeld_inkomen_per_inwoner")
+OVERVIEW = COUNTS + AVERAGES
+OVERVIEW_EXPLAIN = (
+    "Het CBS telt dit gebied niet als één geheel, dus de wijken staan apart. 'samen' telt de aantallen van de wijken "
+    "op; gemiddelden, zoals de WOZ-waarde, tel je niet op. 'jaren' zegt uit welk jaar elk onderdeel komt."
+)
 
 
 async def _table(table: str, codes: tuple[str, ...]) -> dict[str, dict]:
@@ -160,11 +171,8 @@ async def _table(table: str, codes: tuple[str, ...]) -> dict[str, dict]:
     return rows
 
 
-async def buurt_info(plaats: str) -> dict:
-    if not plaats or not plaats.strip():
-        raise ToolError("Noem een buurt, wijk, plaats, straat met plaats of postcode, bijvoorbeeld Vogelwijk Den Haag.")
-    area = await plaatsen.gebied(plaats)
-    codes = tuple(dict.fromkeys((area.code, area.gemeentecode, NETHERLANDS)))
+async def _years(codes: tuple[str, ...]) -> list[tuple[int, dict[str, dict]]]:
+    """The rows of some areas per year, newest first."""
     # A table that CBS is renewing can be closed for a few hours; the other years still answer.
     answers = await asyncio.gather(*(_table(table, codes) for _, table in TABLES), return_exceptions=True)
     for answer in answers:
@@ -173,6 +181,57 @@ async def buurt_info(plaats: str) -> dict:
     years = [(year, rows) for (year, _), rows in zip(TABLES, answers) if isinstance(rows, dict) and rows]
     if not years:
         raise ToolError("De cijfers van het CBS zijn nu niet op te halen. Probeer het later nog eens.")
+    return years
+
+
+async def _overview(area: plaatsen.Gebied) -> dict:
+    """The wijken of a town or stadsdeel that CBS does not count as one, side by side, with the counts added up."""
+    codes = tuple(code for code, _ in area.wijken)
+    years = await _years(tuple(dict.fromkeys((*codes, area.gemeentecode, NETHERLANDS))))
+    # Per topic the newest year that has figures for any of the wijken.
+    chosen = {
+        name: next(((year, rows) for year, rows in years if any(topic(rows.get(code) or {}) for code in codes)), None)
+        for name, topic in OVERVIEW_TOPICS.items()
+    }
+
+    def figures(code: str, keys: tuple[str, ...]) -> dict:
+        found: dict[str, Any] = {}
+        for name, topic in OVERVIEW_TOPICS.items():
+            if chosen[name]:
+                found.update(topic(chosen[name][1].get(code) or {}))
+        return {key: found[key] for key in keys if key in found}
+
+    wijken = [{"wijk": name, **figures(code, OVERVIEW)} for code, name in area.wijken]
+    if not any(len(wijk) > 1 for wijk in wijken):
+        raise ToolError(f"Het CBS heeft geen cijfers voor {area.naam}. Probeer een wijk of de gemeente.")
+    return {
+        "gebied": area.naam,
+        "soort": "wijken",
+        "gemeente": area.gemeente,
+        "let_op": area.let_op,
+        "jaren": {name: found[0] for name, found in chosen.items() if found},
+        "wijken": wijken,
+        # Only what every wijk has, so a missing figure does not make the total too low.
+        "samen": {
+            "aantal_wijken": len(wijken),
+            **{key: sum(wijk[key] for wijk in wijken) for key in COUNTS if all(key in wijk for wijk in wijken)},
+        },
+        "ter_vergelijking": {
+            "gemeente": figures(area.gemeentecode, AVERAGES),
+            "nederland": figures(NETHERLANDS, AVERAGES),
+        },
+        "uitleg": OVERVIEW_EXPLAIN + " " + EXPLAIN,
+        "bron": BRON,
+    }
+
+
+async def buurt_info(plaats: str) -> dict:
+    if not plaats or not plaats.strip():
+        raise ToolError("Noem een buurt, wijk, plaats, straat met plaats of postcode, bijvoorbeeld Vogelwijk Den Haag.")
+    area = await plaatsen.gebied(plaats)
+    if area.wijken:
+        return await _overview(area)
+    years = await _years(tuple(dict.fromkeys((area.code, area.gemeentecode, NETHERLANDS))))
 
     result: dict[str, Any] = {"gebied": area.naam, "soort": area.soort}
     if area.wijk and area.wijk != area.naam:

@@ -1,5 +1,6 @@
 """Places, looked up at PDOK Locatieserver: a town, municipality, district or postcode for the weather tools, and
-the buurt, wijk or gemeente of a place, street or postcode for the CBS figures.
+the buurt, wijk or gemeente of a place, street or postcode for the CBS figures, or the wijken of a town or stadsdeel
+that CBS does not count as one.
 
 The weather never takes a street or an address: a street name without its town is in many places, and the weather
 needs no more than the neighbourhood. The CBS figures take a street only with its town.
@@ -18,12 +19,15 @@ LOCATIESERVER = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
 REVERSE = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse"
 AREAS = "type:(woonplaats OR gemeente OR wijk OR buurt)"
 STREETS = "type:weg"
-DISTRICTS = "type:wijk"
 POSTCODES = "type:postcode"
 FIELDS = (
     "type,woonplaatsnaam,gemeentenaam,provincienaam,wijknaam,buurtnaam,straatnaam,centroide_ll,buurtcode,wijkcode,"
-    "gemeentecode,weergavenaam"
+    "gemeentecode,woonplaatscode,weergavenaam"
 )
+# The most precise code of a hit that addresses also carry, to count the addresses of a place.
+SIZE_FIELDS = {"buurt": "buurtcode", "wijk": "wijkcode", "woonplaats": "woonplaatscode", "weg": "woonplaatscode"}
+# A town in more wijken than this, if there is one, goes by its gemeente.
+MAX_TOWN_WIJKEN = 40
 OWN_NAME = {
     "woonplaats": "woonplaatsnaam", "gemeente": "gemeentenaam", "wijk": "wijknaam", "buurt": "buurtnaam",
     "postcode": "woonplaatsnaam", "weg": "straatnaam",
@@ -40,6 +44,23 @@ PROVINCES = {"dr", "fl", "fr", "gld", "gn", "l", "lb", "nb", "nh", "o", "ov", "u
 ENDINGS = ("wijk", "buurt", "kwartier")
 # The names people use, rather than the official ones.
 ALIASES = ((re.compile(r"'?s[- ]?gravenhage", re.I), "Den Haag"), (re.compile(r"'?s[- ]?hertogenbosch", re.I), "Den Bosch"))
+# Areas that CBS does not count as one, by the words that name them: the name, the start of the codes of their
+# wijken, and a note (or else STADSDEEL). Amsterdam codes its wijken per stadsdeel, so Zuidoost is every WK0363T.
+BIJLMER = "De Bijlmer is bij het CBS geen eigen gebied. Dit zijn de wijken van Amsterdam-Zuidoost, waar de Bijlmer ligt."
+STADSDEEL = "{0} is een stadsdeel, en het CBS telt per gemeente, wijk en buurt. Dit zijn de wijken van {0}."
+REGIONS = {
+    ("bijlmer",): ("Amsterdam-Zuidoost", "WK0363T", BIJLMER),
+    ("bijlmermeer",): ("Amsterdam-Zuidoost", "WK0363T", BIJLMER),
+    ("amsterdam", "zuidoost"): ("Amsterdam-Zuidoost", "WK0363T", None),
+    ("amsterdam", "noord"): ("Amsterdam-Noord", "WK0363N", None),
+    ("amsterdam", "oost"): ("Amsterdam-Oost", "WK0363M", None),
+    ("amsterdam", "zuid"): ("Amsterdam-Zuid", "WK0363K", None),
+    ("amsterdam", "west"): ("Amsterdam-West", "WK0363E", None),
+    ("nieuw", "west"): ("Amsterdam Nieuw-West", "WK0363F", None),
+    ("amsterdam", "nieuw", "west"): ("Amsterdam Nieuw-West", "WK0363F", None),
+    ("amsterdam", "centrum"): ("Amsterdam-Centrum", "WK0363A", None),
+    ("westpoort",): ("Westpoort", "WK0363B", None),
+}
 
 
 class Plaats(NamedTuple):
@@ -59,6 +80,7 @@ class Gebied(NamedTuple):
     wijk: str | None = None  # the wijk of a buurt
     via: str | None = None  # the street or postcode it was found by
     let_op: str | None = None  # when the figures are not exactly about what was asked
+    wijken: tuple[tuple[str, str], ...] = ()  # code and name of each wijk, for an area CBS does not count as one
 
 
 def _common(name: str) -> str:
@@ -78,8 +100,9 @@ def _own_name(doc: dict) -> str:
 
 
 def _telling(doc: dict) -> set[str]:
-    """The words of a hit's own name that tell it apart: a district called Station or Zuid is in many towns."""
-    return {word for word in _words(_own_name(doc)) if len(word) >= 3 and word not in GENERIC}
+    """The words of a hit's own name that tell it apart: a district called Station or Zuid is in many towns, and the
+    Gld of Hengelo (Gld) is not in a question about Hengelo."""
+    return {word for word in _words(_own_name(doc)) if len(word) >= 3 and word not in GENERIC | PROVINCES}
 
 
 def _names(doc: dict) -> set[str]:
@@ -87,17 +110,46 @@ def _names(doc: dict) -> set[str]:
     return _words(_own_name(doc)) | _words(doc.get("woonplaatsnaam") or "") | _words(doc.get("gemeentenaam") or "")
 
 
-def _pick(query: str, docs: list[dict]) -> dict | None:
-    """The hit whose own name is in the question and that matches most of it, so "Station Leiden" is Leiden."""
+async def _pick(query: str, docs: list[dict]) -> dict | None:
+    """The hit whose own name is in the question and that matches most of it, with its province, so "Station Leiden"
+    is Leiden and "Hengelo Gelderland" is Hengelo (Gld). Places in different gemeenten that match equally, like Haren
+    in Groningen and the one in Oss, go by their number of addresses: the bigger place is meant more often."""
     asked = _words(query)
-    best, best_score = None, 0
-    for doc in docs:
-        telling = _telling(doc)
-        if telling and telling <= asked:
-            names = _names(doc)
-            if len(asked & names) > best_score:
-                best, best_score = doc, len(asked & names)
-    return best
+    scored = [
+        (len(asked & (_names(doc) | _words(doc.get("provincienaam") or ""))), doc)
+        for doc in docs if _telling(doc) and _telling(doc) <= asked
+    ]
+    if not scored:
+        return None
+    top = max(score for score, _ in scored)
+    best = [doc for score, doc in scored if score == top][:6]
+    if len({doc.get("gemeentecode") for doc in best}) == 1:
+        return best[0]
+    sizes = await asyncio.gather(*(_size(doc) for doc in best))
+    return best[sizes.index(max(sizes))]
+
+
+async def _addresses(field: str, code: str) -> int:
+    """The number of addresses with a code, like a woonplaatscode or a wijkcode."""
+    params = {"q": "*", "fq": f"type:adres AND {field}:{code}", "rows": 0}
+    data = await cached(
+        ("plaats-adressen", field, code), 7 * 24 * 3600,
+        lambda: get_json(LOCATIESERVER, params=params, source="PDOK Locatieserver"),
+    )
+    return data.get("response", {}).get("numFound") or 0
+
+
+async def _size(doc: dict) -> int:
+    """The number of addresses in a hit: thousands in a town, a few hundred in a village."""
+    field = SIZE_FIELDS.get(doc.get("type") or "", "gemeentecode")
+    if not doc.get(field):
+        field = "gemeentecode"
+    if not doc.get(field):
+        return 0
+    try:
+        return await _addresses(field, doc[field])
+    except ToolError:
+        return 0
 
 
 def _name(doc: dict) -> str:
@@ -126,10 +178,10 @@ async def zoek(plaats: str) -> Plaats:
         docs = await _search(plaats, POSTCODES)
         doc = docs[0] if docs else None
     else:
-        doc = _pick(plaats, await _search(plaats, AREAS))
+        doc = await _pick(plaats, await _search(plaats, AREAS))
         if not doc and AAN.search(plaats):
             shorter = AAN.sub("", plaats)
-            doc = _pick(shorter, await _search(shorter, AREAS))
+            doc = await _pick(shorter, await _search(shorter, AREAS))
     if not doc:
         raise ToolError(f"Geen plaats gevonden die lijkt op '{plaats}'. Noem een plaats of wijk, bijvoorbeeld Leiden of Scheveningen.")
     lon, lat = doc["centroide_ll"][6:-1].split()
@@ -173,13 +225,41 @@ def _bare(town: str) -> str:
     return " ".join(words)
 
 
-async def _town_districts(town: str, gemeentecode: str) -> list[dict]:
-    """The wijken named after a town in a larger gemeente, like Voorhout Oude Dorp in Teylingen."""
-    start = place_key(_bare(town))
-    docs = await _search(_bare(town), DISTRICTS)
+async def _walk(woonplaatscode: str) -> list[tuple[str, str, int]] | None:
+    """The wijken of a town's addresses and the number in each: its first address in order of wijkcode, then the
+    first after that wijk, and so on, while each answer counts the addresses still to come. None for a town in
+    more than MAX_TOWN_WIJKEN wijken."""
+    found: list[tuple[str, str, int]] = []
+    after = None
+    for _ in range(MAX_TOWN_WIJKEN + 1):
+        rest = f"{{{after} TO *]" if after else "[* TO *]"
+        params = {
+            "q": "*", "fq": f"type:adres AND woonplaatscode:{woonplaatscode} AND wijkcode:{rest}", "rows": 1,
+            "sort": "wijkcode asc", "fl": "wijkcode,wijknaam",
+        }
+        data = (await get_json(LOCATIESERVER, params=params, source="PDOK Locatieserver")).get("response", {})
+        left = data.get("numFound") or 0
+        if found:
+            wijk, name, count = found[-1]
+            found[-1] = (wijk, name, count - left)
+        docs = data.get("docs") or []
+        if not docs:
+            return found
+        after = docs[0]["wijkcode"]
+        found.append((after, docs[0].get("wijknaam") or "", left))
+    return None
+
+
+async def _town_wijken(woonplaatscode: str) -> list[tuple[str, str, int, int]]:
+    """Code and name of each wijk a town has addresses in, with the number of them and of all its addresses."""
+    try:
+        walked = await cached(("plaats-wijken", woonplaatscode), 7 * 24 * 3600, lambda: _walk(woonplaatscode))
+        totals = await asyncio.gather(*(_addresses("wijkcode", wijk) for wijk, _, _ in walked or ()))
+    except ToolError:
+        return []
     return [
-        d for d in docs
-        if d.get("gemeentecode") == gemeentecode and d.get("wijkcode") and place_key(_own_name(d)).startswith(start)
+        (wijk, _common(_own_name({"type": "wijk", "wijknaam": name})), count, total)
+        for (wijk, name, count), total in zip(walked or (), totals)
     ]
 
 
@@ -232,7 +312,7 @@ async def _inside(gemeentecode: str, words: set[str]) -> Gebied | None:
 
 
 async def _area(doc: dict) -> Gebied:
-    """The CBS area of a hit: a street becomes the buurt at its middle, a town the gemeente or its own wijk."""
+    """The CBS area of a hit: a street becomes the buurt at its middle, a town the gemeente or its wijk or wijken."""
     kind = doc.get("type")
     if kind == "weg":
         street, town = doc.get("straatnaam") or "", _common(doc.get("woonplaatsnaam") or "")
@@ -242,23 +322,54 @@ async def _area(doc: dict) -> Gebied:
     if kind == "wijk" and doc.get("wijkcode"):
         return _as_wijk(doc)
     gemeente, code = _common(doc.get("gemeentenaam") or ""), "GM" + doc["gemeentecode"]
-    town = _common(doc.get("woonplaatsnaam") or "")
-    if kind != "woonplaats" or place_key(town) == place_key(gemeente):
+    town = _bare(_common(doc.get("woonplaatsnaam") or ""))
+    if kind != "woonplaats" or place_key(town) == place_key(_bare(gemeente)):
         return Gebied("gemeente", code, gemeente, gemeente, code)
-    # CBS counts per gemeente, wijk and buurt, not per town: a town in a larger gemeente gets its wijk with the
-    # same name, or else the gemeente with the wijken named after the town.
-    districts = await _town_districts(town, doc["gemeentecode"])
-    same = [d for d in districts if place_key(_own_name(d)) == place_key(_bare(town))]
-    if same:
-        return _as_wijk(same[0])
-    town = _bare(town)
+    # CBS counts per gemeente, wijk and buurt, not per town. A town in a larger gemeente gets the wijken that are
+    # mostly that town, like the four of IJmuiden but not Rheden for the few houses of Velp in it, or else the one
+    # wijk it shares with other places, like Stavoren with Hemelum, as long as they hold most of the town.
     note = f"{town} ligt in de gemeente {gemeente}, en het CBS telt per gemeente, wijk en buurt."
-    names = [_own_name(d) for d in districts]
-    if len(names) > 1:
-        note += f" De wijken van {town} zijn {', '.join(names[:-1])} en {names[-1]}".rstrip(".") + "."
-    elif names:
-        note += f" De wijk van {town} is {names[0]}".rstrip(".") + "."
+    found = await _town_wijken(doc["woonplaatscode"]) if doc.get("woonplaatscode") else []
+    most = 0.8 * sum(count for _, _, count, _ in found)
+    mostly = [(wijk, name, count) for wijk, name, count, total in found if 2 * count >= total]
+    if len(mostly) > 1 and sum(count for _, _, count in mostly) >= most:
+        wijken = tuple((wijk, name) for wijk, name, _ in mostly)
+        let_op = f"{note} Dit zijn de wijken van {town}."
+        return Gebied("wijken", code, town, gemeente, code, let_op=let_op, wijken=wijken)
+    biggest = max(found, key=lambda wijk: wijk[2], default=None)
+    if biggest and biggest[2] >= most:
+        wijk, name, count, total = biggest
+        area = Gebied("wijk", wijk, name, gemeente, code)
+        if 2 * count < total:
+            return area._replace(let_op=f"{note} Bij het CBS valt {town} in de wijk {name}, samen met andere plaatsen.")
+        if place_key(name) != place_key(town):
+            return area._replace(let_op=f"{note} Bij het CBS valt {town} in de wijk {name}.")
+        return area
     return Gebied("gemeente", code, gemeente, gemeente, code, let_op=note)
+
+
+def _region(plaats: str) -> tuple[str, str, str] | None:
+    """A stadsdeel or another area that CBS does not count as one, when the question names only that."""
+    asked = _words(plaats) - TOWN_FILLERS - {"stadsdeel"}
+    keys = [key for key in REGIONS if set(key) <= asked and not asked - set(key) - {"amsterdam"}]
+    if not keys:
+        return None
+    naam, prefix, note = REGIONS[max(keys, key=len)]
+    return naam, prefix, note or STADSDEEL.format(naam)
+
+
+async def _region_area(naam: str, prefix: str, note: str) -> Gebied | None:
+    """The wijken of a region, by the start of their code, like WK0363T for Amsterdam-Zuidoost."""
+    params = {"q": "*", "fq": f"type:wijk AND wijkcode:{prefix}*", "rows": 50, "fl": "wijkcode,wijknaam,gemeentenaam"}
+    data = await cached(
+        ("plaats-regio", prefix), 24 * 3600, lambda: get_json(LOCATIESERVER, params=params, source="PDOK Locatieserver")
+    )
+    docs = sorted(data.get("response", {}).get("docs", []), key=lambda d: d.get("wijkcode") or "")
+    wijken = tuple((d["wijkcode"], _common(_own_name({**d, "type": "wijk"}))) for d in docs if d.get("wijkcode"))
+    if not wijken:
+        return None
+    gemeente, code = _common(docs[0].get("gemeentenaam") or ""), "GM" + prefix[2:6]
+    return Gebied("wijken", prefix, naam, gemeente, code, let_op=note, wijken=wijken)
 
 
 async def gebied(plaats: str) -> Gebied:
@@ -273,12 +384,17 @@ async def gebied(plaats: str) -> Gebied:
             via += f": de buurt bij één adres, want postcode {plaats} beslaat meestal meer buurten"
         return _as_buurt(await _buurt_at(docs[0]), via=via)
 
+    region = _region(plaats)
+    if region:
+        area = await _region_area(*region)
+        if area:
+            return area
     docs = await _areas_and_streets(plaats)
     asked = plaats
-    doc = _pick(asked, _with_town(docs, asked))
+    doc = await _pick(asked, _with_town(docs, asked))
     if not doc and AAN.search(plaats):
         asked = AAN.sub("", plaats)
-        doc = _pick(asked, _with_town(await _areas_and_streets(asked), asked))
+        doc = await _pick(asked, _with_town(await _areas_and_streets(asked), asked))
     if not doc or not doc.get("gemeentecode"):
         streets = [d for d in docs if d.get("type") == "weg" and _telling(d) and _telling(d) <= _words(plaats)]
         if streets:
