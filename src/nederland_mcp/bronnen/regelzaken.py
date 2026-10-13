@@ -58,12 +58,15 @@ SAME = {
     "overlijden": ("overlijdensaangifte",), "hond": ("hondenbelasting",), "honden": ("hondenbelasting",),
     "wmo": ("huishoudelijke",), "uittreksel": ("brp",), "verblijfsvergunning": ("ind",),
     "verlengen": ("aanvragen", "vernieuwen"), "vernieuwen": ("aanvragen", "verlengen"),
+    "lang": ("duur",), "hoelang": ("duur",), "duurt": ("duur",), "duren": ("duur",),
 }
 
 
 # Question words say what kind of answer is wanted (wanneer gaat mijn AOW in, hoe hoog is de kinderbijslag), so when
-# matching questions they count, but only half.
-ASKING = {"hoe", "hoeveel", "hoelang", "waar", "wanneer", "waarom", "wat", "welke", "wie"}
+# matching questions they count, but only half. How long (hoe lang duurt, de duur van) is such a kind of answer too.
+ASKING = {
+    "hoe", "hoeveel", "hoelang", "waar", "wanneer", "waarom", "wat", "welke", "wie", "lang", "duur", "duurt", "duren",
+}
 # What may follow the same stem: toeslag and toeslagen, geldig and geldigheid.
 ENDINGS = {"", "e", "en", "n", "s", "es", "er", "ers", "heid", "heden", "ing", "ingen", "lijk", "lijke", "je", "jes"}
 
@@ -146,7 +149,15 @@ class _Index:
                         value = weight * factor * strength * rare * self.words[number][word]
                         best = scores.setdefault(number, {})
                         best[asked] = max(best.get(asked, 0.0), value)
-        ranked = sorted(((sum(parts.values()), number) for number, parts in scores.items()), reverse=True)
+        # A page that shares only the kind of question (hoe lang duurt, wanneer) is about something else.
+        ranked = sorted(
+            (
+                (sum(parts.values()), number)
+                for number, parts in scores.items()
+                if any(word not in ASKING for word in parts)
+            ),
+            reverse=True,
+        )
         return [(score, self.pages[number]) for score, number in ranked]
 
 
