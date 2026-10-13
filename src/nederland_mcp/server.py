@@ -14,7 +14,18 @@ from starlette.responses import HTMLResponse, Response
 
 from . import __version__, tellers, vraag
 from .bronnen import bekendmakingen as bekendmakingbron
-from .bronnen import buurt, huis, knmi, ns, ov, reisplanner, schiphol, stroom, vakanties, water
+from .bronnen import (
+    buurt,
+    huis,
+    knmi,
+    ns,
+    ov,
+    reisplanner,
+    schiphol,
+    stroom,
+    vakanties,
+    water,
+)
 from .bronnen import regelzaken as regelzaakbron
 from .bronnen import reisadvies as reisadviezen
 from .bronnen import verkeer as verkeersbron
@@ -467,16 +478,22 @@ async def verkeer(
 HOST = re.compile(r"(?P<name>[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
 # Flights are only in the chat on this site (see bronnen/schiphol.py), so the pages only mention them when the
-# chat can look them up. <!--vluchten--> and <!--/vluchten--> mark those parts.
+# chat can look them up. <!--vluchten--> and <!--/vluchten--> mark those parts. The journey planner is off until
+# Transitous agrees (see bronnen/reisplanner.py), and <!--reisplanner--> marks what the pages say about it.
 FLIGHTS = re.compile(r"<!--vluchten-->(.*?)<!--/vluchten-->", re.S)
+PLANNER = re.compile(r"<!--reisplanner-->(.*?)<!--/reisplanner-->", re.S)
 
 
 def _flights(page: str, keep: bool) -> str:
     return FLIGHTS.sub(lambda match: match[1] if keep else "", page)
 
 
+def _planner(page: str) -> str:
+    return PLANNER.sub(lambda match: match[1] if reisplanner.AAN else "", page)
+
+
 # The version in the stylesheet link makes browsers load a changed stylesheet right away.
-_home = (SITE / "index.html").read_text(encoding="utf-8").replace("{{VERSION}}", __version__)
+_home = _planner((SITE / "index.html").read_text(encoding="utf-8").replace("{{VERSION}}", __version__))
 HOME = {keep: _flights(_home, keep) for keep in (True, False)}
 
 
@@ -504,7 +521,7 @@ async def ask_joost(request: Request) -> Response:
 def _serve(path: str, filename: str, media_type: str, max_age: int) -> None:
     body = (SITE / filename).read_bytes()
     if media_type == "text/html":
-        body = _flights(body.decode(), schiphol.available()).replace("{{VERSION}}", __version__).encode()
+        body = _planner(_flights(body.decode(), schiphol.available())).replace("{{VERSION}}", __version__).encode()
     headers = {"Cache-Control": f"public, max-age={max_age}"}
 
     async def page(request: Request) -> Response:
