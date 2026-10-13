@@ -43,31 +43,34 @@ class _Place:
 async def _point(text: str, plaats: str | None) -> _Place:
     text = text.strip()
     both = " ".join(part for part in (text, plaats) if part)
-    station = await _station(both)
-    if station:
-        # A station is a public place, so its point needs no rounding; rounded, a big station starts a walk away.
-        lat, lon, name = station
-        return _Place(f"{lat:.5f},{lon:.5f}", name)
     if plaats or _is_address(text):
         found = await _address(text, plaats)
         if found:
             # The street and town, without the house number that was asked.
             name = re.sub(r"\s+\d+\S*(?=,)|\s*\b\d{4}\s?[A-Z]{2}\b", "", found["naam"])
             return _Place(f"{found['lat']:.3f},{found['lon']:.3f}", common_name(name), found)
-    if not _is_address(text):
-        # A stop or a spot with its own stop, like the Kurhaus or the Leidseplein: the stop itself.
-        try:
-            stop, _, sure = await _find(text, plaats)
-        except ToolError:
-            stop, sure = None, False
-        if stop and sure:
-            return _Place(stop["id"], common_name(stop["name"]))
-        try:
-            place = await plaatsen.zoek(both)
-            return _Place(f"{place.lat:.3f},{place.lon:.3f}", place.naam)
-        except ToolError:
-            pass
-    raise ToolError(f"Geen plek gevonden die lijkt op '{text}'. Noem een adres, straat, station, halte of plaats.")
+    if _is_address(text):
+        raise ToolError(f"Geen adres gevonden dat lijkt op '{text}'. Noem de straat met huisnummer en de plaats.")
+    # A station, a stop or a spot with its own stop, like the Kurhaus: the stop itself, so the trip starts there
+    # and not on the street outside.
+    try:
+        stop, _, sure = await _find(text, plaats)
+    except ToolError:
+        stop, sure = None, False
+    if stop and sure:
+        return _Place(stop["id"], common_name(stop["name"]))
+    station = await _station(both)
+    if station:
+        # A station is a public place, so its point needs no rounding.
+        lat, lon, name = station
+        return _Place(f"{lat:.5f},{lon:.5f}", name)
+    try:
+        place = await plaatsen.zoek(both)
+    except ToolError:
+        raise ToolError(
+            f"Geen plek gevonden die lijkt op '{text}'. Noem een adres, straat, station, halte of plaats."
+        ) from None
+    return _Place(f"{place.lat:.3f},{place.lon:.3f}", place.naam)
 
 
 async def _stop_near(place: _Place) -> tuple[_Place, int] | None:
@@ -117,7 +120,7 @@ async def _plan(start: str, end: str, moment: datetime, aankomst: bool) -> list[
     }
     data = await cached(
         ("reisplanner", tuple(sorted(params.items()))), 60,
-        lambda: get_json(f"{BASE}/v5/plan", params=params, source=SOURCE),
+        lambda: get_json(f"{BASE}/v6/plan", params=params, source=SOURCE),
     )
     return data.get("itineraries") or []
 
