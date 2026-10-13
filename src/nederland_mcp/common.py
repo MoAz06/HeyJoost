@@ -1,5 +1,6 @@
 """Shared helpers: HTTP client, TTL cache, time handling and errors."""
 
+import html
 import logging
 import re
 import time
@@ -121,6 +122,16 @@ def fmt_time(value: datetime | None) -> str | None:
 
 def fmt_datetime(value: datetime | None) -> str | None:
     return value.strftime("%Y-%m-%d %H:%M") if value else None
+
+
+def html_text(fragment: str | None) -> str:
+    """Plain text from a piece of HTML: a line per paragraph or heading, and a dash before each list item."""
+    # HTML breaks its lines anywhere, so only the tags start a new line.
+    text = re.sub(r"<li\b[^>]*>", "\n- ", " ".join((fragment or "").split()))
+    text = re.sub(r"<(?:p|br|h\d|div|ul|ol|tr|section)\b[^>]*>", "\n", text)
+    text = html.unescape(re.sub(r"<[^>]+>", "", text))
+    lines = (" ".join(line.split()) for line in text.splitlines())
+    return "\n".join(line for line in lines if line and line != "-")
 
 
 def normalize(text: str) -> str:

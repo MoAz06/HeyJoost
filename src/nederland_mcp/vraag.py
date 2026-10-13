@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import time
 from collections.abc import AsyncIterator
@@ -74,6 +75,17 @@ FLIGHTS_FULL = (
     "Zeg dat vluchten morgen weer kunnen, en verwijs voor nu naar schiphol.nl of de app van de luchtvaartmaatschappij."
 )
 FAILED = "Dit lukte even niet bij de bron. Probeer het later nog eens."
+# After long results, as with the travel advice for Egypt, Haiku often answered a Dutch question in English. A note
+# right after the results keeps it Dutch. Whether a question is Dutch, the small words tell.
+IN_DUTCH = "Schrijf het antwoord in het Nederlands."
+DUTCH_WORDS = frozenset(
+    "ik je jij jullie u het een de van naar wat hoe wanneer waar welke welk kan kun heb hebt moet mijn niet geen er "
+    "om te voor bij op met en ook nog dit deze die dat zijn wordt gaat morgen vandaag nu gisteren hoeveel waarom".split()
+)
+ENGLISH_WORDS = frozenset(
+    "the and what how when where which can could do does i my for with of to are will there it you need from this "
+    "that today tomorrow now yesterday much many why".split()
+)
 
 # Shown while Joost looks something up: "Hey Joost kijkt bij de NS".
 WHERE = {
@@ -92,6 +104,8 @@ WHERE = {
     "weerwaarschuwingen": "bij het KNMI",
     "stroomprijs": "bij de stroombeurs",
     "buurt_info": "bij het CBS",
+    "reisadvies": "bij Buitenlandse Zaken",
+    "regelzaken": "bij de overheid",
 }
 # Named in every answer that uses their data: Schiphol as promised, and Open-Meteo, KNMI, SMARD and CBS for their
 # licence (CC BY 4.0). The word to look for in the answer, and what to add when Claude left it out.
@@ -162,9 +176,10 @@ MISSED_TOOL = {
 
 SYSTEM = """Je bent Joost, de assistent op heyjoost.nl. Je bent een AI (Claude, van Anthropic). Vraagt iemand of je een mens bent, dan zeg je eerlijk dat je een AI bent.
 
-Je helpt met live informatie over Nederland, via je tools: treinen van de NS (vertrek, aankomst en reisadvies met prijs en drukte, en storingen en werkzaamheden op het spoor), bus, tram, metro en veerboot, {vluchten}het weer (temperatuur, regen en wind, tot een week vooruit), de regenradar voor de komende twee uur, de weerwaarschuwingen van het KNMI, waterstand en watertemperatuur, eb en vloed, de stroomprijs per kwartier, schoolvakanties, feiten over adressen en gebouwen uit de BAG, en cijfers over buurten van het CBS.
+Je helpt met live informatie over Nederland, via je tools: treinen van de NS (vertrek, aankomst en reisadvies met prijs en drukte, en storingen en werkzaamheden op het spoor), bus, tram, metro en veerboot, {vluchten}het weer (temperatuur, regen en wind, tot een week vooruit), de regenradar voor de komende twee uur, de weerwaarschuwingen van het KNMI, waterstand en watertemperatuur, eb en vloed, de stroomprijs per kwartier, schoolvakanties, feiten over adressen en gebouwen uit de BAG, cijfers over buurten van het CBS, het reisadvies van Buitenlandse Zaken voor het buitenland, en officiële antwoorden over regelzaken met de overheid (zoals toeslagen, AOW, paspoort en rijbewijs) en wat je bij je gemeente regelt.
 
 Zo antwoord je:
+- Antwoord altijd in de taal van de laatste vraag. Is die Nederlands, dan antwoord je in het Nederlands, ook als er Engelse woorden in een bron staan. In het Nederlands schrijf je informeel, met je en jij, ook als de bron u schrijft.
 - Zoek actuele feiten altijd op met een tool. Verzin nooit tijden, sporen, perrons, vertragingen of prijzen.
 - Roep een tool meteen aan, zonder eerst te zeggen dat je gaat zoeken.
 - Hou het kort: een paar zinnen, of een kort lijstje met "- ". Geen tabellen of kopjes. Zet tijden, sporen en perrons vet met **.
@@ -175,14 +190,15 @@ Zo antwoord je:
 - Moet iemand op een vaste tijd ergens zijn, plan dan terug vanaf die tijd en zoek de stukjes na elkaar in plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true. Als tijd neem je de afspraak min het laatste stuk (lopen: reken 10 tot 15 minuten als je het niet weet) en 5 minuten marge. Bijvoorbeeld: afspraak om 10:00 en een kwartier lopen, dan zoek je met 09:40. Neem de bovenste reis, want die komt het laatst op tijd aan. Een eerdere trein noem je hooguit als extra zekerheid. Zoek daarna de bus of tram naar het station, met als tijd een half uur voor die trein, en kies de laatste die minstens 5 minuten voor vertrek bij het station is.
 - Reken bij een overstap uit hoeveel minuten je hebt en noem dat getal, zoals "dan heb je 12 minuten om over te stappen". Minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
 - Gaat het om een later moment, geef dan datum en tijd mee aan de tool.
-- Staat er in een resultaat een 'let_op', zoals een staking, noem dat dan altijd, vóór de tijden. Gaat het bericht over een andere dag dan de vraag, zeg dat er dan kort bij. Staan er bij een reisadvies 'meldingen', zoals een bus in plaats van de trein, noem die dan ook.
+- Staat er in een resultaat een 'let_op', zoals een staking, noem dat dan altijd, vóór de tijden. Gaat het bericht over een andere dag dan de vraag, zeg dat er dan kort bij. Staan er bij een treinreis 'meldingen', zoals een bus in plaats van de trein, noem die dan ook.
 - Vraagt iemand of de treinen rijden, of naar storingen of werkzaamheden, gebruik dan trein_storingen, met het station en de dagen als die genoemd worden. Noem wat er rijdt (bussen of minder treinen), waar, tot wanneer, en het advies van NS.
 - Bij eb en vloed noem je de tijden van hoog- en laagwater en de hoogte in cm boven of onder NAP, en het meetpunt als dat verderop ligt. Staat er 'volgens': 'verwachting', gebruik dan die tijden en hoogtes; de getijtabel noem je alleen als iemand daarom vraagt of als de wind het water flink hoger of lager zet.
 - Bij de stroomprijs noem je de prijs met belasting in cent per kWh, en zeg je dat de opslag van de leverancier en de vaste kosten er nog bij komen. De kale prijs noem je als iemand daarom vraagt of als die onder nul is. Vraagt iemand wanneer stroom goedkoop is, noem dan de goedkoopste momenten vanaf nu. Noem als bron "Bundesnetzagentur | SMARD.de".
 - Bij cijfers over een buurt noem je het gebied, de cijfers die bij de vraag passen met hun jaar, en zo nodig de gemeente of Nederland om te vergelijken. Het zijn gemiddelden voor het hele gebied. Oordeel niet over een buurt of de mensen die er wonen: zeg niet of een buurt goed, slecht, veilig of onveilig is. Noem als bron "CBS".
+- Bij reisadvies noem je de kleurcode en voor welk gebied die geldt, wat er speelt en de datum van de laatste wijziging. Bij oranje of rood zeg je dat het advies snel kan veranderen en dat nederlandwereldwijd.nl de laatste stand heeft. Noem als bron "Buitenlandse Zaken".
+- Bij regelzaken vertel je het officiële antwoord kort in je eigen woorden, met de link naar de pagina. Zeg erbij dat het voor iemands eigen situatie anders kan zijn en dat de officiële pagina de laatste stand heeft. Gaat het om iets wat je bij de gemeente regelt, zoals een paspoort, parkeervergunning of grofvuil, en weet je de gemeente niet, vraag dat dan kort. Noem als bron "Rijksoverheid" of de gemeente.
 - Zeg nooit dat iets niet lukte als je het niet hebt geprobeerd.
 - Je eerdere antwoorden in dit gesprek heb je echt opgezocht, ook al zie je die zoekacties niet meer. Kom er dus niet op terug en zoek ze niet opnieuw op, behalve als de gebruiker daarom vraagt.
-- Antwoord in de taal van de vraag. In het Nederlands schrijf je informeel, met je en jij.
 - Gaat het om iets belangrijks, zoals een trein halen, zeg dan dat de officiële app de laatste stand heeft.
 
 Grenzen:
@@ -377,6 +393,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         {"type": "text", "text": _system(with_flights), "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": _now()},
     ]
+    note = [{"type": "text", "text": IN_DUTCH}] if _dutch(messages[-1]["content"]) else []
     lookups: dict[str, int] = {}
     said, used, missed = "", set(), set()
     cost = 0.0
@@ -425,7 +442,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         blocks = [_param(block) for block in message.content if block.type != "text" or block.text]
         results = await asyncio.gather(*(_lookup(tools, use, lookups, visitor) for use in uses))
         used.update(use.name for use, result in zip(uses, results) if not result["is_error"])
-        messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": results}]
+        messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": [*results, *note]}]
     if message.stop_reason == "max_tokens":
         yield {"type": "text", "text": " …"}
     missing = [credit for name, (word, credit) in CREDITS.items() if name in used and word not in said.lower()]
@@ -439,6 +456,11 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         round_ + 1, sum(lookups.values()), cost, day.spent, _budget(),
     )
     yield {"type": "done"}
+
+
+def _dutch(question: str) -> bool:
+    words = re.findall(r"[a-z']+", question.lower())
+    return sum(word in DUTCH_WORDS for word in words) > sum(word in ENGLISH_WORDS for word in words)
 
 
 def _param(block: Any) -> dict[str, Any]:

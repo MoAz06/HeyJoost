@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten, het reisadvies en regelzaken bij de overheid. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
@@ -75,7 +75,7 @@
       </div>
 
       <div class="intro">
-        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het weer, het water, de stroomprijs, de schoolvakanties, je huis en je buurt. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het weer, het water, de stroomprijs, de schoolvakanties, het reisadvies, je huis en je buurt, en wat je bij de overheid regelt. Rechtstreeks uit de officiële bronnen, en gratis.</p>
         <div class="actions">
           <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
           <a class="link-arrow" href="#probeer">Wat kan ik vragen? <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
@@ -111,6 +111,12 @@
           <p class="src"><span class="vh">Bron: </span>Schiphol</p>
         </li><!--/vluchten-->
         <li>
+          <div class="sign" aria-hidden="true"><b>Geel</b><span>Kleurcode</span></div>
+          <h3>Reisadvies</h3>
+          <p>Hoe veilig een land is, per gebied met de kleurcode, wat er speelt en wanneer het advies voor het laatst veranderde. Ook over visum en paspoort, vaccinaties en wat je doet bij nood.</p>
+          <p class="src"><span class="vh">Bron: </span>Buitenlandse Zaken</p>
+        </li>
+        <li>
           <div class="sign long" aria-hidden="true"><b>0,4 mm</b><span>Regen</span></div>
           <h3>Weer</h3>
           <p>Regen, temperatuur en wind per uur en per dag, de regenradar voor de komende twee uur en de weerwaarschuwingen. Voor elke plaats of wijk.</p>
@@ -133,6 +139,12 @@
           <h3>Schoolvakanties</h3>
           <p>Wanneer is de vakantie in noord, midden of zuid? Voor dit en het volgende schooljaar.</p>
           <p class="src"><span class="vh">Bron: </span>Rijksoverheid</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>10 jaar</b><span>Paspoort</span></div>
+          <h3>Regelzaken</h3>
+          <p>Officiële antwoorden over toeslagen, AOW, je paspoort, je rijbewijs en meer. Plus wat je bij je eigen gemeente regelt, met de link en of het online kan.</p>
+          <p class="src"><span class="vh">Bron: </span>Rijksoverheid en gemeenten</p>
         </li>
         <li>
           <div class="sign" aria-hidden="true"><b>1917</b><span>Bouwjaar</span></div>
@@ -199,11 +211,13 @@
         <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?"><span class="topic" aria-hidden="true">Spoor</span><span>Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?"><span class="topic" aria-hidden="true">Reizen</span><span>Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="topic" aria-hidden="true">Water</span><span>Hoe warm is het zeewater in Scheveningen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoe laat is het laagwater morgen bij Harlingen?"><span class="topic" aria-hidden="true">Getij</span><span>Hoe laat is het laagwater morgen bij Harlingen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?"><span class="topic" aria-hidden="true">Strand</span><span>Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer is stroom vandaag het goedkoopst om de was te draaien?"><span class="topic" aria-hidden="true">Stroom</span><span>Wanneer is stroom vandaag het goedkoopst om de was te draaien?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?"><span class="topic" aria-hidden="true">Regelen</span><span>Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?"><span class="topic" aria-hidden="true">Buurt</span><span>Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </div>
@@ -222,11 +236,13 @@
         <li><b>KNMI Data Platform</b>de regenradar en de weerwaarschuwingen, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
         <li><b>Rijkswaterstaat Waterinfo</b>waterstanden, temperatuur, eb en vloed</li>
         <li><b>Bundesnetzagentur | SMARD.de, via Energy-Charts</b>de stroomprijs per kwartier, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
-        <li><b>Rijksoverheid</b>schoolvakanties</li>
+        <li><b>Ministerie van Buitenlandse Zaken, via NederlandWereldwijd</b>het reisadvies</li>
+        <li><b>Rijksoverheid</b>schoolvakanties en vragen en antwoorden over regelzaken</li>
+        <li><b>Samenwerkende Catalogi (KOOP)</b>wat je bij je gemeente regelt</li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
         <li><b>CBS</b>cijfers over buurten, wijken en gemeenten, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
       </ul>
-      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Bij zwaar weer heeft <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a> altijd de laatste stand.</p>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Bij zwaar weer heeft <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a> altijd de laatste stand, en voor een reis <a href="https://www.nederlandwereldwijd.nl/reisadvies">nederlandwereldwijd.nl</a>.</p>
     </section>
   </div>
 </main>

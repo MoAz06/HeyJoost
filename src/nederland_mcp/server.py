@@ -14,6 +14,8 @@ from starlette.responses import HTMLResponse, Response
 
 from . import __version__, tellers, vraag
 from .bronnen import buurt, huis, knmi, ns, ov, schiphol, stroom, vakanties, water
+from .bronnen import regelzaken as regelzaakbron
+from .bronnen import reisadvies as reisadviezen
 from .bronnen import weer as weerbron
 
 WEBSITE = "https://heyjoost.nl"
@@ -23,8 +25,9 @@ SITE = Path(__file__).parent / "site"
 INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
     "cijfers over buurten van het CBS, schoolvakanties, waterstanden, watertemperatuur en eb en vloed, het weer, "
-    "de regenradar en de weerwaarschuwingen van het KNMI, de stroomprijs per kwartier, NS-treinen met storingen "
-    "en werkzaamheden, en bus, tram en metro.\n"
+    "de regenradar en de weerwaarschuwingen van het KNMI, de stroomprijs per kwartier, het reisadvies van "
+    "Buitenlandse Zaken, officiële antwoorden over regelzaken van de Rijksoverheid en gemeenten, NS-treinen met "
+    "storingen en werkzaamheden, en bus, tram en metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -43,7 +46,7 @@ server = HeyJoost(
     title="Hey Joost",
     description=(
         "Live Nederland in je AI: treinen en storingen, bus en tram, weer en regenradar, eb en vloed, de "
-        "stroomprijs, buurten, schoolvakanties en huizen, uit officiële bronnen."
+        "stroomprijs, buurten, schoolvakanties, huizen, reisadvies en regelzaken, uit officiële bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -219,6 +222,44 @@ async def stroomprijs(
     datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD, van een maand terug tot morgen. Leeg = nu, vandaag en morgen")] = None,
 ) -> dict[str, Any]:
     return await stroom.stroomprijs(datum)
+
+
+@server.tool(
+    title="Reisadvies",
+    description=(
+        "Het officiële reisadvies van het ministerie van Buitenlandse Zaken voor een land in het buitenland: de "
+        "kleurcode (groen, geel, oranje of rood) en voor welk gebied die geldt, wat er speelt en wanneer het advies "
+        "voor het laatst is gewijzigd, met de link. Met een onderwerp komt ook de tekst daarover mee, zoals paspoort "
+        "en visum, vaccinaties, criminaliteit, wetten en gebruiken (drugs, alcohol, kleding) of wat je doet in geval "
+        "van nood. 'onderwerpen' noemt wat er verder in het advies staat. Werkt met het land of een bekende plek, "
+        "zoals Mallorca, Bali of Dubai. Niet voor een reis met trein, bus of tram: dat zijn trein_reis en ov_vertrek."
+    ),
+    annotations=READ_ONLY,
+)
+async def reisadvies(
+    land: Annotated[str, Field(description="Land of bekende plek, bijvoorbeeld Turkije, Verenigde Staten of Mallorca")],
+    onderwerp: Annotated[str | None, Field(description="Waar de vraag over gaat, bijvoorbeeld visum, vaccinaties, veiligheid, drugs of ambassade. Leeg = alleen de kleurcode en het korte overzicht")] = None,
+) -> dict[str, Any]:
+    return await reisadviezen.reisadvies(land, onderwerp)
+
+
+@server.tool(
+    title="Regelzaken",
+    description=(
+        "Officiële antwoorden over regelzaken met de overheid, uit de vragen en antwoorden van Rijksoverheid.nl: "
+        "toeslagen, AOW, kinderbijslag, paspoort en ID-kaart, rijbewijs, huren, zorgverzekering, werk, belasting en "
+        "meer, met de link naar de pagina. Met een gemeente komen ook de producten van die gemeente mee, zoals een "
+        "paspoort aanvragen, een parkeervergunning, grofvuil of een verhuizing doorgeven, met de link naar de site van "
+        "de gemeente en of het online kan. Het is de algemene uitleg van de overheid, geen advies over iemands eigen "
+        "situatie."
+    ),
+    annotations=READ_ONLY,
+)
+async def regelzaken(
+    vraag: Annotated[str, Field(description="De vraag of het onderwerp, bijvoorbeeld 'wanneer moet ik mijn paspoort verlengen' of 'huurtoeslag'")],
+    gemeente: Annotated[str | None, Field(description="Gemeente of plaats, alleen als het om iets bij de gemeente gaat, bijvoorbeeld Leiden of Scheveningen. Leeg = alleen de Rijksoverheid")] = None,
+) -> dict[str, Any]:
+    return await regelzaakbron.regelzaken(vraag, gemeente)
 
 
 @server.tool(

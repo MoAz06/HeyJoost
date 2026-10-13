@@ -88,14 +88,15 @@ class Gebied(NamedTuple):
     delen: tuple[tuple[str, str], ...] = ()  # code and name of each buurt or wijk, for an area CBS does not count as one
 
 
-def _common(name: str) -> str:
+def common_name(name: str) -> str:
+    """The name people use: Den Haag for 's-Gravenhage and Den Bosch for 's-Hertogenbosch."""
     for pattern, alias in ALIASES:
         name = pattern.sub(alias, name)
     return name
 
 
 def _words(text: str) -> set[str]:
-    text = unicodedata.normalize("NFKD", _common(text)).encode("ascii", "ignore").decode().lower()
+    text = unicodedata.normalize("NFKD", common_name(text)).encode("ascii", "ignore").decode().lower()
     return set(re.findall(r"[a-z0-9]+", text))
 
 
@@ -176,9 +177,9 @@ def _as_parts(docs: list[dict]) -> Gebied:
     """Buurten or wijken side by side as one area, like Kralingen West and Kralingen Oost as Kralingen."""
     kind = docs[0]["type"]
     field = "buurtcode" if kind == "buurt" else "wijkcode"
-    names = [_common(_own_name(doc)) for doc in docs]
+    names = [common_name(_own_name(doc)) for doc in docs]
     naam = " ".join(part for part in re.split(r"[\s-]+", names[0]) if part.lower() not in GENERIC) or names[0]
-    gemeente, code = _common(docs[0].get("gemeentenaam") or ""), "GM" + docs[0]["gemeentecode"]
+    gemeente, code = common_name(docs[0].get("gemeentenaam") or ""), "GM" + docs[0]["gemeentecode"]
     let_op = f"{naam} is bij het CBS geen eigen gebied. Dit zijn de {kind}en {_listed(names)}."
     delen = tuple((doc[field], name) for doc, name in zip(docs, names))
     return Gebied(f"{kind}en", code, naam, gemeente, code, let_op=let_op, delen=delen)
@@ -208,8 +209,8 @@ async def _size(doc: dict) -> int:
 
 
 def _name(doc: dict) -> str:
-    own = _common(_own_name(doc))
-    town = _common(doc.get("woonplaatsnaam") or doc.get("gemeentenaam") or "")
+    own = common_name(_own_name(doc))
+    town = common_name(doc.get("woonplaatsnaam") or doc.get("gemeentenaam") or "")
     if doc.get("type") == "postcode":
         return town
     if doc.get("type") in ("wijk", "buurt") and town and town not in own:
@@ -292,16 +293,16 @@ async def _buurt_at(doc: dict) -> dict:
 
 
 def _as_buurt(doc: dict, via: str | None = None) -> Gebied:
-    wijk = _common(re.sub(r"^Wijk \d+\s+", "", doc.get("wijknaam") or "")) or None
+    wijk = common_name(re.sub(r"^Wijk \d+\s+", "", doc.get("wijknaam") or "")) or None
     return Gebied(
-        "buurt", doc["buurtcode"], _common(doc.get("buurtnaam") or ""), _common(doc.get("gemeentenaam") or ""),
+        "buurt", doc["buurtcode"], common_name(doc.get("buurtnaam") or ""), common_name(doc.get("gemeentenaam") or ""),
         "GM" + doc["gemeentecode"], wijk, via,
     )
 
 
 def _as_wijk(doc: dict) -> Gebied:
     return Gebied(
-        "wijk", doc["wijkcode"], _common(_own_name(doc)), _common(doc.get("gemeentenaam") or ""),
+        "wijk", doc["wijkcode"], common_name(_own_name(doc)), common_name(doc.get("gemeentenaam") or ""),
         "GM" + doc["gemeentecode"],
     )
 
@@ -347,7 +348,7 @@ async def _town_wijken(woonplaatscode: str) -> list[tuple[str, str, int, int]]:
     except ToolError:
         return []
     return [
-        (wijk, _common(_own_name({"type": "wijk", "wijknaam": name})), count, total)
+        (wijk, common_name(_own_name({"type": "wijk", "wijknaam": name})), count, total)
         for (wijk, name, count), total in zip(walked or (), totals)
     ]
 
@@ -409,14 +410,14 @@ async def _area(doc: dict) -> Gebied:
     """The CBS area of a hit: a street becomes the buurt at its middle, a town the gemeente or its wijk or wijken."""
     kind = doc.get("type")
     if kind == "weg":
-        street, town = doc.get("straatnaam") or "", _common(doc.get("woonplaatsnaam") or "")
+        street, town = doc.get("straatnaam") or "", common_name(doc.get("woonplaatsnaam") or "")
         return _as_buurt(await _buurt_at(doc), via=f"{street}, {town}: de buurt bij het midden van de straat")
     if kind == "buurt" and doc.get("buurtcode"):
         return _as_buurt(doc)
     if kind == "wijk" and doc.get("wijkcode"):
         return _as_wijk(doc)
-    gemeente, code = _common(doc.get("gemeentenaam") or ""), "GM" + doc["gemeentecode"]
-    town = _bare(_common(doc.get("woonplaatsnaam") or ""))
+    gemeente, code = common_name(doc.get("gemeentenaam") or ""), "GM" + doc["gemeentecode"]
+    town = _bare(common_name(doc.get("woonplaatsnaam") or ""))
     if kind != "woonplaats" or place_key(town) == place_key(_bare(gemeente)):
         return Gebied("gemeente", code, gemeente, gemeente, code)
     # CBS counts per gemeente, wijk and buurt, not per town. A town in a larger gemeente gets the wijken that are
@@ -459,10 +460,10 @@ async def _region_area(naam: str, prefix: str, note: str) -> Gebied | None:
         ("plaats-regio", prefix), 24 * 3600, lambda: get_json(LOCATIESERVER, params=params, source="PDOK Locatieserver")
     )
     docs = sorted(data.get("response", {}).get("docs", []), key=lambda d: d.get("wijkcode") or "")
-    wijken = tuple((d["wijkcode"], _common(_own_name({**d, "type": "wijk"}))) for d in docs if d.get("wijkcode"))
+    wijken = tuple((d["wijkcode"], common_name(_own_name({**d, "type": "wijk"}))) for d in docs if d.get("wijkcode"))
     if not wijken:
         return None
-    gemeente, code = _common(docs[0].get("gemeentenaam") or ""), "GM" + prefix[2:6]
+    gemeente, code = common_name(docs[0].get("gemeentenaam") or ""), "GM" + prefix[2:6]
     return Gebied("wijken", prefix, naam, gemeente, code, let_op=note, delen=wijken)
 
 
@@ -524,7 +525,7 @@ async def gebied(plaats: str) -> Gebied:
     if not doc or not doc.get("gemeentecode"):
         streets = [d for d in docs if d.get("type") == "weg" and _telling(d) and _telling(d) <= _words(plaats)]
         if streets:
-            towns = ", ".join(dict.fromkeys(_common(d.get("woonplaatsnaam") or "") for d in streets[:4]))
+            towns = ", ".join(dict.fromkeys(common_name(d.get("woonplaatsnaam") or "") for d in streets[:4]))
             raise ToolError(f"Noem de plaats bij de straat: {streets[0].get('straatnaam')} is er in onder meer {towns}.")
         raise ToolError(
             f"Geen buurt, wijk of plaats gevonden die lijkt op '{plaats}'. Noem bijvoorbeeld Vogelwijk Den Haag, "

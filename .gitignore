@@ -11,3 +11,6 @@ wheels/
 
 # Eigen API-keys
 .env
+
+# Een index die nog wordt opgebouwd
+*.bezig.json
