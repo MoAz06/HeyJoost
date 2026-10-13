@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, files en werk aan de weg, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten, vergunningen in je straat, het reisadvies en regelzaken bij de overheid. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, files en werk aan de weg, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten, vergunningen in je straat, wat er open is in de buurt, het reisadvies en regelzaken bij de overheid. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
@@ -159,6 +159,12 @@
           <p class="src"><span class="vh">Bron: </span>Officiële bekendmakingen</p>
         </li>
         <li>
+          <div class="sign long" aria-hidden="true"><b>22:00</b><span>Open tot</span></div>
+          <h3>Open in de buurt</h3>
+          <p>Supermarkten, apotheken en pinautomaten bij jou in de buurt of bij het station, met de afstand, of ze nu open zijn en tot hoe laat.</p>
+          <p class="src"><span class="vh">Bron: </span>OpenStreetMap</p>
+        </li>
+        <li>
           <div class="sign" aria-hidden="true"><b>1917</b><span>Bouwjaar</span></div>
           <h3>Huis-check</h3>
           <p>Bouwjaar, oppervlakte, gebruik en buurt van elk adres in Nederland, uit de BAG.</p>
@@ -232,6 +238,7 @@
         <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?"><span class="topic" aria-hidden="true">Regelen</span><span>Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?"><span class="topic" aria-hidden="true">Straat</span><span>Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Welke supermarkt bij Utrecht Centraal is nu nog open?"><span class="topic" aria-hidden="true">Open</span><span>Welke supermarkt bij Utrecht Centraal is nu nog open?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?"><span class="topic" aria-hidden="true">Buurt</span><span>Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </div>
@@ -255,6 +262,7 @@
         <li><b>Samenwerkende Catalogi (KOOP)</b>wat je bij je gemeente regelt</li>
         <li><b>Officiële bekendmakingen (KOOP)</b>vergunningen en andere bekendmakingen rond een adres</li>
         <li><b>NDW (Nationaal Dataportaal Wegverkeer)</b>files, ongelukken, afsluitingen en werkzaamheden, met wegen en afritten uit VILD</li>
+        <li><b>© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers</b>supermarkten, apotheken en pinautomaten met hun openingstijden, onder de <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a></li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
         <li><b>CBS</b>cijfers over buurten, wijken en gemeenten, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
       </ul>

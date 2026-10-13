@@ -19,6 +19,7 @@ from .bronnen import regelzaken as regelzaakbron
 from .bronnen import reisadvies as reisadviezen
 from .bronnen import verkeer as verkeersbron
 from .bronnen import weer as weerbron
+from .bronnen import winkels as winkelbron
 
 WEBSITE = "https://heyjoost.nl"
 SITE = Path(__file__).parent / "site"
@@ -29,8 +30,9 @@ INSTRUCTIONS = (
     "cijfers over buurten van het CBS, schoolvakanties, waterstanden, watertemperatuur en eb en vloed, het weer, "
     "de regenradar en de weerwaarschuwingen van het KNMI, de stroomprijs per kwartier, het reisadvies van "
     "Buitenlandse Zaken, officiële antwoorden over regelzaken van de Rijksoverheid en gemeenten, bekendmakingen "
-    "zoals vergunningen rond een adres, het verkeer op de weg van NDW, NS-treinen met storingen en werkzaamheden, "
-    "en bus, tram en metro.\n"
+    "zoals vergunningen rond een adres, het verkeer op de weg van NDW, supermarkten, apotheken en pinautomaten in "
+    "de buurt met openingstijden uit OpenStreetMap, NS-treinen met storingen en werkzaamheden, en bus, tram en "
+    "metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -49,8 +51,8 @@ server = HeyJoost(
     title="Hey Joost",
     description=(
         "Live Nederland in je AI: treinen en storingen, bus en tram, files en werk aan de weg, weer en regenradar, "
-        "eb en vloed, de stroomprijs, buurten, vergunningen in je straat, schoolvakanties, huizen, reisadvies en "
-        "regelzaken, uit officiële bronnen."
+        "eb en vloed, de stroomprijs, buurten, vergunningen in je straat, wat er open is in de buurt, "
+        "schoolvakanties, huizen, reisadvies en regelzaken, uit officiële en open bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -286,6 +288,27 @@ async def bekendmakingen(
     weken: Annotated[int, Field(ge=1, le=26, description="Hoeveel weken terug")] = 8,
 ) -> dict[str, Any]:
     return await bekendmakingbron.bekendmakingen(adres, plaats, straal_m, weken)
+
+
+@server.tool(
+    title="Open in de buurt",
+    description=(
+        "Supermarkten, apotheken en pinautomaten in de buurt van een adres, straat, station, wijk of plaats, de "
+        "dichtstbijzijnde eerst, met de afstand hemelsbreed in meters ('afstand_m'), het adres en de openingstijden: "
+        "of het nu open is ('open_nu'), tot hoe laat ('open_tot') en wanneer het weer opengaat ('gaat_open'). Met "
+        "nu_open alleen wat nu open is. De openingstijden komen uit OpenStreetMap en kunnen afwijken, zeker op "
+        "feestdagen. Bij een apotheek staat erbij hoe je buiten openingstijden de dienstapotheek vindt."
+    ),
+    annotations=READ_ONLY,
+)
+async def open_in_de_buurt(
+    waar: Annotated[str, Field(description="Adres, straat, station, wijk of plaats, bijvoorbeeld Rapenburg 70, Utrecht Centraal of Scheveningen")],
+    soort: Annotated[str, Field(description="supermarkt, apotheek of pinautomaat")] = "supermarkt",
+    plaats: Annotated[str | None, Field(description="Plaats van het adres of de straat, bijvoorbeeld Leiden")] = None,
+    nu_open: Annotated[bool, Field(description="Alleen wat nu open is")] = False,
+    aantal: Annotated[int, Field(ge=1, le=10, description="Hoeveel plekken")] = 5,
+) -> dict[str, Any]:
+    return await winkelbron.open_in_de_buurt(waar, soort, plaats, nu_open, aantal)
 
 
 @server.tool(
