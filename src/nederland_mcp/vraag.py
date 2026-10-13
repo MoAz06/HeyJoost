@@ -122,6 +122,43 @@ FLIGHT_TOOL = {
         "required": ["vluchtnummer"],
     },
 }
+# Not an MCP tool either: the chat counts the questions Joost cannot answer, by a topic from this list and never the
+# question itself, to show what people miss. The Tellers line in the log has them as "chat mist <onderwerp>".
+MISSED = {
+    "verkeer": "files, wegwerkzaamheden en flitsers",
+    "parkeren": "parkeren en parkeergarages",
+    "brandstof": "benzineprijzen, tankstations en laadpalen",
+    "afval": "afvalkalender en containers",
+    "lucht": "luchtkwaliteit, pollen en hooikoorts",
+    "winkels": "openingstijden van winkels, markten en koopzondagen",
+    "zorg": "huisartsenpost, apotheek en ziekenhuis",
+    "overheid": "gemeente, paspoort, rijbewijs, vergunningen en verkiezingen",
+    "geld": "belasting, toeslagen, uitkeringen en prijzen",
+    "uitgaan": "evenementen, musea, bioscoop en restaurants",
+    "nieuws": "nieuws, politiek en sport",
+    "buitenland": "reizen, weer of vervoer buiten Nederland",
+    "vluchten": "vluchten die je niet kunt opzoeken",
+    "anders": "iets anders over Nederland",
+    "geen_nederland": "geen vraag over Nederland, zoals huiswerk, code of een verhaal",
+}
+MISSED_TOOL = {
+    "name": "gemiste_vraag",
+    "description": (
+        "Telt een vraag die je met je andere tools niet kunt beantwoorden, alleen het onderwerp; de vraag zelf wordt "
+        "nooit bewaard. Roep dit aan nadat je je antwoord hebt geschreven, één keer per onderwerp."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "onderwerp": {
+                "type": "string",
+                "enum": list(MISSED),
+                "description": "; ".join(f"{name}: {what}" for name, what in MISSED.items()),
+            },
+        },
+        "required": ["onderwerp"],
+    },
+}
 
 SYSTEM = """Je bent Joost, de assistent op heyjoost.nl. Je bent een AI (Claude, van Anthropic). Vraagt iemand of je een mens bent, dan zeg je eerlijk dat je een AI bent.
 
@@ -150,6 +187,7 @@ Zo antwoord je:
 
 Grenzen:
 - Je helpt alleen met deze onderwerpen. Vraagt iemand iets anders, zoals huiswerk, code, nieuws of een verhaal, zeg dan vriendelijk dat je hier alleen live info over Nederland geeft, en dat iemand Hey Joost ook in een eigen AI kan zetten, zoals Claude of ChatGPT. Hoe dat moet, staat op deze pagina.
+- Kun je een vraag of een deel ervan niet beantwoorden omdat je er geen tool voor hebt, schrijf dan eerst je antwoord en roep daarna gemiste_vraag aan met het onderwerp. Niet als een tool iets niet vond of faalde, en niet bij een groet of een bedankje. Verwijs dan gerust naar een bekende bron, zoals de ANWB of de gemeente, maar verzin geen webadressen.
 {vluchtgrenzen}
 - Gaat het om regen nu of de komende twee uur, zoals droog naar huis fietsen, gebruik dan regen. Voor later gebruik je weer.
 - Het weer is een verwachting uit weermodellen. Noem bij het weer als bron precies "KNMI via Open-Meteo.com", en bij de regenradar en de waarschuwingen "KNMI".
@@ -333,16 +371,18 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
     with_flights = schiphol.available()
     if with_flights:
         definitions.append(FLIGHT_TOOL)
+    definitions.append(MISSED_TOOL)
     # The fixed part comes first and is cached; the clock changes every minute.
     system = [
         {"type": "text", "text": _system(with_flights), "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": _now()},
     ]
     lookups: dict[str, int] = {}
-    said, used = "", set()
+    said, used, missed = "", set(), set()
     cost = 0.0
     for round_ in range(MAX_ROUNDS):
         day.spent += ROUND_RESERVE
+        before = len(said)
         try:
             async with _anthropic().messages.stream(
                 model=MODEL,
@@ -358,7 +398,11 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
                     if event.type == "text":
                         said += event.text
                         yield {"type": "text", "text": event.text}
-                    elif event.type == "content_block_start" and event.content_block.type == "tool_use":
+                    elif (
+                        event.type == "content_block_start"
+                        and event.content_block.type == "tool_use"
+                        and event.content_block.name != MISSED_TOOL["name"]
+                    ):
                         yield {"type": "tool", "where": WHERE.get(event.content_block.name, "bij de bron")}
                 message = await stream.get_final_message()
         except anthropic.APIError as exc:
@@ -374,6 +418,10 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         uses = [block for block in message.content if block.type == "tool_use"]
         if message.stop_reason != "tool_use" or not uses:
             break
+        missed.update(_missed(use.input) for use in uses if use.name == MISSED_TOOL["name"])
+        # Counted after the answer, as asked: then the answer is complete and needs no other round.
+        if all(use.name == MISSED_TOOL["name"] for use in uses) and said[before:].strip():
+            break
         blocks = [_param(block) for block in message.content if block.type != "text" or block.text]
         results = await asyncio.gather(*(_lookup(tools, use, lookups, visitor) for use in uses))
         used.update(use.name for use, result in zip(uses, results) if not result["is_error"])
@@ -384,6 +432,8 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
     if missing:
         # Even if Claude forgets, the answer names these sources.
         yield {"type": "text", "text": "\n\nBron: " + ", ".join(missing)}
+    for topic in sorted(missed):
+        tellers.tel(f"chat mist {topic}")
     log.info(
         "Vraag het Joost: %d rondes, %d opzoekingen, $%.4f, vandaag $%.3f van $%.2f",
         round_ + 1, sum(lookups.values()), cost, day.spent, _budget(),
@@ -404,6 +454,8 @@ def _param(block: Any) -> dict[str, Any]:
 
 async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: str) -> dict[str, Any]:
     result: dict[str, Any] = {"type": "tool_result", "tool_use_id": use.id}
+    if use.name == MISSED_TOOL["name"]:
+        return {**result, "content": "Geteld.", "is_error": False}
     # Each lookup runs in its own task, so this only marks the chat's own calls for the counts.
     tellers.via.set("chat")
     lookups[use.name] = lookups.get(use.name, 0) + 1
@@ -431,6 +483,11 @@ async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: 
     else:
         text = json.dumps(data, ensure_ascii=False)
     return {**result, "content": text or "Geen resultaat.", "is_error": bool(getattr(output, "is_error", False))}
+
+
+def _missed(question: Any) -> str:
+    topic = question.get("onderwerp") if isinstance(question, dict) else None
+    return topic if topic in MISSED else "anders"
 
 
 async def _flight(question: Any, visitor: str) -> str:

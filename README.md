@@ -100,7 +100,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 - `src/nederland_mcp/bronnen/`: één bestand per bron.
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
 - `src/nederland_mcp/vraag.py`: de chat op de website. Claude krijgt dezelfde tools als via MCP, plus vluchten van Schiphol, en de server onthoudt geen gesprekken.
-- `src/nederland_mcp/tellers.py`: anonieme tellingen per dag, zoals hoe vaak de site, de chat en elke tool gebruikt worden. Ze staan elk uur als één regel in de log: zoek op `Tellers`. Wie iets vroeg of wat, staat er niet in.
+- `src/nederland_mcp/tellers.py`: anonieme tellingen per dag, zoals hoe vaak de site, de chat en elke tool gebruikt worden. Ze staan elk uur als één regel in de log: zoek op `Tellers`. Wie iets vroeg of wat, staat er niet in. Kan de chat een vraag niet beantwoorden, dan telt hij alleen het onderwerp, uit een vaste lijst (`MISSED` in `vraag.py`), als `chat mist <onderwerp>`: zo zie je wat mensen nog missen.
 - Alle aanvragen gaan via een cache, zodat de bronnen niet onnodig belast worden: buurtcijfers een week, stations, haltes, adressen, plaatsen, vakanties en oudere stroomprijzen een dag, het getij 12 uur, de waterverwachting een half uur, het weer, de stroomprijs en werkzaamheden op het spoor 15 minuten, de regenradar 10 minuten, water en weerwaarschuwingen 5 minuten, storingen op het spoor 2 minuten, treinen, bussen en vluchten 30 tot 60 seconden.
 - Foutmeldingen zijn in het Nederlands en vertellen wat je kunt doen.
 - Wat gebruikers opvragen (adressen, plaatsen) komt niet in de logs.
