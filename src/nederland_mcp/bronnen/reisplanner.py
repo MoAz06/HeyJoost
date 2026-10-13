@@ -2,9 +2,9 @@
 metro, train and ferry, from the journey planner of Transitous (MOTIS).
 
 Transitous asks projects to contact them before using routing, which costs them far more than departures. So this
-tool stays off until they agree: it only exists when HEYJOOST_REISPLANNER=1. As with the departures, Transitous only
-gets points rounded to about a hundred metres, never an address. A stop or a place like the Kurhaus goes as the stop
-itself.
+tool stays off until they agree: it only exists when HEYJOOST_REISPLANNER=1, and then the whole service asks at most
+HEYJOOST_REISPLANNER_PER_DAG plans a day (200 if not set). As with the departures, Transitous only gets points rounded
+to about a hundred metres, never an address. A stop or a place like the Kurhaus goes as the stop itself.
 """
 
 import os
@@ -14,7 +14,7 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ..common import cached, fmt_time, get_json, parse_moment, parse_time
+from ..common import cached, fmt_time, get_json, now_local, parse_moment, parse_time
 from . import plaats as plaatsen
 from .ov import BASE, SOURCE, _address, _distance, _find, _is_address, _near
 from .plaats import common_name
@@ -31,6 +31,12 @@ MODES = {
     "REGIONAL_RAIL": "trein", "REGIONAL_FAST_RAIL": "trein", "SUBURBAN": "trein",
 }
 MAX_TRIPS = 3
+# The plan requests of the whole service today, so a busy day stays light for Transitous.
+_today: dict[str, Any] = {"dag": None, "aantal": 0}
+
+
+def _per_day() -> int:
+    return int(os.environ.get("HEYJOOST_REISPLANNER_PER_DAG") or 200)
 
 
 class _Place:
@@ -112,16 +118,26 @@ def _leg(leg: dict, names: dict[str, str]) -> dict[str, Any]:
     return {key: value for key, value in part.items() if value}
 
 
+async def _ask(params: dict) -> dict:
+    day = now_local().date()
+    if _today["dag"] != day:
+        _today.update(dag=day, aantal=0)
+    if _today["aantal"] >= _per_day():
+        raise ToolError(
+            "De reisplanner zit voor vandaag aan zijn maximum. Plan de reis in stukken met trein_reis en ov_vertrek, "
+            "of probeer het morgen weer."
+        )
+    _today["aantal"] += 1
+    return await get_json(f"{BASE}/v6/plan", params=params, source=SOURCE)
+
+
 async def _plan(start: str, end: str, moment: datetime, aankomst: bool) -> list[dict]:
     params = {
         "fromPlace": start, "toPlace": end, "time": moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "arriveBy": "true" if aankomst else "false", "numItineraries": MAX_TRIPS, "detailedTransfers": "false",
         "language": "nl",
     }
-    data = await cached(
-        ("reisplanner", tuple(sorted(params.items()))), 60,
-        lambda: get_json(f"{BASE}/v6/plan", params=params, source=SOURCE),
-    )
+    data = await cached(("reisplanner", tuple(sorted(params.items()))), 60, lambda: _ask(params))
     return data.get("itineraries") or []
 
 

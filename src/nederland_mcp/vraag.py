@@ -43,6 +43,8 @@ MAX_ROUNDS = 5
 MAX_LOOKUPS = 6
 # Transitous was told a few calls per question, so one question looks up at most three stops.
 MAX_STOP_LOOKUPS = 3
+# And at most two trips from door to door, such as there and back.
+MAX_PLAN_LOOKUPS = 2
 # Flights only exist in this chat, with the limits agreed with Schiphol (see bronnen/schiphol.py).
 MAX_FLIGHT_LOOKUPS = 2
 MAX_QUESTION = 500
@@ -516,6 +518,7 @@ async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: 
     if (
         sum(lookups.values()) > MAX_LOOKUPS
         or lookups.get("ov_vertrek", 0) > MAX_STOP_LOOKUPS
+        or lookups.get("reis_plannen", 0) > MAX_PLAN_LOOKUPS
         or lookups.get(FLIGHT_TOOL["name"], 0) > MAX_FLIGHT_LOOKUPS
     ):
         return {**result, "content": ENOUGH, "is_error": True}
