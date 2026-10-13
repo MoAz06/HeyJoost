@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hey Joost: live Nederland in je AI</title>
-<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten, het reisadvies en regelzaken bij de overheid. Gratis, uit officiële bronnen.">
+<meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, files en werk aan de weg, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten, vergunningen in je straat, het reisadvies en regelzaken bij de overheid. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <meta property="og:title" content="Hey Joost">
@@ -75,7 +75,7 @@
       </div>
 
       <div class="intro">
-        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, het weer, het water, de stroomprijs, de schoolvakanties, het reisadvies, je huis en je buurt, en wat je bij de overheid regelt. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, de files, het weer, het water, de stroomprijs, de schoolvakanties, het reisadvies, je huis, je buurt en je straat, en wat je bij de overheid regelt. Rechtstreeks uit de officiële bronnen, en gratis.</p>
         <div class="actions">
           <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
           <a class="link-arrow" href="#probeer">Wat kan ik vragen? <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
@@ -103,6 +103,12 @@
           <h3>Bus, tram en metro</h3>
           <p>Live vertrektijden vanaf elke halte of vanaf je adres, met vertraging en uitval, en welke bus of tram je naar je bestemming brengt.</p>
           <p class="src"><span class="vh">Bron: </span>OpenOV via Transitous</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>A12</b><span>File</span></div>
+          <h3>Verkeer</h3>
+          <p>Files, ongelukken, afgesloten wegen en werk aan de weg, op de snelweg en in je eigen stad, met de afrit en de richting.</p>
+          <p class="src"><span class="vh">Bron: </span>NDW</p>
         </li>
         <!--vluchten--><li>
           <div class="sign" aria-hidden="true"><b>D25</b><span>Gate</span></div>
@@ -145,6 +151,12 @@
           <h3>Regelzaken</h3>
           <p>Officiële antwoorden over toeslagen, AOW, je paspoort, je rijbewijs en meer. Plus wat je bij je eigen gemeente regelt, met de link en of het online kan.</p>
           <p class="src"><span class="vh">Bron: </span>Rijksoverheid en gemeenten</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>Kappen</b><span>Vergunning</span></div>
+          <h3>In je straat</h3>
+          <p>Wat er in je buurt is aangevraagd of vergund, zoals een verbouwing, een boom kappen of een evenement, en hoe je kunt reageren. Alleen rond een adres, nooit op naam.</p>
+          <p class="src"><span class="vh">Bron: </span>Officiële bekendmakingen</p>
         </li>
         <li>
           <div class="sign" aria-hidden="true"><b>1917</b><span>Bouwjaar</span></div>
@@ -209,6 +221,7 @@
         <button class="prompt" type="button" data-copy="Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?"><span class="topic" aria-hidden="true">Regen</span><span>Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="topic" aria-hidden="true">Tram</span><span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Staat er nu file op de A12, en is er ergens een weg dicht?"><span class="topic" aria-hidden="true">File</span><span>Staat er nu file op de A12, en is er ergens een weg dicht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?"><span class="topic" aria-hidden="true">Spoor</span><span>Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?"><span class="topic" aria-hidden="true">Reizen</span><span>Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
@@ -218,6 +231,7 @@
         <button class="prompt" type="button" data-copy="Wanneer is stroom vandaag het goedkoopst om de was te draaien?"><span class="topic" aria-hidden="true">Stroom</span><span>Wanneer is stroom vandaag het goedkoopst om de was te draaien?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?"><span class="topic" aria-hidden="true">Regelen</span><span>Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?"><span class="topic" aria-hidden="true">Straat</span><span>Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
         <button class="prompt" type="button" data-copy="Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?"><span class="topic" aria-hidden="true">Buurt</span><span>Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </div>
@@ -239,6 +253,8 @@
         <li><b>Ministerie van Buitenlandse Zaken, via NederlandWereldwijd</b>het reisadvies</li>
         <li><b>Rijksoverheid</b>schoolvakanties en vragen en antwoorden over regelzaken</li>
         <li><b>Samenwerkende Catalogi (KOOP)</b>wat je bij je gemeente regelt</li>
+        <li><b>Officiële bekendmakingen (KOOP)</b>vergunningen en andere bekendmakingen rond een adres</li>
+        <li><b>NDW (Nationaal Dataportaal Wegverkeer)</b>files, ongelukken, afsluitingen en werkzaamheden, met wegen en afritten uit VILD</li>
         <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
         <li><b>CBS</b>cijfers over buurten, wijken en gemeenten, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
       </ul>

@@ -13,9 +13,11 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
 from . import __version__, tellers, vraag
+from .bronnen import bekendmakingen as bekendmakingbron
 from .bronnen import buurt, huis, knmi, ns, ov, schiphol, stroom, vakanties, water
 from .bronnen import regelzaken as regelzaakbron
 from .bronnen import reisadvies as reisadviezen
+from .bronnen import verkeer as verkeersbron
 from .bronnen import weer as weerbron
 
 WEBSITE = "https://heyjoost.nl"
@@ -26,8 +28,9 @@ INSTRUCTIONS = (
     "Hey Joost geeft actuele Nederlandse open data uit officiële bronnen: adressen en gebouwen uit de BAG, "
     "cijfers over buurten van het CBS, schoolvakanties, waterstanden, watertemperatuur en eb en vloed, het weer, "
     "de regenradar en de weerwaarschuwingen van het KNMI, de stroomprijs per kwartier, het reisadvies van "
-    "Buitenlandse Zaken, officiële antwoorden over regelzaken van de Rijksoverheid en gemeenten, NS-treinen met "
-    "storingen en werkzaamheden, en bus, tram en metro.\n"
+    "Buitenlandse Zaken, officiële antwoorden over regelzaken van de Rijksoverheid en gemeenten, bekendmakingen "
+    "zoals vergunningen rond een adres, het verkeer op de weg van NDW, NS-treinen met storingen en werkzaamheden, "
+    "en bus, tram en metro.\n"
     "- Elk resultaat heeft een veld 'bron' met de herkomst van de data, voor de bronvermelding.\n"
     "- Alle tijden zijn Nederlandse tijd (Europe/Amsterdam).\n"
     "- De data bevat geen persoonsgegevens. De tools zijn niet bedoeld om mensen op te zoeken."
@@ -45,8 +48,9 @@ server = HeyJoost(
     name="heyjoost",
     title="Hey Joost",
     description=(
-        "Live Nederland in je AI: treinen en storingen, bus en tram, weer en regenradar, eb en vloed, de "
-        "stroomprijs, buurten, schoolvakanties, huizen, reisadvies en regelzaken, uit officiële bronnen."
+        "Live Nederland in je AI: treinen en storingen, bus en tram, files en werk aan de weg, weer en regenradar, "
+        "eb en vloed, de stroomprijs, buurten, vergunningen in je straat, schoolvakanties, huizen, reisadvies en "
+        "regelzaken, uit officiële bronnen."
     ),
     instructions=INSTRUCTIONS,
     website_url=WEBSITE,
@@ -263,6 +267,28 @@ async def regelzaken(
 
 
 @server.tool(
+    title="Bekendmakingen in de buurt",
+    description=(
+        "Officiële bekendmakingen van gemeente, provincie, waterschap en Rijk rond een adres: aangevraagde en "
+        "verleende vergunningen (bouwen en verbouwen, bomen kappen, evenementen, horeca), meldingen en "
+        "verkeersbesluiten, met de soort, de straat, de datum, de afstand en de link naar de bekendmaking. 'fase' "
+        "zegt of het een aanvraag, ontwerp of besluit is, 'reageren_tot' tot wanneer je kunt reageren als dat in de "
+        "bekendmaking staat, en 'uitleg' hoe bezwaar en zienswijze werken. Zoekt alleen rond een adres, straat of "
+        "postcode, tot 500 meter, niet op naam of trefwoord. Huisnummers, postcodes en bekendmakingen over personen "
+        "laat het weg."
+    ),
+    annotations=READ_ONLY,
+)
+async def bekendmakingen(
+    adres: Annotated[str, Field(description="Adres, straat of postcode, bijvoorbeeld Rapenburg 70 of 2311EZ")],
+    plaats: Annotated[str | None, Field(description="Plaats van het adres, bijvoorbeeld Leiden")] = None,
+    straal_m: Annotated[int, Field(ge=50, le=500, description="Zoekstraal rond het adres in meters")] = 250,
+    weken: Annotated[int, Field(ge=1, le=26, description="Hoeveel weken terug")] = 8,
+) -> dict[str, Any]:
+    return await bekendmakingbron.bekendmakingen(adres, plaats, straal_m, weken)
+
+
+@server.tool(
     title="Treinvertrek",
     description=(
         "Vertrektijden van treinen vanaf een station, met vertraging, spoor, spoorwijzigingen en uitval. "
@@ -366,6 +392,26 @@ async def ov_vertrek(
     tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
 ) -> dict[str, Any]:
     return await ov.ov_vertrek(halte, plaats, aantal, lijn, datum, tijd, naar)
+
+
+@server.tool(
+    title="Verkeer",
+    description=(
+        "Het verkeer op de weg nu, uit het actuele beeld van NDW (Nationaal Dataportaal Wegverkeer): files, "
+        "ongelukken en pech, afgesloten wegen, afritten en rijstroken, werkzaamheden, open bruggen en lagere "
+        "snelheden, met waar het is (weg, afrit en richting, of straat en plaats), de lengte van een file, sinds en "
+        "tot wanneer. Met een plaats de berichten in de buurt, met een weg (A12, N206) die weg. Zonder plaats en weg "
+        "alleen files, ongelukken en afsluitingen op de grote wegen in heel Nederland. De berichten zijn niet "
+        "gecontroleerd en niet elke wegbeheerder meldt alles, zie 'let_op'."
+    ),
+    annotations=READ_ONLY,
+)
+async def verkeer(
+    waar: Annotated[str | None, Field(description="Plaats of wijk, bijvoorbeeld Utrecht of Scheveningen. Leeg = heel Nederland of de hele weg")] = None,
+    weg: Annotated[str | None, Field(description="Wegnummer, bijvoorbeeld A12 of N206")] = None,
+    straal_km: Annotated[float | None, Field(ge=1, le=25, description="Zoekstraal rond de plaats in km. Leeg = 8 km")] = None,
+) -> dict[str, Any]:
+    return await verkeersbron.verkeer(waar, weg, straal_km)
 
 
 # The home page shows the MCP URL of the host it was reached on, so a local run shows its own address.

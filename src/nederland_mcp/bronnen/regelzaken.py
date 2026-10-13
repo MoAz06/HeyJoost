@@ -164,6 +164,21 @@ def _from_address(slug: str) -> str:
     return text[:1].upper() + text[1:] + "?"
 
 
+def _without(text: str, start: str) -> str:
+    """The text without the short answer that the page repeats at the top, compared without spaces, as the page
+    breaks it over lines and glues a link to it. The short answer has its links in brackets, the page does not."""
+    want = re.sub(r"\s", "", re.sub(r"\[https?://[^\]\s]*\]", "", start))
+    if not want or not re.sub(r"\s", "", text).startswith(want):
+        return text
+    seen = 0
+    for position, char in enumerate(text):
+        if not char.isspace():
+            seen += 1
+            if seen == len(want):
+                return text[position + 1:].lstrip()
+    return ""
+
+
 def _page(raw: bytes, url: str) -> dict[str, Any]:
     page = raw.decode("utf-8", "replace")
     question = answer = None
@@ -190,9 +205,7 @@ def _page(raw: bytes, url: str) -> dict[str, Any]:
         if href.startswith("http") and label and href != url and all(href != link["link"] for link in links):
             links.append({"tekst": label, "link": href})
     lines = html_text(main).splitlines()
-    if answer and lines and lines[0] == " ".join(answer.split()):
-        lines = lines[1:]
-    more = "\n".join(lines)
+    more = _without("\n".join(lines), answer or "")
     row: dict[str, Any] = {"vraag": question, "antwoord": answer}
     if more:
         row["meer"] = more[:MAX_TEXT] + (" …" if len(more) > MAX_TEXT else "")
