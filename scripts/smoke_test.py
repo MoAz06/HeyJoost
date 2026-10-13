@@ -51,6 +51,7 @@ CALLS = [
     ("open_in_de_buurt", {"waar": "Utrecht Centraal", "soort": "apotheek"}),
     ("open_in_de_buurt", {"waar": "Scheveningen", "soort": "pinautomaat", "nu_open": True, "aantal": 3}),
     ("open_in_de_buurt", {"waar": "Leiden", "soort": "bakker"}),
+    ("reis_plannen", {"van": "Rapenburg 70", "van_plaats": "Leiden", "naar": "Kurhaus", "naar_plaats": "Scheveningen"}),
     ("water_actueel", {"plaats": "Hoek van Holland"}),
     ("water_actueel", {"plaats": "Den Haag", "soort": "waterstand"}),
     ("water_actueel", {"plaats": "Scheveningen", "soort": "watertemperatuur"}),
@@ -102,8 +103,14 @@ CALLS = [
 async def main() -> int:
     tools = await server.list_tools()
     print(f"{len(tools)} tools: {', '.join(t.name for t in tools)}")
+    names = {tool.name for tool in tools}
     failed = skipped = 0
     for name, arguments in CALLS:
+        # The journey planner is off until Transitous agrees (HEYJOOST_REISPLANNER), so it is skipped then.
+        if name == "reis_plannen" and name not in names:
+            skipped += 1
+            print(f"\n== {name}: OVERGESLAGEN, staat uit (HEYJOOST_REISPLANNER)")
+            continue
         print(f"\n== {name} {json.dumps(arguments, ensure_ascii=False)}")
         try:
             if name == "vlucht_info":

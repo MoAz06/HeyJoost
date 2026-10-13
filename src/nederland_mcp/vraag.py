@@ -23,7 +23,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
 from . import tellers
-from .bronnen import schiphol
+from .bronnen import reisplanner, schiphol
 from .common import now_local
 
 log = logging.getLogger(__name__)
@@ -109,6 +109,7 @@ WHERE = {
     "bekendmakingen": "in de officiële bekendmakingen",
     "verkeer": "bij NDW",
     "open_in_de_buurt": "in OpenStreetMap",
+    "reis_plannen": "bij Transitous",
 }
 # Named in every answer that uses their data: Schiphol as promised, Open-Meteo, KNMI, SMARD and CBS for their
 # licence (CC BY 4.0), and OpenStreetMap for the ODbL. The word to look for in the answer, and what to add when
@@ -191,8 +192,7 @@ Zo antwoord je:
 - Sluit af met de bron in een paar woorden, zoals "Bron: NS". De bron staat in het veld 'bron' van elk resultaat.
 - Lukt iets niet of vind je niks, zeg dat dan eerlijk en stel een betere vraag voor.
 - Mis je iets wat echt nodig is, zoals de plaats van een halte, vraag dat dan kort.
-- Een routeplanner heb je niet, dus van deur tot deur doe je in stukjes. Moet iemand vanaf een adres met de trein naar een andere plaats, zoek dan tegelijk de trein met trein_reis vanaf het grote station in de buurt, en met ov_vertrek de bus of tram vanaf het adres of de straat met naar dat station, dus niet naar de eindbestemming. Noem de halte waar je opstapt en hoe ver die ongeveer is. De afstand is hemelsbreed, lopen is iets verder.
-- Moet iemand op een vaste tijd ergens zijn, plan dan terug vanaf die tijd en zoek de stukjes na elkaar in plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true. Als tijd neem je de afspraak min het laatste stuk (lopen: reken 10 tot 15 minuten als je het niet weet) en 5 minuten marge. Bijvoorbeeld: afspraak om 10:00 en een kwartier lopen, dan zoek je met 09:40. Neem de bovenste reis, want die komt het laatst op tijd aan. Een eerdere trein noem je hooguit als extra zekerheid. Zoek daarna de bus of tram naar het station, met als tijd een half uur voor die trein, en kies de laatste die minstens 5 minuten voor vertrek bij het station is.
+{reisplanner}
 - Reken bij een overstap uit hoeveel minuten je hebt en noem dat getal, zoals "dan heb je 12 minuten om over te stappen". Minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
 - Gaat het om een later moment, geef dan datum en tijd mee aan de tool.
 - Staat er in een resultaat een 'let_op', zoals een staking, noem dat dan altijd, vóór de tijden. Gaat het bericht over een andere dag dan de vraag, zeg dat er dan kort bij. Staan er bij een treinreis 'meldingen', zoals een bus in plaats van de trein, noem die dan ook.
@@ -227,6 +227,30 @@ FLIGHT_RULES = (
 NO_FLIGHTS = (
     "- Vluchtinformatie heb je niet. Vraagt iemand naar een vlucht, verwijs dan naar schiphol.nl of de app "
     "van de luchtvaartmaatschappij."
+)
+# Door to door: in pieces, or with the journey planner of Transitous once they agree to it (HEYJOOST_REISPLANNER,
+# see bronnen/reisplanner.py). Filled in by _system().
+NO_PLANNER = (
+    "- Een routeplanner heb je niet, dus van deur tot deur doe je in stukjes. Moet iemand vanaf een adres met de "
+    "trein naar een andere plaats, zoek dan tegelijk de trein met trein_reis vanaf het grote station in de buurt, "
+    "en met ov_vertrek de bus of tram vanaf het adres of de straat met naar dat station, dus niet naar de "
+    "eindbestemming. Noem de halte waar je opstapt en hoe ver die ongeveer is. De afstand is hemelsbreed, lopen "
+    "is iets verder.\n"
+    "- Moet iemand op een vaste tijd ergens zijn, plan dan terug vanaf die tijd en zoek de stukjes na elkaar in "
+    "plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true. Als tijd neem je de afspraak min "
+    "het laatste stuk (lopen: reken 10 tot 15 minuten als je het niet weet) en 5 minuten marge. Bijvoorbeeld: "
+    "afspraak om 10:00 en een kwartier lopen, dan zoek je met 09:40. Neem de bovenste reis, want die komt het "
+    "laatst op tijd aan. Een eerdere trein noem je hooguit als extra zekerheid. Zoek daarna de bus of tram naar "
+    "het station, met als tijd een half uur voor die trein, en kies de laatste die minstens 5 minuten voor "
+    "vertrek bij het station is."
+)
+PLANNER = (
+    "- Van deur tot deur met het ov gebruik je reis_plannen, met het adres, de straat, het station of de plaats "
+    "van vertrek en van bestemming. Noem per reis de vertrek- en aankomsttijd en de overstappen, en per deel de "
+    'lijn, waar je instapt en uitstapt en hoe lang je loopt. Noem als bron "Transitous".\n'
+    "- Moet iemand op een vaste tijd ergens zijn, gebruik dan reis_plannen met die tijd en aankomst=true, en neem "
+    "de bovenste reis: die vertrekt het laatst en is nog op tijd.\n"
+    "- Gaat het alleen om de trein, of om de prijs of de drukte, gebruik dan trein_reis."
 )
 
 DAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
@@ -564,7 +588,7 @@ def _cost(usage: Any) -> float:
 def _system(with_flights: bool) -> str:
     return SYSTEM.replace("{vluchten}", "vluchten van en naar Schiphol, " if with_flights else "").replace(
         "{vluchtgrenzen}", FLIGHT_RULES if with_flights else NO_FLIGHTS
-    )
+    ).replace("{reisplanner}", PLANNER if reisplanner.AAN else NO_PLANNER)
 
 
 def _now() -> str:

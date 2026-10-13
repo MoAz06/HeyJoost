@@ -14,7 +14,7 @@ from starlette.responses import HTMLResponse, Response
 
 from . import __version__, tellers, vraag
 from .bronnen import bekendmakingen as bekendmakingbron
-from .bronnen import buurt, huis, knmi, ns, ov, schiphol, stroom, vakanties, water
+from .bronnen import buurt, huis, knmi, ns, ov, reisplanner, schiphol, stroom, vakanties, water
 from .bronnen import regelzaken as regelzaakbron
 from .bronnen import reisadvies as reisadviezen
 from .bronnen import verkeer as verkeersbron
@@ -415,6 +415,32 @@ async def ov_vertrek(
     tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
 ) -> dict[str, Any]:
     return await ov.ov_vertrek(halte, plaats, aantal, lijn, datum, tijd, naar)
+
+
+# Only once Transitous agrees to routing (see bronnen/reisplanner.py): HEYJOOST_REISPLANNER=1.
+if reisplanner.AAN:
+
+    @server.tool(
+        title="Reis plannen",
+        description=(
+            "Van deur tot deur met het ov in Nederland: lopen, bus, tram, metro, trein en veerboot, vanaf een adres, "
+            "straat, station of plaats naar een ander, met de beste drie reizen. Per reis de vertrek- en "
+            "aankomsttijd, de reistijd en het aantal overstappen, en per deel de lijn en richting, waar je instapt "
+            "en uitstapt, het spoor of perron, en hoe lang je loopt. Met datum en tijd voor later; met aankomst=true "
+            "is de tijd de aankomsttijd. Prijs en drukte van de trein staan in Treinreis."
+        ),
+        annotations=READ_ONLY,
+    )
+    async def reis_plannen(
+        van: Annotated[str, Field(description="Vertrek: adres, straat, station of plaats, bijvoorbeeld Rapenburg 70 of Utrecht Centraal")],
+        naar: Annotated[str, Field(description="Bestemming: adres, straat, station of plaats, bijvoorbeeld Kurhaus of Binnenhof 1")],
+        van_plaats: Annotated[str | None, Field(description="Plaats van het vertrekadres, bijvoorbeeld Leiden")] = None,
+        naar_plaats: Annotated[str | None, Field(description="Plaats van de bestemming, bijvoorbeeld Den Haag")] = None,
+        datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
+        tijd: Annotated[str | None, Field(description="Tijd als UU:MM. Leeg = nu")] = None,
+        aankomst: Annotated[bool, Field(description="true = de tijd is de aankomsttijd")] = False,
+    ) -> dict[str, Any]:
+        return await reisplanner.reis_plannen(van, naar, van_plaats, naar_plaats, datum, tijd, aankomst)
 
 
 @server.tool(
