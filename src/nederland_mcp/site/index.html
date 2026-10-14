@@ -54,15 +54,16 @@
 
       <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek">
         <div class="chat-top" hidden><b>Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken" title="Groter"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg></button></div>
-        <div class="log" id="log" aria-live="polite">
+        <div class="log" id="log">
           <div class="label" hidden>Voorbeeld</div>
-          <div class="msg user">Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
+          <div class="msg user"><h2 class="vh">Jij vroeg:</h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
           <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek het na bij de NS</span></div>
-          <div class="msg ai">Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
-          <div class="msg user extra">En is het zeewater in Scheveningen nog te doen?</div>
+          <div class="msg ai"><h2 class="vh">Joost antwoordt:</h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
+          <div class="msg user extra"><h2 class="vh">Jij vroeg:</h2>En is het zeewater in Scheveningen nog te doen?</div>
           <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek het na bij Rijkswaterstaat</span></div>
-          <div class="msg ai extra">Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
+          <div class="msg ai extra"><h2 class="vh">Joost antwoordt:</h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
         </div>
+        <p class="vh" id="status" role="status"></p>
         <form class="ask" id="ask" hidden>
           <input id="vraag" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost">
           <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg></button>
@@ -403,6 +404,7 @@
 
   function startChat() {
     const log = document.getElementById("log");
+    const status = document.getElementById("status");
     const form = document.getElementById("ask");
     const input = document.getElementById("vraag");
     const send = form.querySelector("button");
@@ -506,7 +508,6 @@
       if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "center" });
       busy = true;
       send.disabled = true;
-      log.setAttribute("aria-busy", "true");
       if (example) {
         log.replaceChildren(more);
         chat.querySelector(".kan").hidden = true;
@@ -517,11 +518,13 @@
       if (matchMedia("(pointer: coarse)").matches) input.blur();
       follow = true;
       current = add("msg user");
-      current.textContent = text;
+      current.innerHTML = '<h2 class="vh">Jij vroeg:</h2>';
+      current.append(text);
       const asked = current;
       history.push({ role: "user", text });
 
       let thinking = line("is bezig");
+      say("Joost is bezig");
       let bubble = null;
       let shown = "";
       let answer = "";
@@ -534,6 +537,7 @@
       const slow = setTimeout(() => {
         late = true;
         log.querySelectorAll(".tool.busy i").forEach((el) => { el.textContent += LATE; });
+        say("Het duurt wat langer dan normaal");
       }, 10000);
       // The answer is drawn at most once per frame. A bold part that is still coming in is bold right away, so no
       // stars flash by.
@@ -543,7 +547,7 @@
         frame = 0;
         if (!bubble) return;
         const open = !final && (shown.match(/\*\*/g) || []).length % 2;
-        bubble.innerHTML = render(open ? shown + "**" : shown);
+        bubble.innerHTML = '<h2 class="vh">Joost antwoordt:</h2>' + render(open ? shown + "**" : shown);
         settle();
       };
       const done = () => {
@@ -562,6 +566,7 @@
           const last = more.previousElementSibling;
           if (!(last && last.dataset.where === event.where && last.classList.contains("busy"))) {
             line("kijkt " + event.where + (late ? LATE : "")).dataset.where = event.where;
+            say("Joost kijkt " + event.where);
           }
           bubble = null;
         } else if (event.type === "text") {
@@ -622,17 +627,17 @@
         history.push({ role: "assistant", text: answer });
         actions(text, answer);
         if (canInstall && !tipped && !remember("tip")) tip();
+        say("Joost antwoordt: " + spoken(answer));
       } else {
         history.pop();
         // Your question is never lost: it goes back in the field, unless you are already typing a new one.
         const back = !input.value.trim();
         if (back) input.value = text;
-        if (failure) fail(failure, text, answer.trim() !== "", asked, back);
-        else add("msg ai fout").textContent = "Joost weet het even niet. Probeer het anders te vragen." + (back ? KEPT : "");
+        const problem = failure || { text: "Joost weet het even niet. Probeer het anders te vragen.", again: false };
+        fail(problem, text, answer.trim() !== "", asked, back && (problem.again || !failure));
       }
       busy = false;
       send.disabled = false;
-      log.setAttribute("aria-busy", "false");
       if (matchMedia("(pointer: fine)").matches) input.focus();
     }
 
@@ -701,14 +706,17 @@
 
     // Something went wrong. The message says whether the question arrived and marks a half answer as such, and
     // when another try can help, one tap asks again.
-    function fail(failure, question, partial, asked, back) {
+    function fail(failure, question, partial, asked, kept) {
       const el = add("msg ai fout");
+      const text = failure.text + (kept ? KEPT : "");
+      el.innerHTML = '<h2 class="vh">Melding:</h2>';
       if (partial) {
         const mark = document.createElement("b");
         mark.textContent = "Afgebroken. ";
         el.append(mark);
       }
-      el.append(failure.text + (failure.again && back ? KEPT : ""));
+      el.append(text);
+      say((partial ? "Afgebroken. " : "") + text);
       if (failure.again) {
         // The failed try goes away, so the conversation reads as if it worked the first time.
         const parts = [];
@@ -730,10 +738,28 @@
       if (follow && below > 0) log.scrollTop += below + 16;
     }
 
+    // The answer without its markup, to share.
+    function plain(answer) {
+      return answer.replace(/\*\*/g, "").replace(/^#{1,6} +/gm, "").replace(/^[-*] +/gm, "• ").trim();
+    }
+
+    // To read aloud: every line its own sentence, so a list gets a pause between the items instead of "bullet".
+    function spoken(answer) {
+      return plain(answer).split("\n").map((line) => line.replace(/^• /, "").trim()).filter(Boolean)
+        .map((line) => /[.!?:;,]$/.test(line) ? line : line + ".").join(" ");
+    }
+
+    // One hidden line for screen readers, there from the start, so the chat itself can stay quiet while Joost writes:
+    // what Joost is doing, the answer once it is complete, or what went wrong. Emptied first, so a repeat is read too.
+    function say(text) {
+      status.textContent = "";
+      clearTimeout(say.timer);
+      say.timer = setTimeout(() => { status.textContent = text; }, 100);
+    }
+
     async function shareAnswer(question, answer) {
-      const plain = answer.replace(/\*\*/g, "").replace(/^#{1,6} +/gm, "").replace(/^[-*] +/gm, "• ").trim();
       const link = location.origin + "/#vraag=" + encodeURIComponent(question);
-      const text = `${question}\n\n${plain}\n\nVraag het Joost: ${link}`;
+      const text = `${question}\n\n${plain(answer)}\n\nVraag het Joost: ${link}`;
       if (navigator.share) {
         try {
           await navigator.share({ text });
@@ -802,20 +828,51 @@
       settle();
     }
 
-    // The answer is escaped first, so only the bold text, bullets and links below become markup.
-    // A bare domain like knmi.nl becomes a link too.
+    // The answer is escaped first, so only the paragraphs, lists, bold text and links below become markup. Lines
+    // with "- " or "1. " become a real list, so a screen reader says it is one, also with empty lines between the
+    // items. A bare domain like knmi.nl becomes a link too.
     function render(text) {
       const link = (href, label) => `<a href="${href}" target="_blank" rel="noopener nofollow">${label}</a>`;
-      return text
-        .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c])
-        .replace(/^#{1,6} +/gm, "")
-        .replace(/^[-*] +/gm, "• ")
+      const inline = (line) => line
         .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
         .replace(
           /(https?:\/\/[^\s<]+[^\s<.,;:!?)])|(^|[\s(>])((?:[a-z0-9-]+\.)+(?:nl|com|org|eu))\b/gi,
           (match, url, before, domain) => url ? link(url, url) : before + link("https://" + domain, domain),
-        )
-        .replace(/\n/g, "<br>");
+        );
+      const escaped = text
+        .replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c])
+        .replace(/^#{1,6} +/gm, "");
+      let html = "";
+      let kind = "";
+      let start = 1;
+      let lines = [];
+      let gap = false;
+      const close = () => {
+        if (kind === "p") html += "<p>" + lines.join("<br>") + "</p>";
+        else if (kind) {
+          const from = kind === "ol" && start > 1 ? ` start="${start}"` : "";
+          html += `<${kind}${from}>` + lines.map((line) => "<li>" + line + "</li>").join("") + `</${kind}>`;
+        }
+        kind = "";
+        lines = [];
+      };
+      for (const line of escaped.split("\n")) {
+        if (!line.trim()) {
+          gap = true;
+          continue;
+        }
+        const item = line.match(/^\s*(?:[-*•]|(\d{1,2})[.)]) +(.*)/);
+        const next = !item ? "p" : item[1] ? "ol" : "ul";
+        if (next !== kind || (gap && next === "p")) {
+          close();
+          start = item && item[1] ? Number(item[1]) : 1;
+        }
+        kind = next;
+        gap = false;
+        lines.push(inline(item ? item[2] : line));
+      }
+      close();
+      return html;
     }
   }
 </script>

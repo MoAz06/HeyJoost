@@ -208,6 +208,10 @@ a:hover { text-decoration-color: var(--accent); }
 .msg b { font-variant-numeric: tabular-nums; }
 .msg.ai b { color: #ffffff; }
 .msg.ai a { overflow-wrap: anywhere; text-decoration-color: var(--led); }
+.msg :is(p, ul, ol) { margin: 0; }
+.msg :is(p, ul, ol) + :is(p, ul, ol) { margin-top: 0.6em; }
+.msg :is(ul, ol) { padding-left: 1.3em; }
+.msg li::marker { color: var(--led); }
 .msg.fout { background: transparent; box-shadow: inset 0 0 0 1px var(--board-line); color: var(--board-dim); }
 .opnieuw {
   display: flex; align-items: center; gap: 7px; min-height: 40px; margin-top: var(--space-3); padding: 0 14px 0 11px;
