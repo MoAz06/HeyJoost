@@ -450,9 +450,11 @@
     log.addEventListener("scroll", showMore, { passive: true });
 
     // Bigger, like the expand button in other chat windows: the chat moves into a dialog over the page and back.
+    // The toast goes along, or the dialog would hide it and make it silent for a screen reader.
     const toggle = chat.querySelector(".groter");
     const big = document.createElement("dialog");
     const spot = document.createElement("div");
+    const note = document.getElementById("toast");
     big.className = "groot";
     big.setAttribute("aria-label", "Vraag het Joost");
     spot.className = "chat";
@@ -467,12 +469,13 @@
       }
       spot.style.height = chat.offsetHeight + "px";
       chat.replaceWith(spot);
-      big.append(chat);
+      big.append(chat, note);
       big.showModal();
       resize(true);
     });
     big.addEventListener("close", () => {
       spot.replaceWith(chat);
+      document.body.append(note);
       resize(false);
       toggle.focus();
     });
