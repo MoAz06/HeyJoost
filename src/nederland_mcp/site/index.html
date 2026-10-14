@@ -30,6 +30,7 @@
   <symbol id="i-ster" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1.1 6.2L12 17.4l-5.6 2.9 1.1-6.2L3 9.7l6.2-.9z"/></symbol>
   <symbol id="i-weg" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-telefoon" viewBox="0 0 24 24"><path d="M7 2h10v20H7zM12 8v6M9 11h6"/></symbol>
+  <symbol id="i-omlaag" viewBox="0 0 24 24"><path d="M12 4v15M6 13l6 6 6-6"/></symbol>
 </svg>
 <a class="skip" href="#main">Naar de inhoud</a>
 
@@ -400,11 +401,34 @@
     let busy = false;
     let example = true;
     let tipped = false;
+    const calm = matchMedia("(prefers-reduced-motion: reduce)");
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
     chat.querySelectorAll("[hidden]").forEach((el) => { el.hidden = false; });
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
+
+    // While Joost answers, the chat scrolls along until your question reaches the top, and stops as soon as you
+    // scroll yourself, so the text never moves while you read. What is still below the edge gets a button.
+    let follow = false;
+    let current = null;
+    const more = button("", "Verder lezen", "i-omlaag");
+    more.className = "verder";
+    more.title = "Verder lezen";
+    more.insertAdjacentHTML("beforeend", "<span>Verder lezen</span>");
+    more.hidden = true;
+    log.append(more);
+    // One view further, with a bit of overlap to keep your place, or right to the end when only a little is left.
+    more.addEventListener("click", () => {
+      follow = false;
+      const rest = log.scrollHeight - log.scrollTop - log.clientHeight;
+      const step = log.clientHeight - 60;
+      log.scrollBy({ top: rest - step < 80 ? rest : step, behavior: calm.matches ? "auto" : "smooth" });
+    });
+    for (const name of ["wheel", "touchstart", "mousedown", "keydown"]) {
+      log.addEventListener(name, () => { follow = false; }, { passive: true });
+    }
+    log.addEventListener("scroll", showMore, { passive: true });
 
     // Bigger, like the expand button in other chat windows: the chat moves into a dialog over the page and back.
     const toggle = chat.querySelector(".groter");
@@ -462,16 +486,20 @@
     async function ask(text, fromPrompt, via) {
       text = text.trim();
       if (!text || busy) return;
-      if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "center" });
       busy = true;
       send.disabled = true;
       log.setAttribute("aria-busy", "true");
       if (example) {
-        log.textContent = "";
+        log.replaceChildren(more);
         example = false;
       }
       input.value = "";
-      add("msg user").textContent = text;
+      // On a phone the keyboard would cover the answer, so it goes away.
+      if (matchMedia("(pointer: coarse)").matches) input.blur();
+      follow = true;
+      current = add("msg user");
+      current.textContent = text;
       history.push({ role: "user", text });
 
       let thinking = line("denkt na");
@@ -479,6 +507,17 @@
       let shown = "";
       let answer = "";
       let failed = false;
+      // The answer is drawn at most once per frame. A bold part that is still coming in is bold right away, so no
+      // stars flash by.
+      let frame = 0;
+      const paint = (final) => {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        if (!bubble) return;
+        const open = !final && (shown.match(/\*\*/g) || []).length % 2;
+        bubble.innerHTML = render(open ? shown + "**" : shown);
+        settle();
+      };
       const done = () => {
         if (thinking) thinking.remove();
         thinking = null;
@@ -491,7 +530,8 @@
         if (event.type === "tool") {
           if (thinking) thinking.remove();
           thinking = null;
-          const last = log.lastElementChild;
+          paint(true);
+          const last = more.previousElementSibling;
           if (!(last && last.dataset.where === event.where && last.classList.contains("busy"))) {
             line("kijkt " + event.where).dataset.where = event.where;
           }
@@ -505,10 +545,10 @@
           }
           shown += event.text;
           answer += event.text;
-          bubble.innerHTML = render(shown);
-          log.scrollTop = log.scrollHeight;
+          if (!frame) frame = requestAnimationFrame(() => paint(false));
         } else if (event.type === "error") {
           done();
+          paint(true);
           failed = true;
           add("msg ai fout").textContent = event.text;
         }
@@ -545,6 +585,7 @@
       }
 
       done();
+      paint(true);
       if (answer.trim()) {
         history.push({ role: "assistant", text: answer });
         actions(text, answer);
@@ -563,15 +604,29 @@
       toggle.setAttribute("aria-label", open ? "Chat kleiner maken" : "Chat groter maken");
       toggle.title = open ? "Kleiner" : "Groter";
       toggle.querySelector("use").setAttribute("href", open ? "#i-klein" : "#i-groot");
-      log.scrollTop = log.scrollHeight;
+      settle(true);
       if (open && matchMedia("(pointer: fine)").matches) input.focus();
+    }
+
+    // Scrolls to the newest text, but never further than your last question at the top.
+    function settle(always) {
+      if ((follow || always) && current) {
+        const top = log.scrollTop + current.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
+        log.scrollTop = Math.min(top, log.scrollHeight - log.clientHeight);
+      }
+      showMore();
+    }
+
+    function showMore() {
+      const last = more.previousElementSibling;
+      more.hidden = !last || last.getBoundingClientRect().bottom - log.getBoundingClientRect().bottom < 4;
     }
 
     function add(className) {
       const el = document.createElement("div");
       el.className = className;
-      log.append(el);
-      log.scrollTop = log.scrollHeight;
+      more.before(el);
+      settle();
       return el;
     }
 
@@ -605,7 +660,7 @@
         toast(on ? "Bewaard bij je vaste vragen" : "Niet meer bewaard");
       });
       row.append(share, keep);
-      log.scrollTop = log.scrollHeight;
+      settle();
     }
 
     async function shareAnswer(question, answer) {
@@ -677,7 +732,7 @@
       go.textContent = "Zo doe je dat";
       go.addEventListener("click", install);
       el.append("Tip: zet Joost op je beginscherm, dan heb je hem met één tik. ", go);
-      log.scrollTop = log.scrollHeight;
+      settle();
     }
 
     // The answer is escaped first, so only the bold text, bullets and links below become markup.
