@@ -53,7 +53,7 @@
       <h1><span class="muted">Joost mag het weten?</span> <span>Joost <em>wéét</em> het.</span></h1>
 
       <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek">
-        <div class="chat-top" hidden><b>Vraag het Joost</b><span class="live">Live</span><button class="groter" type="button" aria-label="Chat groter maken" title="Groter"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg></button></div>
+        <div class="chat-top" hidden><b>Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken" title="Groter"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg></button></div>
         <div class="log" id="log" aria-live="polite">
           <div class="label" hidden>Voorbeeld</div>
           <div class="msg user">Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
@@ -67,6 +67,8 @@
           <input id="vraag" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost">
           <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg></button>
         </form>
+        <p class="kan" hidden>Vraag naar je trein, bus of tram, de files, het weer, de stroomprijs, regelzaken en meer. {{PER_DAG}} vragen per dag, zonder account.</p>
+        <p class="dicht" hidden><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
         <div class="chips" hidden>
           <button class="chip prompt" type="button" data-copy="Wat voor weer wordt het morgen in Utrecht?">Weer morgen</button>
           <button class="chip prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?">Tram 2 vanaf het Spui</button>
@@ -388,6 +390,16 @@
   // Vraag het Joost: the server switches the chat on when it has a key and budget left for today.
   const chat = document.getElementById("chat");
   if (chat.dataset.vraag === "aan") startChat();
+  else closed();
+
+  // Off, the example says it is one. When today's questions are used up, the chat also says until when.
+  function closed() {
+    chat.querySelector(".label").hidden = false;
+    if (chat.dataset.vraag !== "vol") return;
+    chat.querySelector(".chat-top").hidden = false;
+    chat.querySelector(".groter").hidden = true;
+    chat.querySelector(".dicht").hidden = false;
+  }
 
   function startChat() {
     const log = document.getElementById("log");
@@ -410,7 +422,7 @@
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
-    chat.querySelectorAll("[hidden]").forEach((el) => { el.hidden = false; });
+    chat.querySelectorAll("[hidden]:not(.dicht)").forEach((el) => { el.hidden = false; });
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
 
     // While Joost answers, the chat scrolls along until your question reaches the top, and stops as soon as you
@@ -497,6 +509,7 @@
       log.setAttribute("aria-busy", "true");
       if (example) {
         log.replaceChildren(more);
+        chat.querySelector(".kan").hidden = true;
         example = false;
       }
       input.value = "";
@@ -508,7 +521,7 @@
       const asked = current;
       history.push({ role: "user", text });
 
-      let thinking = line("denkt na");
+      let thinking = line("is bezig");
       let bubble = null;
       let shown = "";
       let answer = "";

@@ -56,7 +56,9 @@ BUSY_TIMEOUT = 120
 STREAM_HEADERS = {"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"}
 
 OFF = "Vraag het Joost staat nu uit. Zet Joost in je eigen AI, dan kan het altijd."
-TIRED = "Joost is even moe, de vragen voor vandaag zijn op. Morgen weer! Of zet Joost in je eigen AI, dan kan het altijd."
+# Every limit says when it ends: the counts start over at midnight, Dutch time.
+MIDNIGHT = "Vanaf middernacht kan het weer. Of zet Joost in je eigen AI, dan kan het altijd."
+TIRED = f"Joost is even moe, de vragen voor vandaag zijn op. {MIDNIGHT}"
 CROWDED = "Het is even druk bij Joost. Probeer het zo nog eens."
 STILL_BUSY = "Joost is nog bezig met je vorige vraag."
 TOO_LONG = f"Je vraag is te lang. Hou hem onder de {MAX_QUESTION} tekens."
@@ -70,11 +72,13 @@ ENOUGH = (
 )
 FLIGHTS_DONE = (
     "Niet opgezocht: deze bezoeker heeft vandaag al het maximum aan vluchten opgezocht, het is dus niet mislukt. "
-    "Zeg dat vluchten morgen weer kunnen, en verwijs voor nu naar schiphol.nl of de app van de luchtvaartmaatschappij."
+    "Zeg dat vluchten vanaf middernacht weer kunnen, en verwijs voor nu naar schiphol.nl of de app van de "
+    "luchtvaartmaatschappij."
 )
 FLIGHTS_FULL = (
     "Niet opgezocht: het maximum aan vluchten voor vandaag is bereikt, voor de hele site, het is dus niet mislukt. "
-    "Zeg dat vluchten morgen weer kunnen, en verwijs voor nu naar schiphol.nl of de app van de luchtvaartmaatschappij."
+    "Zeg dat vluchten vanaf middernacht weer kunnen, en verwijs voor nu naar schiphol.nl of de app van de "
+    "luchtvaartmaatschappij."
 )
 FAILED = "Dit lukte even niet bij de bron. Probeer het later nog eens."
 # After long results, as with the travel advice for Egypt, Haiku often answered a Dutch question in English. A note
@@ -300,7 +304,7 @@ def _budget() -> float:
     return float(os.environ.get("VRAAG_DAGBUDGET_USD") or 0.5)
 
 
-def _per_day() -> int:
+def per_day() -> int:
     return int(os.environ.get("VRAAG_PER_DAG") or 30)
 
 
@@ -314,6 +318,13 @@ def _flights_per_site() -> int:
 
 def available() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY")) and _day.today().spent < _budget()
+
+
+def state() -> str:
+    """For the home page: "aan", "vol" when today's budget is used up, or "uit" without a key."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return "uit"
+    return "aan" if available() else "vol"
 
 
 def flights() -> bool:
@@ -351,8 +362,8 @@ async def ask(request: Request, tools: MCPServer) -> Response:
         return _refuse(429, STILL_BUSY)
     if len(_busy) >= MAX_BUSY:
         return _refuse(503, CROWDED)
-    if day.asked.get(visitor, 0) >= _per_day():
-        return _refuse(429, f"Je hebt vandaag al {_per_day()} vragen gesteld. Morgen weer! Of zet Joost in je eigen AI, dan kan het altijd.")
+    if day.asked.get(visitor, 0) >= per_day():
+        return _refuse(429, f"Je hebt vandaag al {per_day()} vragen gesteld, het maximum. {MIDNIGHT}")
     if visitor not in day.asked:
         tellers.tel("chat bezoeker")
     day.asked[visitor] = day.asked.get(visitor, 0) + 1
