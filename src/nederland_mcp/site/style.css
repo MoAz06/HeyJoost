@@ -254,6 +254,8 @@ a:hover { text-decoration-color: var(--accent); }
 .ask textarea:focus { outline: 2px solid var(--led); outline-offset: -1px; }
 .teller { margin: 0; padding: 6px 20px 0; color: var(--board-dim); font: 400 var(--text-xs)/1.3 var(--mono); text-align: right; }
 .teller.over { color: var(--led); font-weight: 600; }
+/* From three questions left today. */
+.nog { margin: 0; padding: 6px 20px 0; color: var(--board-ink); font: 400 var(--text-xs)/1.4 var(--mono); }
 .ask button {
   flex: none; display: grid; place-items: center; width: 50px; height: 50px;
   border: 0; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-accent); cursor: pointer;
@@ -298,6 +300,8 @@ a:hover { text-decoration-color: var(--accent); }
 .acties .i { width: 15px; height: 15px; }
 .acties [aria-pressed="true"], .acties [aria-pressed="true"]:hover { color: var(--led); }
 .acties [aria-pressed="true"] .i { fill: currentColor; }
+/* After an answer: a few follow-up questions, gone with the next question. */
+.vervolg { align-self: flex-start; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 .vaste { display: inline-flex; max-width: 100%; border: 1px solid var(--board-edge); border-radius: var(--radius-sm); }
 .vaste:hover { border-color: var(--board-dim); }
@@ -550,7 +554,7 @@ main { padding-bottom: var(--space-9); }
   .verder span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .verder .i { width: 20px; height: 20px; }
   .ask { padding: 0 var(--space-4); }
-  .teller { padding-inline: var(--space-4); }
+  .teller, .nog { padding-inline: var(--space-4); }
   .kan { padding: var(--space-3) var(--space-4) 0; }
   .dicht { margin: 0 var(--space-4) var(--space-4); }
   .chips { padding: var(--space-3) var(--space-4) 0; }

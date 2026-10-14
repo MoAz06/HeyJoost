@@ -67,17 +67,18 @@
         </div>
         <p class="vh" id="status" role="status"></p>
         <form class="ask" id="ask" hidden>
-          <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost" aria-describedby="teller"></textarea>
+          <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost" aria-describedby="teller nog"></textarea>
           <button type="submit" aria-label="Verstuur" title="Verstuur"><svg class="pijl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg><svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/></svg></button>
         </form>
         <p class="teller" id="teller" hidden></p>
+        <p class="nog" id="nog" hidden></p>
         <p class="kan" hidden>Vraag naar je trein, bus of tram, de files, het weer, de stroomprijs, regelzaken en meer. {{PER_DAG}} vragen per dag, zonder account.<span class="praat" hidden>Inspreken kan ook: tik op de microfoon van je toetsenbord.</span></p>
         <p class="dicht" hidden><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
         <div class="chips" hidden>
-          <button class="chip prompt" type="button" data-copy="Wat voor weer wordt het morgen in Utrecht?">Weer morgen</button>
-          <button class="chip prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?">Tram 2 vanaf het Spui</button>
-          <button class="chip prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?">Huis-check</button>
-          <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?">Vlucht KL1001</button><!--/vluchten-->
+          <button class="chip" type="button" data-vul="Hoe wordt het weer in " aria-label="Weer in …, vul zelf je plaats in">Weer in …</button>
+          <button class="chip" type="button" data-vul="Welke treinen gaan er zo vanaf " aria-label="Trein vanaf …, vul zelf je station in">Trein vanaf …</button>
+          <button class="chip prompt" type="button" data-copy="Waar staat er nu file?" data-via="chip">Files nu?</button>
+          <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?" data-via="chip">Vlucht KL1001?</button><!--/vluchten-->
         </div>
         <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Je vraag gaat naar Anthropic, dus deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
       </div>
@@ -339,13 +340,22 @@
     }
   });
 
+  // A longer message stays longer, about as long as it takes to read.
   function toast(text) {
     const el = document.getElementById("toast");
     el.textContent = text;
     el.classList.add("show");
     clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => el.classList.remove("show"), 2200);
+    toast.timer = setTimeout(() => el.classList.remove("show"), Math.min(10000, Math.max(2200, text.length * 60)));
   }
+
+  // The browser inside an app like Instagram or TikTok, if this is one. What you keep there stays in that app.
+  const inApp = (() => {
+    const ua = navigator.userAgent;
+    return /Instagram/i.test(ua) ? "Instagram" : /FBAN|FBAV|FB_IAB/i.test(ua) ? "Facebook"
+      : /TikTok|musical_ly|Bytedance/i.test(ua) ? "TikTok" : /Snapchat/i.test(ua) ? "Snapchat"
+      : /LinkedInApp/i.test(ua) ? "LinkedIn" : "";
+  })();
 
   // Small things this browser remembers for you, like your saved questions. Never sent anywhere.
   function remember(key, value) {
@@ -385,7 +395,7 @@
       return;
     }
     const ua = navigator.userAgent;
-    const kind = /Instagram|FBAN|FBAV|FB_IAB|TikTok|musical_ly|Bytedance|Snapchat|LinkedInApp/i.test(ua) ? "app"
+    const kind = inApp ? "app"
       : /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "ios" : "android";
     installSteps.querySelectorAll("[data-voor]").forEach((el) => { el.hidden = el.dataset.voor !== kind; });
     installSteps.showModal();
@@ -412,6 +422,7 @@
     const input = document.getElementById("vraag");
     const send = form.querySelector("button");
     const counter = document.getElementById("teller");
+    const quota = document.getElementById("nog");
     // As on the server, which counts characters the way Python does.
     const MAX = 500;
     const grows = CSS.supports("field-sizing", "content");
@@ -430,10 +441,34 @@
     const BROKEN = "De verbinding viel weg voordat het antwoord af was.";
     const KEPT = " Je vraag staat nog in het veld.";
     const STOPPED = "Gestopt.";
+    // Follow-up questions per source, short and the same for everyone. The page sends the conversation along, so
+    // "En terug?" is enough.
+    const NEXT = {
+      trein_reis: ["En terug?", "Trein daarna?"],
+      trein_vertrek: ["Storingen?"],
+      trein_aankomst: ["Trein daarna?", "Storingen?"],
+      trein_storingen: ["Hoe lang nog?"],
+      ov_vertrek: ["En daarna?"],
+      reis_plannen: ["En terug?"],
+      weer: ["Regen straks?", "Deze week?"],
+      regen: ["Weer morgen?"],
+      weerwaarschuwingen: ["Weer morgen?"],
+      water_actueel: ["Hoogwater?"],
+      water_verwachting: ["Watertemperatuur?"],
+      stroomprijs: ["En morgen?", "Duurste uur?"],
+      verkeer: ["Wegen dicht?"],
+      reisadvies: ["Visum nodig?"],
+      schoolvakanties: ["Volgende vakantie?"],
+      regelzaken: ["Wat kost het?", "Wat neem ik mee?"],
+      bekendmakingen: ["Bezwaar maken?"],
+      open_in_de_buurt: ["Morgen open?"],
+      huis_info: ["Hoe is de buurt?"],
+      buurt_info: ["Wat is er open?"],
+    };
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
-    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .praat)").forEach((el) => { el.hidden = false; });
+    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog, .praat)").forEach((el) => { el.hidden = false; });
     // Speaking works with the keyboard's own microphone, so a phone only gets a tip and Joost only gets text.
     chat.querySelector(".praat").hidden = !matchMedia("(pointer: coarse)").matches;
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
@@ -513,7 +548,21 @@
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      ask(input.value, false, "getypt");
+      // Finished after an example that put its start in the field: counted as such while that start is still there.
+      const done = filled && input.value.startsWith(filled) && input.value.trim() !== filled.trim();
+      ask(input.value, false, done ? "aangevuld" : "getypt");
+    });
+
+    // Examples about a place put the start of the question in the field, and you add your own place, so nobody in
+    // Groningen gets the weather in Utrecht. The others ask right away.
+    let filled = "";
+    chips.addEventListener("click", (event) => {
+      const chip = event.target.closest("[data-vul]");
+      if (!chip) return;
+      filled = chip.dataset.vul;
+      put(filled);
+      input.focus();
+      input.setSelectionRange(filled.length, filled.length);
     });
 
     // While Joost answers, the send button stops him. Enter in the field does not, so you can type your next
@@ -592,7 +641,14 @@
         example = false;
         chips.prepend(restart);
       }
-      put("");
+      // The follow-ups of the last answer go. A follow-up that was used hands its focus to the stop button.
+      if (document.activeElement && document.activeElement.closest(".vervolg")) send.focus();
+      log.querySelectorAll(".vervolg").forEach((el) => el.remove());
+      // A question from the field empties it. One from a chip or a button leaves what you were typing alone.
+      if (input.value.trim() === text) {
+        put("");
+        filled = "";
+      }
       // On a phone the keyboard would cover the answer, so it goes away.
       if (matchMedia("(pointer: coarse)").matches) input.blur();
       follow = true;
@@ -607,6 +663,9 @@
       let bubble = null;
       let shown = "";
       let answer = "";
+      // The first source Joost used, for the follow-ups, and how many questions are left today.
+      let source = "";
+      let over = null;
       // What went wrong, if anything, and whether the server said it was done.
       let failure = null;
       let reached = false;
@@ -639,6 +698,7 @@
       };
       const handle = (event) => {
         if (event.type === "tool") {
+          if (!source) source = event.tool || "";
           if (thinking) thinking.remove();
           thinking = null;
           paint(true);
@@ -663,6 +723,7 @@
           failure = { text: event.text, again: event.opnieuw === true };
         } else if (event.type === "done") {
           finished = true;
+          if (typeof event.over === "number") over = event.over;
         }
       };
 
@@ -709,8 +770,9 @@
       if (!failure && answer.trim()) {
         history.push({ role: "assistant", text: answer });
         actions(text, answer);
+        followUps(source, answer);
         if (canInstall && !tipped && !remember("tip")) tip();
-        say("Joost antwoordt: " + spoken(answer));
+        say("Joost antwoordt: " + spoken(answer) + (remaining(over) ? " " + quota.textContent.replace(/\.?$/, ".") : ""));
       } else {
         history.pop();
         // Your question is never lost: it goes back in the field, unless you are already typing a new one. After a
@@ -723,6 +785,35 @@
       working(false);
       if (matchMedia("(pointer: fine)").matches) input.focus();
       finish();
+    }
+
+    // After an answer: at most two follow-up questions that fit the source, and "Zeg het simpeler" under a long
+    // answer, so you can ask for it without having to say why. In one place, and gone with the next question.
+    function followUps(source, answer) {
+      const list = [...(NEXT[source] || [])];
+      if (plain(answer).length > 240) list.push("Zeg het simpeler");
+      if (!list.length) return;
+      const row = add("vervolg");
+      row.setAttribute("role", "group");
+      row.setAttribute("aria-label", "Vervolgvragen");
+      for (const text of list) {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "chip";
+        el.textContent = text;
+        el.addEventListener("click", () => ask(text, false, "vervolg"));
+        row.append(el);
+      }
+      settle();
+    }
+
+    // From three questions left today the chat says how many, so the last one is no surprise.
+    function remaining(over) {
+      quota.hidden = !(typeof over === "number" && over <= 3);
+      quota.textContent = quota.hidden ? ""
+        : over === 0 ? "Dit was je laatste vraag voor vandaag. Vanaf middernacht kan het weer."
+        : over === 1 ? "Nog 1 vraag vandaag" : `Nog ${over} vragen vandaag`;
+      return !quota.hidden;
     }
 
     function working(on) {
@@ -856,7 +947,9 @@
       keep.addEventListener("click", () => {
         const on = !saved.includes(question);
         save(on ? [question, ...saved] : saved.filter((text) => text !== question));
-        toast(on ? "Bewaard bij je vaste vragen" : "Niet meer bewaard");
+        // In the browser of an app the question stays in that app, and Safari or Chrome never see it.
+        const where = inApp ? `Bewaard, maar alleen in de browser van ${inApp}. Open heyjoost.nl in je eigen browser om je vragen daar te houden.` : "Bewaard bij je vaste vragen";
+        toast(on ? where : "Niet meer bewaard");
       });
       row.append(share, keep);
       settle();

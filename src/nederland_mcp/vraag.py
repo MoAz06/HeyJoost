@@ -131,8 +131,10 @@ CREDITS = {
     "stroomprijs": ("smard", "Bundesnetzagentur | SMARD.de"),
     "buurt_info": ("cbs", "CBS"),
 }
-# Where a question came from, as the page reports it. Only counted, never stored with anything else.
-ORIGINS = ("getypt", "voorbeeld", "vast", "link", "opnieuw")
+# Where a question came from, as the page reports it. Only counted, never stored with anything else. A "chip" is an
+# example in the chat that asks right away, "aangevuld" one that put a question in the field for you to finish, and
+# "vervolg" a follow-up button under an answer.
+ORIGINS = ("getypt", "voorbeeld", "chip", "aangevuld", "vervolg", "vast", "link", "opnieuw")
 # Errors where the same question may well work a moment later, so the page offers to try again.
 PASSING = (STILL_BUSY, CROWDED, UNREACHABLE)
 
@@ -474,7 +476,8 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
                         and event.content_block.type == "tool_use"
                         and event.content_block.name != MISSED_TOOL["name"]
                     ):
-                        yield {"type": "tool", "where": WHERE.get(event.content_block.name, "bij de bron")}
+                        name = event.content_block.name
+                        yield {"type": "tool", "where": WHERE.get(name, "bij de bron"), "tool": name}
                 message = await stream.get_final_message()
         except anthropic.APIError as exc:
             day.spent -= ROUND_RESERVE
@@ -510,7 +513,8 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         "Vraag het Joost: %d rondes, %d opzoekingen, $%.4f, vandaag $%.3f van $%.2f",
         round_ + 1, sum(lookups.values()), cost, day.spent, _budget(),
     )
-    yield {"type": "done"}
+    # How many questions are left today, so the page can warn before the last one.
+    yield {"type": "done", "over": max(0, per_day() - day.asked.get(visitor, 0))}
 
 
 def _dutch(question: str) -> bool:
