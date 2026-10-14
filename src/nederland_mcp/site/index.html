@@ -65,10 +65,11 @@
         </div>
         <p class="vh" id="status" role="status"></p>
         <form class="ask" id="ask" hidden>
-          <input id="vraag" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost">
+          <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost" aria-describedby="teller"></textarea>
           <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg></button>
         </form>
-        <p class="kan" hidden>Vraag naar je trein, bus of tram, de files, het weer, de stroomprijs, regelzaken en meer. {{PER_DAG}} vragen per dag, zonder account.</p>
+        <p class="teller" id="teller" hidden></p>
+        <p class="kan" hidden>Vraag naar je trein, bus of tram, de files, het weer, de stroomprijs, regelzaken en meer. {{PER_DAG}} vragen per dag, zonder account.<span class="praat" hidden>Inspreken kan ook: tik op de microfoon van je toetsenbord.</span></p>
         <p class="dicht" hidden><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
         <div class="chips" hidden>
           <button class="chip prompt" type="button" data-copy="Wat voor weer wordt het morgen in Utrecht?">Weer morgen</button>
@@ -408,6 +409,10 @@
     const form = document.getElementById("ask");
     const input = document.getElementById("vraag");
     const send = form.querySelector("button");
+    const counter = document.getElementById("teller");
+    // As on the server, which counts characters the way Python does.
+    const MAX = 500;
+    const grows = CSS.supports("field-sizing", "content");
     const icon = chat.querySelector(".tool svg").outerHTML;
     const history = [];
     const chips = chat.querySelector(".chips");
@@ -424,7 +429,9 @@
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
-    chat.querySelectorAll("[hidden]:not(.dicht)").forEach((el) => { el.hidden = false; });
+    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .praat)").forEach((el) => { el.hidden = false; });
+    // Speaking works with the keyboard's own microphone, so a phone only gets a tip and Joost only gets text.
+    chat.querySelector(".praat").hidden = !matchMedia("(pointer: coarse)").matches;
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
 
     // While Joost answers, the chat scrolls along until your question reaches the top, and stops as soon as you
@@ -504,6 +511,23 @@
       event.preventDefault();
       ask(input.value, false, "getypt");
     });
+
+    // The field grows with your question up to five lines, so a long or spoken question can be read back. Enter
+    // sends and Shift+Enter starts a new line, but not while a word is still being composed, as in Japanese. Some
+    // Android keyboards send only the new line itself, so that sends too.
+    let newline = false;
+    input.addEventListener("input", typed);
+    input.addEventListener("keydown", (event) => {
+      newline = event.key === "Enter" && event.shiftKey;
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      form.requestSubmit();
+    });
+    input.addEventListener("beforeinput", (event) => {
+      if (!["insertLineBreak", "insertParagraph"].includes(event.inputType) || newline) return;
+      event.preventDefault();
+      form.requestSubmit();
+    });
     askJoost = ask;
     showSaved();
 
@@ -525,6 +549,12 @@
     async function ask(text, fromPrompt, via) {
       text = text.trim();
       if (!text || busy) return;
+      // Too long: nothing is cut off, the counter says by how much, and the question stays in the field.
+      if ([...text].length > MAX) {
+        count();
+        say("Je vraag is te lang: " + counter.textContent + ".");
+        return;
+      }
       if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "center" });
       busy = true;
       send.disabled = true;
@@ -533,7 +563,7 @@
         chat.querySelector(".kan").hidden = true;
         example = false;
       }
-      input.value = "";
+      put("");
       // On a phone the keyboard would cover the answer, so it goes away.
       if (matchMedia("(pointer: coarse)").matches) input.blur();
       follow = true;
@@ -652,7 +682,7 @@
         history.pop();
         // Your question is never lost: it goes back in the field, unless you are already typing a new one.
         const back = !input.value.trim();
-        if (back) input.value = text;
+        if (back) put(text);
         const problem = failure || { text: "Joost weet het even niet. Probeer het anders te vragen.", again: false };
         fail(problem, text, answer.trim() !== "", asked, back && (problem.again || !failure));
       }
@@ -667,6 +697,33 @@
       toggle.querySelector("use").setAttribute("href", open ? "#i-klein" : "#i-groot");
       settle(true);
       if (open && matchMedia("(pointer: fine)").matches) input.focus();
+    }
+
+    // A question in the field, typed or put there by the page.
+    function put(text) {
+      input.value = text;
+      typed();
+    }
+
+    function typed() {
+      grow();
+      count();
+    }
+
+    // Browsers without field-sizing get the height from the text.
+    function grow() {
+      if (grows) return;
+      input.style.height = "auto";
+      input.style.height = input.scrollHeight + 2 + "px";
+    }
+
+    // From 450 characters on the counter says how many are left, and over 500 by how many it is too long.
+    function count() {
+      const left = MAX - [...input.value.trim()].length;
+      const many = (n) => n + (n === 1 ? " teken" : " tekens");
+      counter.hidden = left > 50;
+      counter.classList.toggle("over", left < 0);
+      counter.textContent = counter.hidden ? "" : left < 0 ? many(-left) + " te veel" : left === 0 ? `Precies ${MAX} tekens, het maximum` : "Nog " + many(left);
     }
 
     // Scrolls to the newest text, but never further than your last question at the top.
@@ -746,7 +803,7 @@
         retry.addEventListener("click", () => {
           if (busy) return;
           parts.forEach((part) => part.remove());
-          if (input.value.trim() === question) input.value = "";
+          if (input.value.trim() === question) put("");
           if (matchMedia("(pointer: fine)").matches) input.focus();
           ask(question, false, "opnieuw");
         });
