@@ -43,6 +43,8 @@
   --board: #141414;
   --board-2: #232323;
   --board-line: #333333;
+  /* The edge of a field or button on a display: at least 3:1 against the black, so you can see where to tap. */
+  --board-edge: #707070;
   --board-ink: #f3f3f3;
   --board-dim: #9d9d9d;
   --led: #ff7d1f;
@@ -214,7 +216,7 @@ a:hover { text-decoration-color: var(--accent); }
 .msg li::marker { color: var(--led); }
 .msg.fout { background: transparent; box-shadow: inset 0 0 0 1px var(--board-line); color: var(--board-dim); }
 .opnieuw {
-  display: flex; align-items: center; gap: 7px; min-height: 40px; margin-top: var(--space-3); padding: 0 14px 0 11px;
+  display: flex; align-items: center; gap: 7px; min-height: 44px; margin-top: var(--space-3); padding: 0 14px 0 11px;
   border: 1px solid var(--led); border-radius: var(--radius-sm); background: none; color: var(--board-ink);
   font: 600 var(--text-xs)/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
 }
@@ -223,7 +225,7 @@ a:hover { text-decoration-color: var(--accent); }
 
 .tool {
   align-self: flex-start; display: flex; align-items: center; gap: 9px; margin-top: var(--space-1);
-  color: var(--board-dim); font: 400 11.5px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--board-dim); font: 400 var(--text-xs)/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
 }
 .tool svg { width: 7px; height: 7px; flex: none; color: var(--led); }
 .tool b { color: var(--board-ink); font-weight: 600; }
@@ -234,7 +236,7 @@ a:hover { text-decoration-color: var(--accent); }
 .ask { display: flex; gap: var(--space-2); padding: 0 20px; }
 .ask input {
   flex: 1; min-width: 0; height: 50px; padding: 0 var(--space-4);
-  border: 1px solid var(--board-line); border-radius: var(--radius-sm); background: var(--board-2);
+  border: 1px solid var(--board-edge); border-radius: var(--radius-sm); background: var(--board-2);
   color: var(--board-ink); font: 400 var(--text-md) var(--sans);
 }
 .ask input::placeholder { color: var(--board-dim); opacity: 1; }
@@ -258,7 +260,7 @@ a:hover { text-decoration-color: var(--accent); }
 .dicht a { color: var(--board-ink); text-decoration-color: var(--led); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) 20px 0; }
 .chip {
-  min-height: 36px; padding: 0 13px; border: 1px solid var(--board-line); border-radius: var(--radius-sm);
+  min-height: 44px; padding: 0 13px; border: 1px solid var(--board-edge); border-radius: var(--radius-sm);
   background: none; color: var(--board-ink); font: 500 var(--text-sm)/1 var(--sans); cursor: pointer;
 }
 .chip:hover { border-color: var(--led); color: var(--led); }
@@ -266,24 +268,24 @@ a:hover { text-decoration-color: var(--accent); }
 .fine a { color: var(--board-ink); }
 
 /* Under an answer: share it, or keep the question. Kept questions replace the examples, with a star. */
-.acties { align-self: flex-start; display: flex; gap: var(--space-1); margin: -6px 0 0 -8px; }
+.acties { align-self: flex-start; display: flex; gap: var(--space-1); margin: -10px 0 0 -10px; }
 .acties button {
-  display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 8px;
+  display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 10px;
   border: 0; border-radius: var(--radius-sm); background: none; color: var(--board-dim);
-  font: 400 11.5px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+  font: 400 var(--text-xs)/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
 }
 .acties button:hover { background: var(--board-2); color: var(--board-ink); }
 .acties .i { width: 15px; height: 15px; }
 .acties [aria-pressed="true"], .acties [aria-pressed="true"]:hover { color: var(--led); }
 .acties [aria-pressed="true"] .i { fill: currentColor; }
 
-.vaste { display: inline-flex; max-width: 100%; border: 1px solid var(--board-line); border-radius: var(--radius-sm); }
+.vaste { display: inline-flex; max-width: 100%; border: 1px solid var(--board-edge); border-radius: var(--radius-sm); }
 .vaste:hover { border-color: var(--board-dim); }
 .vaste .chip { display: inline-flex; align-items: center; gap: 7px; min-width: 0; padding-right: 4px; border: 0; }
 .vaste .chip span { max-width: 26ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
 .vaste .chip .i { width: 13px; height: 13px; color: var(--led); fill: currentColor; stroke-width: 1.5; }
 .vaste .weg {
-  flex: none; display: grid; place-items: center; width: 34px;
+  flex: none; display: grid; place-items: center; width: 44px;
   border: 0; border-radius: var(--radius-sm); background: none; color: var(--board-dim); cursor: pointer;
 }
 .vaste .weg:hover { background: var(--board-2); color: var(--board-ink); }
@@ -302,7 +304,7 @@ a:hover { text-decoration-color: var(--accent); }
    cancels its own room and the gap, so showing it moves nothing. */
 .verder {
   position: sticky; bottom: var(--space-2); z-index: 1; flex: none; align-self: center;
-  display: inline-flex; align-items: center; gap: 7px; height: 40px; margin-top: -50px; padding: 0 15px 0 12px;
+  display: inline-flex; align-items: center; gap: 7px; height: 44px; margin-top: -54px; padding: 0 15px 0 12px;
   border: 0; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-accent);
   box-shadow: 0 0 0 4px rgb(0 0 0 / 0.35), 0 6px 18px rgb(0 0 0 / 0.6);
   font: 600 var(--text-xs)/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
@@ -310,12 +312,14 @@ a:hover { text-decoration-color: var(--accent); }
 .verder:hover { background: var(--accent-hover); }
 .verder .i { width: 15px; height: 15px; stroke-width: 2.5; }
 
+/* With a word, because on a touch screen nobody sees a tooltip. */
 .groter {
-  display: grid; place-items: center; width: 36px; height: 36px; margin: -12px -12px -12px auto;
+  display: inline-flex; align-items: center; gap: 7px; height: 44px; margin: -14px -12px -14px auto; padding: 0 12px;
   border: 0; border-radius: var(--radius-sm); background: none; color: var(--board-dim); cursor: pointer;
+  font: 600 var(--text-xs)/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
 }
 .groter:hover { background: var(--board-2); color: var(--board-ink); }
-.groter .i { width: 16px; height: 16px; }
+.groter .i { width: 15px; height: 15px; }
 .groter:focus-visible { outline-offset: -3px; }
 
 /* The bigger chat: a large window over the page, the whole screen on a phone. */
@@ -516,6 +520,7 @@ main { padding-bottom: var(--space-9); }
   .top .btn { min-height: 40px; padding: 0 14px; font-size: 14px; }
   .hero { padding-top: var(--space-5); padding-bottom: var(--space-6); }
   .hero h1 { line-height: 1.02; }
+  .chat-top { padding-inline: var(--space-4); }
   .log { padding: var(--space-4); }
   .chat { --log-h: clamp(260px, 32svh, 360px); }
   .log .extra { display: none; }
@@ -549,9 +554,11 @@ main { padding-bottom: var(--space-9); }
   .sources { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* On the narrowest phones the first example would otherwise push the input under the fold. */
+/* On the narrowest phones the first example would otherwise push the input under the fold, and the word on the
+   button in the header would push the name onto two lines. */
 @media (max-width: 374px) {
   .msg { font-size: 15px; }
+  .groter .i { display: none; }
 }
 
 @media (max-width: 360px) {

@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>Hey Joost: live Nederland in je AI</title>
 <meta name="description" content="Hey Joost geeft Claude en ChatGPT live Nederlandse info: treinen en storingen, bus en tram, files en werk aan de weg, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten, vergunningen in je straat, wat er open is in de buurt, het reisadvies en regelzaken bij de overheid. Gratis, uit officiële bronnen.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -53,14 +53,14 @@
       <h1><span class="muted">Joost mag het weten?</span> <span>Joost <em>wéét</em> het.</span></h1>
 
       <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek">
-        <div class="chat-top" hidden><b>Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken" title="Groter"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg></button></div>
+        <div class="chat-top" hidden><b>Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg><span>Groter</span></button></div>
         <div class="log" id="log">
           <div class="label" hidden>Voorbeeld</div>
           <div class="msg user"><h2 class="vh">Jij vroeg:</h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
-          <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek het na bij de NS</span></div>
+          <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek bij de NS</span></div>
           <div class="msg ai"><h2 class="vh">Joost antwoordt:</h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
           <div class="msg user extra"><h2 class="vh">Jij vroeg:</h2>En is het zeewater in Scheveningen nog te doen?</div>
-          <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek het na bij Rijkswaterstaat</span></div>
+          <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek bij Rijkswaterstaat</span></div>
           <div class="msg ai extra"><h2 class="vh">Joost antwoordt:</h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
         </div>
         <p class="vh" id="status" role="status"></p>
@@ -471,14 +471,31 @@
       chat.replaceWith(spot);
       big.append(chat, note);
       big.showModal();
+      fit();
       resize(true);
     });
     big.addEventListener("close", () => {
       spot.replaceWith(chat);
       document.body.append(note);
+      fit();
       resize(false);
       toggle.focus();
     });
+
+    // On a phone the keyboard covers the bottom of the screen. Android shrinks the page for it (see the viewport
+    // meta), Safari does not, so there the big chat takes the height that is still visible, and the field and the
+    // top of the chat both stay in view.
+    const view = window.visualViewport;
+    const phone = matchMedia("(max-width: 600px)");
+    if (view) {
+      view.addEventListener("resize", fit);
+      view.addEventListener("scroll", fit);
+    }
+    function fit() {
+      const on = big.open && view && phone.matches;
+      big.style.height = on ? view.height + "px" : "";
+      big.style.top = on ? view.offsetTop + "px" : "";
+    }
     big.addEventListener("click", (event) => {
       if (event.target === big) big.close();
     });
@@ -558,7 +575,7 @@
         thinking = null;
         log.querySelectorAll(".tool.busy").forEach((el) => {
           el.classList.remove("busy");
-          el.querySelector("i").textContent = "keek het na " + el.dataset.where;
+          el.querySelector("i").textContent = "keek " + el.dataset.where;
         });
       };
       const handle = (event) => {
@@ -646,7 +663,7 @@
 
     function resize(open) {
       toggle.setAttribute("aria-label", open ? "Chat kleiner maken" : "Chat groter maken");
-      toggle.title = open ? "Kleiner" : "Groter";
+      toggle.querySelector("span").textContent = open ? "Kleiner" : "Groter";
       toggle.querySelector("use").setAttribute("href", open ? "#i-klein" : "#i-groot");
       settle(true);
       if (open && matchMedia("(pointer: fine)").matches) input.focus();
