@@ -126,7 +126,9 @@ CREDITS = {
     "buurt_info": ("cbs", "CBS"),
 }
 # Where a question came from, as the page reports it. Only counted, never stored with anything else.
-ORIGINS = ("getypt", "voorbeeld", "vast", "link")
+ORIGINS = ("getypt", "voorbeeld", "vast", "link", "opnieuw")
+# Errors where the same question may well work a moment later, so the page offers to try again.
+PASSING = (STILL_BUSY, CROWDED, UNREACHABLE)
 
 # Not an MCP tool: Schiphol only allows flights in this chat. Only offered when the server has a Schiphol key.
 FLIGHT_TOOL = {
@@ -364,7 +366,7 @@ async def ask(request: Request, tools: MCPServer) -> Response:
 
 
 def _refuse(status: int, text: str) -> JSONResponse:
-    return JSONResponse({"error": text}, status_code=status)
+    return JSONResponse({"error": text, "opnieuw": text in PASSING}, status_code=status)
 
 
 def _visitor(request: Request) -> str:
@@ -412,7 +414,7 @@ async def _events(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         _busy.pop(visitor, None)
 
 
-async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str) -> AsyncIterator[dict[str, str]]:
+async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str) -> AsyncIterator[dict[str, Any]]:
     day = _day.today()
     definitions = [
         {"name": tool.name, "description": tool.description or "", "input_schema": tool.input_schema}
@@ -458,13 +460,14 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
                 message = await stream.get_final_message()
         except anthropic.APIError as exc:
             day.spent -= ROUND_RESERVE
-            yield {"type": "error", "text": _api_error(exc, day)}
+            text = _api_error(exc, day)
+            yield {"type": "error", "text": text, "opnieuw": text in PASSING}
             return
         spent = _cost(message.usage)
         day.spent += spent - ROUND_RESERVE
         cost += spent
         if message.stop_reason == "refusal":
-            yield {"type": "error", "text": REFUSED}
+            yield {"type": "error", "text": REFUSED, "opnieuw": False}
             return
         uses = [block for block in message.content if block.type == "tool_use"]
         if message.stop_reason != "tool_use" or not uses:
