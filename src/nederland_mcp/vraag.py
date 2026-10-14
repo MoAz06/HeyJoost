@@ -53,6 +53,8 @@ MAX_MESSAGES = 12
 MAX_BODY = 32_000
 MAX_BUSY = 8
 BUSY_TIMEOUT = 120
+# Right after a stop the old answer can take a moment to close, so a new question waits that long for it.
+STOP_WAIT = 2.0
 STREAM_HEADERS = {"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"}
 
 OFF = "Vraag het Joost staat nu uit. Zet Joost in je eigen AI, dan kan het altijd."
@@ -354,6 +356,11 @@ async def ask(request: Request, tools: MCPServer) -> Response:
     if day.spent >= _budget():
         return _refuse(429, TIRED)
     visitor = _visitor(request)
+    for _ in range(round(STOP_WAIT / 0.1)):
+        started = _busy.get(visitor)
+        if started is None or time.monotonic() - started > BUSY_TIMEOUT:
+            break
+        await asyncio.sleep(0.1)
     now = time.monotonic()
     for key, started in list(_busy.items()):
         if now - started > BUSY_TIMEOUT:

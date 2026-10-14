@@ -32,6 +32,8 @@
   <symbol id="i-telefoon" viewBox="0 0 24 24"><path d="M7 2h10v20H7zM12 8v6M9 11h6"/></symbol>
   <symbol id="i-omlaag" viewBox="0 0 24 24"><path d="M12 4v15M6 13l6 6 6-6"/></symbol>
   <symbol id="i-opnieuw" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></symbol>
+  <symbol id="i-pas" viewBox="0 0 24 24"><path d="M4 20v-4L15 5l4 4L8 20zM12 8l4 4"/></symbol>
+  <symbol id="i-nieuw" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 </svg>
 <a class="skip" href="#main">Naar de inhoud</a>
 
@@ -66,7 +68,7 @@
         <p class="vh" id="status" role="status"></p>
         <form class="ask" id="ask" hidden>
           <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost" aria-describedby="teller"></textarea>
-          <button type="submit" aria-label="Verstuur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg></button>
+          <button type="submit" aria-label="Verstuur" title="Verstuur"><svg class="pijl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg><svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/></svg></button>
         </form>
         <p class="teller" id="teller" hidden></p>
         <p class="kan" hidden>Vraag naar je trein, bus of tram, de files, het weer, de stroomprijs, regelzaken en meer. {{PER_DAG}} vragen per dag, zonder account.<span class="praat" hidden>Inspreken kan ook: tik op de microfoon van je toetsenbord.</span></p>
@@ -417,6 +419,7 @@
     const history = [];
     const chips = chat.querySelector(".chips");
     const examples = [...chips.children];
+    const intro = [...log.children];
     let saved = (remember("vast") || []).filter((text) => typeof text === "string").slice(0, 6);
     let busy = false;
     let example = true;
@@ -426,6 +429,7 @@
     const AWAY = "Joost is even niet bereikbaar en kreeg je vraag niet.";
     const BROKEN = "De verbinding viel weg voordat het antwoord af was.";
     const KEPT = " Je vraag staat nog in het veld.";
+    const STOPPED = "Gestopt.";
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
@@ -512,6 +516,23 @@
       ask(input.value, false, "getypt");
     });
 
+    // While Joost answers, the send button stops him. Enter in the field does not, so you can type your next
+    // question in the meantime.
+    let stop = null;
+    let running = null;
+    send.addEventListener("click", (event) => {
+      if (!stop) return;
+      event.preventDefault();
+      stop();
+    });
+
+    // A new conversation: Joost forgets everything so far and the chat looks as it did when the page opened. The
+    // button sits with the chips, because the top of the chat has no room for it on a small phone.
+    const restart = button("", "Nieuw gesprek", "i-nieuw");
+    restart.className = "chip nieuw";
+    restart.insertAdjacentHTML("beforeend", "<span>Nieuw<span> gesprek</span></span>");
+    restart.addEventListener("click", fresh);
+
     // The field grows with your question up to five lines, so a long or spoken question can be read back. Enter
     // sends and Shift+Enter starts a new line, but not while a word is still being composed, as in Japanese. Some
     // Android keyboards send only the new line itself, so that sends too.
@@ -556,12 +577,20 @@
         return;
       }
       if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "center" });
-      busy = true;
-      send.disabled = true;
+      working(true);
+      let finish;
+      running = new Promise((resolve) => { finish = resolve; });
+      const control = new AbortController();
+      let stopped = false;
+      stop = () => {
+        stopped = true;
+        control.abort();
+      };
       if (example) {
         log.replaceChildren(more);
         chat.querySelector(".kan").hidden = true;
         example = false;
+        chips.prepend(restart);
       }
       put("");
       // On a phone the keyboard would cover the answer, so it goes away.
@@ -569,7 +598,7 @@
       follow = true;
       current = add("msg user");
       current.innerHTML = '<h2 class="vh">Jij vroeg:</h2>';
-      current.append(text);
+      current.append(editable(text));
       const asked = current;
       history.push({ role: "user", text });
 
@@ -643,6 +672,7 @@
           headers: { "Content-Type": "application/json" },
           // Where the question came from and whether Joost is on a home screen, only for the counts per day.
           body: JSON.stringify({ messages: history.slice(-12), via, app: standalone }),
+          signal: control.signal,
         });
         reached = true;
         if (!response.ok) {
@@ -666,13 +696,16 @@
         }
       } catch {
         // Without a response the question never reached Joost. With one, the connection broke on the way back.
-        failure = { text: reached ? BROKEN : AWAY, again: true };
+        if (!stopped) failure = { text: reached ? BROKEN : AWAY, again: true };
       }
+      stop = null;
 
       clearTimeout(slow);
       done();
       paint(true);
-      if (!failure && !finished) failure = { text: BROKEN, again: true };
+      // Stopped: what Joost already wrote stays. A stop that came after the last word changes nothing.
+      if (stopped && !finished) failure = { text: STOPPED, again: true, stopped: true };
+      else if (!failure && !finished) failure = { text: BROKEN, again: true };
       if (!failure && answer.trim()) {
         history.push({ role: "assistant", text: answer });
         actions(text, answer);
@@ -680,15 +713,63 @@
         say("Joost antwoordt: " + spoken(answer));
       } else {
         history.pop();
-        // Your question is never lost: it goes back in the field, unless you are already typing a new one.
-        const back = !input.value.trim();
-        if (back) put(text);
+        // Your question is never lost: it goes back in the field, unless you are already typing a new one. After a
+        // stop it stays where it is, and a tap on it puts it back.
         const problem = failure || { text: "Joost weet het even niet. Probeer het anders te vragen.", again: false };
-        fail(problem, text, answer.trim() !== "", asked, back && (problem.again || !failure));
+        const back = !problem.stopped && !input.value.trim();
+        if (back) put(text);
+        fail(problem, text, !problem.stopped && answer.trim() !== "", asked, back && (problem.again || !failure));
       }
-      busy = false;
-      send.disabled = false;
+      working(false);
       if (matchMedia("(pointer: fine)").matches) input.focus();
+      finish();
+    }
+
+    function working(on) {
+      busy = on;
+      form.classList.toggle("bezig", on);
+      send.setAttribute("aria-label", on ? "Stop antwoord" : "Verstuur");
+      send.title = on ? "Stop antwoord" : "Verstuur";
+    }
+
+    // Your last question is a button: one tap puts it back in the field, to change it or to ask it again.
+    function editable(text) {
+      log.querySelectorAll(".msg.user .pas").forEach((el) => el.replaceWith(el.dataset.vraag));
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "pas";
+      el.dataset.vraag = text;
+      el.title = "Pas je vraag aan";
+      el.innerHTML = '<span class="vh">Pas aan: </span>';
+      el.append(text);
+      el.insertAdjacentHTML("beforeend", '<svg class="i" aria-hidden="true"><use href="#i-pas"/></svg>');
+      el.addEventListener("click", () => {
+        put(text);
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        say("Je vraag staat weer in het veld");
+      });
+      return el;
+    }
+
+    // A stop first when Joost is still answering, then everything goes: the conversation he remembers, and what the
+    // chat shows. Your next question in the field stays.
+    async function fresh() {
+      if (stop) {
+        stop();
+        await running;
+      }
+      history.length = 0;
+      current = null;
+      follow = false;
+      example = true;
+      log.replaceChildren(...intro, more);
+      log.scrollTop = 0;
+      showMore();
+      chat.querySelector(".kan").hidden = false;
+      restart.remove();
+      say("Nieuw gesprek, het vorige is gewist");
+      (matchMedia("(pointer: fine)").matches ? input : chips.querySelector("button") || input).focus();
     }
 
     function resize(open) {
@@ -864,7 +945,7 @@
     }
 
     function showSaved() {
-      chips.replaceChildren(...(saved.length ? saved.map(savedChip) : examples));
+      chips.replaceChildren(...(example ? [] : [restart]), ...(saved.length ? saved.map(savedChip) : examples));
     }
 
     function savedChip(text) {
