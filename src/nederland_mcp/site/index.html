@@ -367,6 +367,18 @@
     }
   }
 
+  // What only this tab keeps: the conversation and what you are typing, so a reload, or a phone that drops the page
+  // while you are in another app, loses nothing. Gone when the tab closes, and never sent anywhere.
+  function hold(key, value) {
+    try {
+      if (value === undefined) return JSON.parse(sessionStorage.getItem("joost." + key));
+      if (value === null) sessionStorage.removeItem("joost." + key);
+      else sessionStorage.setItem("joost." + key, JSON.stringify(value));
+    } catch {
+      return null;
+    }
+  }
+
   // Zet Joost op je beginscherm: with the browser's own install question when it has one, otherwise with the steps.
   const installButton = document.querySelector(".beginscherm");
   const installSteps = document.getElementById("beginscherm");
@@ -432,6 +444,9 @@
     const examples = [...chips.children];
     const intro = [...log.children];
     let saved = (remember("vast") || []).filter((text) => typeof text === "string").slice(0, 6);
+    // Every question with its answer, the places Joost looked and the first source, for this tab.
+    const kept = hold("gesprek");
+    let turns = (Array.isArray(kept) ? kept : []).filter((turn) => turn && typeof turn.q === "string" && typeof turn.a === "string").slice(-20);
     let busy = false;
     let example = true;
     let tipped = false;
@@ -599,6 +614,7 @@
       form.requestSubmit();
     });
     askJoost = ask;
+    restore();
     showSaved();
 
     // A shared link carries its question after the #, so it never reaches the server or its logs.
@@ -648,6 +664,8 @@
       if (input.value.trim() === text) {
         put("");
         filled = "";
+        // Until the server takes the question, a reload brings it back in the field.
+        hold("concept", text);
       }
       // On a phone the keyboard would cover the answer, so it goes away.
       if (matchMedia("(pointer: coarse)").matches) input.blur();
@@ -663,8 +681,9 @@
       let bubble = null;
       let shown = "";
       let answer = "";
-      // The first source Joost used, for the follow-ups, and how many questions are left today.
+      // The first source Joost used, for the follow-ups, where he looked, and how many questions are left today.
       let source = "";
+      const wheres = [];
       let over = null;
       // What went wrong, if anything, and whether the server said it was done.
       let failure = null;
@@ -704,6 +723,7 @@
           paint(true);
           const last = more.previousElementSibling;
           if (!(last && last.dataset.where === event.where && last.classList.contains("busy"))) {
+            wheres.push(event.where);
             line("kijkt " + event.where + (late ? LATE : "")).dataset.where = event.where;
             say("Joost kijkt " + event.where);
           }
@@ -736,6 +756,7 @@
           signal: control.signal,
         });
         reached = true;
+        if (response.ok) hold("concept", input.value || null);
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
           failure = data.error ? { text: data.error, again: data.opnieuw === true } : { text: AWAY, again: true };
@@ -769,6 +790,8 @@
       else if (!failure && !finished) failure = { text: BROKEN, again: true };
       if (!failure && answer.trim()) {
         history.push({ role: "assistant", text: answer });
+        turns = [...turns, { q: text, a: answer, w: wheres, s: source }].slice(-20);
+        hold("gesprek", turns);
         actions(text, answer);
         followUps(source, answer);
         if (canInstall && !tipped && !remember("tip")) tip();
@@ -782,6 +805,8 @@
         if (back) put(text);
         fail(problem, text, !problem.stopped && answer.trim() !== "", asked, back && (problem.again || !failure));
       }
+      // The question is answered or back in the field, so the tab keeps what the field shows.
+      hold("concept", input.value || null);
       working(false);
       if (matchMedia("(pointer: fine)").matches) input.focus();
       finish();
@@ -851,6 +876,8 @@
         await running;
       }
       history.length = 0;
+      turns = [];
+      hold("gesprek", null);
       current = null;
       follow = false;
       example = true;
@@ -880,6 +907,32 @@
     function typed() {
       grow();
       count();
+      hold("concept", input.value || null);
+    }
+
+    // After a reload: the conversation as it was, with only the last answer's follow-ups, and what you were typing.
+    function restore() {
+      const draft = hold("concept");
+      if (typeof draft === "string") put(draft);
+      if (!turns.length) return;
+      log.replaceChildren(more);
+      chat.querySelector(".kan").hidden = true;
+      example = false;
+      for (const turn of turns) {
+        current = add("msg user");
+        current.innerHTML = '<h2 class="vh">Jij vroeg:</h2>';
+        current.append(editable(turn.q));
+        for (const where of Array.isArray(turn.w) ? turn.w : []) {
+          const el = line("keek " + where);
+          el.classList.remove("busy");
+          el.dataset.where = where;
+        }
+        add("msg ai").innerHTML = '<h2 class="vh">Joost antwoordt:</h2>' + render(turn.a);
+        actions(turn.q, turn.a);
+        history.push({ role: "user", text: turn.q }, { role: "assistant", text: turn.a });
+      }
+      followUps(turns.at(-1).s, turns.at(-1).a);
+      settle(true);
     }
 
     // Browsers without field-sizing get the height from the text.
