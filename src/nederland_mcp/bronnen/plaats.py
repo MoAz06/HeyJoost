@@ -74,6 +74,7 @@ class Plaats(NamedTuple):
     lon: float
     gemeente: str
     provincie: str
+    soort: str = ""  # woonplaats, gemeente, wijk, buurt or postcode, as PDOK calls the hit
 
 
 class Gebied(NamedTuple):
@@ -275,7 +276,13 @@ async def zoek(plaats: str) -> Plaats:
     if not doc:
         raise ToolError(f"Geen plaats gevonden die lijkt op '{plaats}'. Noem een plaats of wijk, bijvoorbeeld Leiden of Scheveningen.")
     lat, lon = await _point(doc)
-    return Plaats(_name(doc), lat, lon, doc.get("gemeentenaam") or "", doc.get("provincienaam") or "")
+    return Plaats(_name(doc), lat, lon, doc.get("gemeentenaam") or "", doc.get("provincienaam") or "", doc.get("type") or "")
+
+
+def extra_words(query: str, place: Plaats) -> set[str]:
+    """The words of a question that the place it found does not explain, like the street in 'Kinkerstraat Amsterdam'."""
+    known = _words(place.naam) | _words(place.gemeente) | _words(place.provincie)
+    return _words(query) - known - TOWN_FILLERS - GENERIC - PROVINCES
 
 
 async def _buurt_at(doc: dict) -> dict:

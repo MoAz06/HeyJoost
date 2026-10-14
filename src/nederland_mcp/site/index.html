@@ -58,12 +58,12 @@
         <div class="chat-top" hidden><b>Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg><span>Groter</span></button></div>
         <div class="log" id="log">
           <div class="label" hidden>Voorbeeld</div>
-          <div class="msg user"><h2 class="vh">Jij vroeg:</h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
+          <div class="msg user"><h2 class="vh">Jij vroeg:<br></h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
           <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek bij de NS</span></div>
-          <div class="msg ai"><h2 class="vh">Joost antwoordt:</h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
-          <div class="msg user extra"><h2 class="vh">Jij vroeg:</h2>En is het zeewater in Scheveningen nog te doen?</div>
+          <div class="msg ai"><h2 class="vh">Joost antwoordt:<br></h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
+          <div class="msg user extra"><h2 class="vh">Jij vroeg:<br></h2>En is het zeewater in Scheveningen nog te doen?</div>
           <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek bij Rijkswaterstaat</span></div>
-          <div class="msg ai extra"><h2 class="vh">Joost antwoordt:</h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
+          <div class="msg ai extra"><h2 class="vh">Joost antwoordt:<br></h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
         </div>
         <p class="vh" id="status" role="status"></p>
         <form class="ask" id="ask" hidden>
@@ -671,7 +671,8 @@
       if (matchMedia("(pointer: coarse)").matches) input.blur();
       follow = true;
       current = add("msg user");
-      current.innerHTML = '<h2 class="vh">Jij vroeg:</h2>';
+      // The hidden label ends in a line break, so a copied conversation has the question on a line of its own.
+      current.innerHTML = '<h2 class="vh">Jij vroeg:<br></h2>';
       current.append(editable(text));
       const asked = current;
       history.push({ role: "user", text });
@@ -681,10 +682,12 @@
       let bubble = null;
       let shown = "";
       let answer = "";
-      // The first source Joost used, for the follow-ups, where he looked, and how many questions are left today.
+      // The first source Joost used, for the follow-ups, where he looked, how many questions are left today, and
+      // what he looked up, which goes back with the next question so he knows it.
       let source = "";
       const wheres = [];
       let over = null;
+      let looked = [];
       // What went wrong, if anything, and whether the server said it was done.
       let failure = null;
       let reached = false;
@@ -704,7 +707,7 @@
         frame = 0;
         if (!bubble) return;
         const open = !final && (shown.match(/\*\*/g) || []).length % 2;
-        bubble.innerHTML = '<h2 class="vh">Joost antwoordt:</h2>' + render(open ? shown + "**" : shown);
+        bubble.innerHTML = '<h2 class="vh">Joost antwoordt:<br></h2>' + render(open ? shown + "**" : shown);
         settle();
       };
       const done = () => {
@@ -744,6 +747,7 @@
         } else if (event.type === "done") {
           finished = true;
           if (typeof event.over === "number") over = event.over;
+          if (Array.isArray(event.gezocht)) looked = event.gezocht;
         }
       };
 
@@ -789,8 +793,8 @@
       if (stopped && !finished) failure = { text: STOPPED, again: true, stopped: true };
       else if (!failure && !finished) failure = { text: BROKEN, again: true };
       if (!failure && answer.trim()) {
-        history.push({ role: "assistant", text: answer });
-        turns = [...turns, { q: text, a: answer, w: wheres, s: source }].slice(-20);
+        history.push({ role: "assistant", text: answer, tools: looked });
+        turns = [...turns, { q: text, a: answer, w: wheres, s: source, t: looked }].slice(-20);
         hold("gesprek", turns);
         actions(text, answer);
         followUps(source, answer);
@@ -856,7 +860,8 @@
       el.className = "pas";
       el.dataset.vraag = text;
       el.title = "Pas je vraag aan";
-      el.innerHTML = '<span class="vh">Pas aan: </span>';
+      // In the name, not in the text: a copied conversation shows only the question.
+      el.setAttribute("aria-label", "Pas aan: " + text);
       el.append(text);
       el.insertAdjacentHTML("beforeend", '<svg class="i" aria-hidden="true"><use href="#i-pas"/></svg>');
       el.addEventListener("click", () => {
@@ -920,16 +925,16 @@
       example = false;
       for (const turn of turns) {
         current = add("msg user");
-        current.innerHTML = '<h2 class="vh">Jij vroeg:</h2>';
+        current.innerHTML = '<h2 class="vh">Jij vroeg:<br></h2>';
         current.append(editable(turn.q));
         for (const where of Array.isArray(turn.w) ? turn.w : []) {
           const el = line("keek " + where);
           el.classList.remove("busy");
           el.dataset.where = where;
         }
-        add("msg ai").innerHTML = '<h2 class="vh">Joost antwoordt:</h2>' + render(turn.a);
+        add("msg ai").innerHTML = '<h2 class="vh">Joost antwoordt:<br></h2>' + render(turn.a);
         actions(turn.q, turn.a);
-        history.push({ role: "user", text: turn.q }, { role: "assistant", text: turn.a });
+        history.push({ role: "user", text: turn.q }, { role: "assistant", text: turn.a, tools: Array.isArray(turn.t) ? turn.t : [] });
       }
       followUps(turns.at(-1).s, turns.at(-1).a);
       settle(true);
@@ -1013,7 +1018,7 @@
     function fail(failure, question, partial, asked, kept) {
       const el = add("msg ai fout");
       const text = failure.text + (kept ? KEPT : "");
-      el.innerHTML = '<h2 class="vh">Melding:</h2>';
+      el.innerHTML = '<h2 class="vh">Melding:<br></h2>';
       if (partial) {
         const mark = document.createElement("b");
         mark.textContent = "Afgebroken. ";

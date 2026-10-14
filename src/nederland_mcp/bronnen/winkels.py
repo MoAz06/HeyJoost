@@ -2,8 +2,10 @@
 
 The places come from a file that scripts/osm_winkels.py makes about once a month (data/osm_winkels.json), so no
 question goes to OpenStreetMap. Only the address or place goes to PDOK, as with the other tools, and a station
-is found in the list of stations of NS, which the server keeps for a day. The data is
-© OpenStreetMap contributors under the ODbL, and every answer says so.
+is found in the list of stations of NS, which the server keeps for a day. The file also has where OpenStreetMap puts
+the centre of each town, to search from when a question names only a town, and for a place without an address the
+street of the nearest address, which PDOK gave when the file was made. The data is © OpenStreetMap contributors under
+the ODbL, and every answer says so.
 
 Opening hours are in OpenStreetMap's own notation. This reads the common forms ("Mo-Sa 08:00-21:00; Su 12:00-18:00",
 "24/7", with PH for holidays); anything else is passed on as written, without saying whether it is open.
@@ -20,7 +22,7 @@ from typing import Any
 import httpx
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ..common import AMSTERDAM, now_local
+from ..common import AMSTERDAM, now_local, place_key
 from . import ns
 from . import plaats as plaatsen
 from .ov import _address, _is_address
@@ -35,6 +37,12 @@ KINDS = {
 }
 MAX_KM = 5
 MAX_ITEMS = 10
+# Places of the same name and hours this close together are one place.
+TWIN_M = 25
+# The hits of PDOK that are a whole town, which gets searched from its centre.
+TOWNS = ("woonplaats", "gemeente")
+# The place node of a town is this close to the middle of its area, or it is another town of the same name.
+CENTRE_KM = 10
 # Machines for bitcoin are tagged as cash machines too, but give no cash.
 CRYPTO = ("bitcoin", "crypto", "coin", "btc")
 # Some liquor stores, butchers and other shops are tagged as supermarkets too. A supermarket with a liquor corner or
@@ -63,11 +71,25 @@ REMARK = re.compile(r'^(?:PH\s+)?"[^"]*"$')
 
 
 @cache
-def _places() -> dict[str, list[list]]:
+def _data() -> dict[str, Any]:
     try:
-        return json.loads(DATA.read_text(encoding="utf-8")).get("plekken", {})
+        return json.loads(DATA.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def _places() -> dict[str, list[list]]:
+    return _data().get("plekken", {})
+
+
+@cache
+def _centres() -> dict[str, list[tuple[float, float]]]:
+    """Where OpenStreetMap puts each city, town and village, by each of its names: its place node, at the centre."""
+    centres: dict[str, list[tuple[float, float]]] = {}
+    for lat, lon, *names in _data().get("centra", []):
+        for name in names:
+            centres.setdefault(place_key(name), []).append((lat, lon))
+    return centres
 
 
 @cache
@@ -216,24 +238,53 @@ async def _station(waar: str) -> tuple[float, float, str] | None:
     return station["lat"], station["lng"], f"station {ns._station_name(station)}"
 
 
-async def _point(waar: str, plaats: str | None) -> tuple[float, float, str]:
-    """Where to search from: a station, an address or street, or else a place or district."""
-    station = await _station(" ".join(part for part in (waar, plaats) if part))
+def _street(name: str) -> str:
+    """The street and town of an address, without the house number that was asked."""
+    return plaatsen.common_name(re.sub(r"\s+\d+\S*(?=,)|\s*\b\d{4}\s?[A-Z]{2}\b", "", name))
+
+
+def _centre(place: plaatsen.Plaats) -> tuple[float, float] | None:
+    """The centre of a town: its place node nearest to where PDOK has it. PDOK gives the middle of the town's area,
+    which for Den Haag is more than a kilometre west of the Grote Markt."""
+    near = [
+        (distance, point) for point in _centres().get(place_key(place.naam), [])
+        if (distance := _metres(place.lat, place.lon, *point)) <= CENTRE_KM * 1000
+    ]
+    return min(near)[1] if near else None
+
+
+async def _point(waar: str, plaats: str | None) -> tuple[float, float, str, bool]:
+    """Where to search from: a station, an address or street, a district, or the centre of a town. And whether that
+    was only a town, so the answer can say that a street finds what is near."""
+    both = " ".join(part for part in (waar, plaats) if part)
+    station = await _station(both)
     if station:
-        return station
-    if plaats or _is_address(waar):
-        found = await _address(waar, plaats)
+        return *station, False
+    street, town = waar, plaats
+    if not town and "," in waar:
+        # "Breestraat, Leiden": the town after the comma.
+        street, town = (part.strip() for part in waar.rsplit(",", 1))
+    if town or _is_address(street):
+        found = await _address(street, town)
         if found:
-            # The street and town, without the house number that was asked.
-            name = re.sub(r"\s+\d+\S*(?=,)|\s*\b\d{4}\s?[A-Z]{2}\b", "", found["naam"])
-            return found["lat"], found["lon"], name
+            return found["lat"], found["lon"], _street(found["naam"]), False
     try:
-        place = await plaatsen.zoek(" ".join(part for part in (waar, plaats) if part))
+        place = await plaatsen.zoek(both)
     except ToolError:
         raise ToolError(
             f"Geen plek gevonden die lijkt op '{waar}'. Noem een adres of straat met de plaats, een wijk of een plaats."
         ) from None
-    return place.lat, place.lon, place.naam
+    if place.soort not in TOWNS:
+        return place.lat, place.lon, place.naam, False
+    if plaatsen.extra_words(both, place):
+        # "Breestraat Leiden": a street with its town, without the comma. The town alone would lose the street.
+        found = await _address(both, place.naam)
+        if found:
+            return found["lat"], found["lon"], _street(found["naam"]), False
+    centre = _centre(place)
+    if centre:
+        return *centre, f"het centrum van {place.naam}", True
+    return place.lat, place.lon, f"het midden van {place.naam}", True
 
 
 def misplaced(kind: str, name: str) -> bool:
@@ -253,28 +304,54 @@ async def open_in_de_buurt(
     places = _places().get(kind)
     if not places:
         raise ToolError("De lijst met winkels is er even niet. Probeer het later nog eens.")
-    lat, lon, name = await _point(waar, plaats)
+    lat, lon, name, only_town = await _point(waar, plaats)
     now = now_local().astimezone(AMSTERDAM)
     near = sorted(
         (distance, row) for row in places if (distance := _metres(lat, lon, row[0], row[1])) <= MAX_KM * 1000
     )
-    found = []
-    for distance, (_, _, title, brand, address, hours) in near:
+    limit = min(max(int(aantal), 1), MAX_ITEMS)
+    found: list[dict[str, Any]] = []
+    spots: list[tuple[float, float, tuple]] = []
+    reach = 0.0
+    for distance, (row_lat, row_lon, title, brand, address, hours, *rest) in near:
+        # Past the last place, only its twins still count.
+        if len(found) >= limit and distance > reach + TWIN_M:
+            break
         if misplaced(kind, f"{title} {brand}"):
             continue
-        item: dict[str, Any] = {"naam": title or brand or kind, "adres": address or None}
-        # Rounded, so the answer does not pin down the address that was asked.
-        item["afstand_m"] = max(50, round(distance / 50) * 50)
         status = _status(hours, now)
         if nu_open and not status.get("open_nu"):
             continue
+        # The same place twice in one spot: three cash machines in the wall of a shop are one place with a count,
+        # and a shop that is in OpenStreetMap twice is one shop.
+        key = (title, brand, address, hours)
+        twin = next(
+            (item for item, (a, b, other) in zip(found, spots) if other == key and _metres(a, b, row_lat, row_lon) <= TWIN_M),
+            None,
+        )
+        if twin is not None:
+            if kind == "pinautomaat":
+                twin["aantal"] = twin.get("aantal", 1) + 1
+            continue
+        if len(found) >= limit:
+            continue
+        item: dict[str, Any] = {"naam": title or brand or kind}
+        if address:
+            item["adres"] = plaatsen.common_name(address)
+        elif rest and rest[0]:
+            # No address in OpenStreetMap: the street of the nearest address, which PDOK gave when the list was made.
+            item["straat"] = plaatsen.common_name(rest[0])
+        # Rounded, so the answer does not pin down the address that was asked.
+        item["afstand_m"] = max(50, round(distance / 50) * 50)
         item.update(status)
         if hours:
             item["openingstijden"] = hours
-        found.append({key: value for key, value in item.items() if value is not None})
-        if len(found) >= min(max(int(aantal), 1), MAX_ITEMS):
-            break
+        found.append(item)
+        spots.append((row_lat, row_lon, key))
+        reach = distance
     result: dict[str, Any] = {"rond": name, "soort": kind, "plekken": found}
+    if only_town:
+        result["tip"] = f"Alleen een plaats, dus gezocht rond {name}. Met een straat of wijk erbij zoekt dit daar."
     if not found:
         result["uitleg"] = (
             f"Geen {kind} gevonden binnen {MAX_KM} km" + (" die nu open is." if nu_open else ".")

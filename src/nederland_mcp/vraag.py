@@ -50,7 +50,10 @@ MAX_FLIGHT_LOOKUPS = 2
 MAX_QUESTION = 500
 MAX_REPLY = 4000
 MAX_MESSAGES = 12
-MAX_BODY = 32_000
+# The lookups of earlier answers come along too.
+MAX_BODY = 48_000
+# What one earlier lookup may ask, as JSON: a place and a few options fit easily.
+MAX_INPUT = 400
 MAX_BUSY = 8
 BUSY_TIMEOUT = 120
 # Right after a stop the old answer can take a moment to close, so a new question waits that long for it.
@@ -83,6 +86,12 @@ FLIGHTS_FULL = (
     "luchtvaartmaatschappij."
 )
 FAILED = "Dit lukte even niet bij de bron. Probeer het later nog eens."
+# For Claude: the page keeps what Joost looked up for an earlier answer, but not what came back. "Not kept" alone
+# read as "found nothing", and Joost then confessed to making up the answer he had in fact looked up.
+EARLIER = (
+    "Gelukt: deze zoekactie gaf resultaten, en je antwoord hierna komt daaruit. Ze staan hier niet meer bij, om het "
+    "gesprek kort te houden."
+)
 # After long results, as with the travel advice for Egypt, Haiku often answered a Dutch question in English. A note
 # right after the results keeps it Dutch. Whether a question is Dutch, the small words tell.
 IN_DUTCH = "Schrijf het antwoord in het Nederlands."
@@ -168,6 +177,7 @@ MISSED = {
     "geld": "belasting, toeslagen of uitkeringen uitrekenen, en prijzen",
     "uitgaan": "evenementen, musea, bioscoop en restaurants",
     "nieuws": "nieuws, politiek en sport",
+    "pakket": "pakketpunten en pakketautomaten, zoals van DPD, PostNL of DHL",
     "buitenland": "reizen, weer of vervoer buiten Nederland",
     "vluchten": "vluchten die je niet kunt opzoeken",
     "anders": "iets anders over Nederland",
@@ -216,9 +226,9 @@ Zo antwoord je:
 - Bij regelzaken vertel je het officiële antwoord kort in je eigen woorden, met de link naar de pagina. Zeg erbij dat het voor iemands eigen situatie anders kan zijn en dat de officiële pagina de laatste stand heeft. Gaat het om iets wat je bij de gemeente regelt, zoals een paspoort, parkeervergunning of grofvuil, en weet je de gemeente niet, vraag dat dan kort. Noem als bron "Rijksoverheid" of de gemeente.
 - Bij bekendmakingen noem je per stuk wat er speelt, de straat, of het een aanvraag of een besluit is, en de datum, met de link. Wil iemand reageren of bezwaar maken, vertel dan wat in 'uitleg' staat en dat de bekendmaking zelf zegt hoe en tot wanneer. Het is geen juridisch advies. Noem als bron "officiële bekendmakingen".
 - Bij het verkeer noem je per bericht wat er is, waar (weg, afrit en richting) en sinds of tot wanneer, de files eerst. Zeg erbij dat het ongecontroleerde berichten zijn en dat de radio of je navigatie de laatste stand heeft. Vind je niks, zeg dan dat NDW daar nu niks meldt, niet dat het er rustig is. Noem als bron "NDW".
-- Bij open in de buurt noem je de naam, de straat, hoe ver ongeveer, en of het nu open is en tot hoe laat, of wanneer het weer opengaat. Zeg erbij dat de openingstijden kunnen afwijken, zeker op feestdagen. Vraagt iemand naar een apotheek als die dicht is, noem dan wat er over de dienstapotheek staat. Noem als bron "OpenStreetMap".
+- Bij open in de buurt zeg je eerst vanaf waar je zocht, zoals in 'rond' staat. Noem dan per plek de naam, het adres of de straat, hoe ver ongeveer, en of het nu open is en tot hoe laat, of wanneer het weer opengaat. Staat er een 'tip', noem die dan kort. Zeg erbij dat de openingstijden kunnen afwijken, zeker op feestdagen. Vraagt iemand naar een apotheek als die dicht is, noem dan wat er over de dienstapotheek staat. Noem als bron "OpenStreetMap".
 - Zeg nooit dat iets niet lukte als je het niet hebt geprobeerd.
-- Je eerdere antwoorden in dit gesprek heb je echt opgezocht, ook al zie je die zoekacties niet meer. Kom er dus niet op terug en zoek ze niet opnieuw op, behalve als de gebruiker daarom vraagt.
+- Je eerdere antwoorden in dit gesprek heb je echt opgezocht. Van je eerdere zoekacties zie je nog met welke tool en waarmee je zocht; de resultaten staan er niet meer bij, om het gesprek kort te houden, maar je antwoorden komen eruit. Twijfel er dus niet aan en zoek ze niet opnieuw op, behalve als de gebruiker daarom vraagt of zegt dat iets niet klopt.
 - Gaat het om iets belangrijks, zoals een trein halen, zeg dan dat de officiële app de laatste stand heeft.
 
 Grenzen:
@@ -348,9 +358,11 @@ async def ask(request: Request, tools: MCPServer) -> Response:
         body += chunk
         if len(body) > MAX_BODY:
             return _refuse(413, TOO_LONG)
+    # An earlier lookup only goes back to Claude with a tool he has now.
+    known = {tool.name for tool in await tools.list_tools()} | ({FLIGHT_TOOL["name"]} if schiphol.available() else set())
     try:
         data = json.loads(body)
-        messages = _messages(data)
+        messages = _messages(data, known)
     except ValueError as exc:
         return _refuse(400, str(exc) if str(exc) in (TOO_LONG, CONFUSED) else CONFUSED)
 
@@ -398,8 +410,10 @@ def _visitor(request: Request) -> str:
     return hashlib.sha256(_salt + address.encode()).hexdigest()[:16]
 
 
-def _messages(data: Any) -> list[dict[str, Any]]:
-    """The conversation from the page as API messages: text only, taking turns, ending with the question."""
+def _messages(data: Any, known: set[str] | frozenset[str] = frozenset()) -> list[dict[str, Any]]:
+    """The conversation from the page as API messages, taking turns and ending with the question. An earlier answer
+    comes with the lookups Joost did for it, as tool calls without their results. Without them he once read his own
+    answer, missed that he had looked it up, and told the visitor he had not."""
     items = data.get("messages") if isinstance(data, dict) else None
     if not isinstance(items, list) or not items:
         raise ValueError(CONFUSED)
@@ -413,17 +427,32 @@ def _messages(data: Any) -> list[dict[str, Any]]:
         if item is items[-1] and len(text) > MAX_QUESTION:
             raise ValueError(TOO_LONG)
         text = text[:MAX_REPLY]
-        if not text:
+        # The conversation starts with a question.
+        if not text or (not messages and role != "user"):
             continue
         if messages and messages[-1]["role"] == role:
             messages[-1]["content"] += "\n\n" + text
-        else:
-            messages.append({"role": role, "content": text})
-    while messages and messages[0]["role"] != "user":
-        messages.pop(0)
+            continue
+        uses = _uses(item.get("tools"), known, len(messages)) if role == "assistant" else []
+        if uses:
+            results = [{"type": "tool_result", "tool_use_id": use["id"], "content": EARLIER} for use in uses]
+            messages += [{"role": "assistant", "content": uses}, {"role": "user", "content": results}]
+        messages.append({"role": role, "content": text})
     if not messages or messages[-1]["role"] != "user":
         raise ValueError(CONFUSED)
     return messages
+
+
+def _uses(tools: Any, known: set[str] | frozenset[str], at: int) -> list[dict[str, Any]]:
+    """Earlier lookups from the page as tool calls: only tools Joost has, and only with a short input."""
+    uses = []
+    for number, use in enumerate(tools[:MAX_LOOKUPS] if isinstance(tools, list) else []):
+        name = use.get("tool") if isinstance(use, dict) else None
+        given = use.get("input") if isinstance(use, dict) else None
+        if isinstance(name, str) and name in known and isinstance(given, dict):
+            if len(json.dumps(given, ensure_ascii=False)) <= MAX_INPUT:
+                uses.append({"type": "tool_use", "id": f"eerder_{at}_{number}", "name": name, "input": given})
+    return uses
 
 
 async def _events(tools: MCPServer, messages: list[dict[str, Any]], visitor: str) -> AsyncIterator[str]:
@@ -452,6 +481,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
     note = [{"type": "text", "text": IN_DUTCH}] if _dutch(messages[-1]["content"]) else []
     lookups: dict[str, int] = {}
     said, used, missed = "", set(), set()
+    looked: list[dict[str, Any]] = []
     cost = 0.0
     for round_ in range(MAX_ROUNDS):
         day.spent += ROUND_RESERVE
@@ -500,6 +530,11 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         blocks = [_param(block) for block in message.content if block.type != "text" or block.text]
         results = await asyncio.gather(*(_lookup(tools, use, lookups, visitor) for use in uses))
         used.update(use.name for use, result in zip(uses, results) if not result["is_error"])
+        # The page sends these back with the next question, so Joost knows what he looked up for this answer.
+        looked += [
+            {"tool": use.name, "input": use.input}
+            for use, result in zip(uses, results) if not result["is_error"] and use.name != MISSED_TOOL["name"]
+        ]
         messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": [*results, *note]}]
     if message.stop_reason == "max_tokens":
         yield {"type": "text", "text": " …"}
@@ -514,7 +549,7 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
         round_ + 1, sum(lookups.values()), cost, day.spent, _budget(),
     )
     # How many questions are left today, so the page can warn before the last one.
-    yield {"type": "done", "over": max(0, per_day() - day.asked.get(visitor, 0))}
+    yield {"type": "done", "over": max(0, per_day() - day.asked.get(visitor, 0)), "gezocht": looked}
 
 
 def _dutch(question: str) -> bool:

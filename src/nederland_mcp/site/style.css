@@ -302,6 +302,8 @@ a:hover { text-decoration-color: var(--accent); }
 .acties [aria-pressed="true"] .i { fill: currentColor; }
 /* After an answer: a few follow-up questions, gone with the next question. */
 .vervolg { align-self: flex-start; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* The buttons in the conversation stay out of it when you copy it. */
+.acties, .vervolg, .verder, .opnieuw, .tip { -webkit-user-select: none; user-select: none; }
 
 .vaste { display: inline-flex; max-width: 100%; border: 1px solid var(--board-edge); border-radius: var(--radius-sm); }
 .vaste:hover { border-color: var(--board-dim); }

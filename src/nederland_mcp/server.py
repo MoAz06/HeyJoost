@@ -305,10 +305,11 @@ async def bekendmakingen(
     title="Open in de buurt",
     description=(
         "Supermarkten, apotheken en pinautomaten in de buurt van een adres, straat, station, wijk of plaats, de "
-        "dichtstbijzijnde eerst, met de afstand hemelsbreed in meters ('afstand_m'), het adres en de openingstijden: "
-        "of het nu open is ('open_nu'), tot hoe laat ('open_tot') en wanneer het weer opengaat ('gaat_open'). Met "
-        "nu_open alleen wat nu open is. De openingstijden komen uit OpenStreetMap en kunnen afwijken, zeker op "
-        "feestdagen. Bij een apotheek staat erbij hoe je buiten openingstijden de dienstapotheek vindt."
+        "dichtstbijzijnde eerst, met de afstand hemelsbreed in meters ('afstand_m'), het adres (of anders de straat) "
+        "en de openingstijden: of het nu open is ('open_nu'), tot hoe laat ('open_tot') en wanneer het weer opengaat "
+        "('gaat_open'). 'rond' zegt vanaf waar gezocht is; met alleen een plaats is dat het centrum. Met nu_open "
+        "alleen wat nu open is. De openingstijden komen uit OpenStreetMap en kunnen afwijken, zeker op feestdagen. "
+        "Bij een apotheek staat erbij hoe je buiten openingstijden de dienstapotheek vindt."
     ),
     annotations=READ_ONLY,
 )
