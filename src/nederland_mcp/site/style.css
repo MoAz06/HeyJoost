@@ -195,8 +195,9 @@ a:hover { text-decoration-color: var(--accent); }
 
 .log { display: flex; flex-direction: column; gap: 10px; padding: 20px; }
 .chat { --log-h: clamp(240px, calc(100svh - 500px), 380px); }
+/* At the top or bottom of the conversation a swipe goes on to the page, so a finger on the chat never gets stuck. */
 .chat.on .log {
-  height: var(--log-h); overflow-y: auto; overscroll-behavior: contain;
+  height: var(--log-h); overflow-y: auto;
   scrollbar-width: thin; scrollbar-color: var(--board-line) transparent;
 }
 /* Until the first question the examples get the room they need, so no example is ever cut off. */
@@ -352,7 +353,8 @@ a:hover { text-decoration-color: var(--accent); }
 }
 .groot::backdrop { background: rgb(0 0 0 / 0.6); }
 .groot .chat { height: 100%; margin: 0; }
-.groot .chat.on .log, .groot .chat.on .log:has(> .label) { flex: 1; height: auto; min-height: 0; }
+/* Over the page, the page behind stays put. */
+.groot .chat.on .log, .groot .chat.on .log:has(> .label) { flex: 1; height: auto; min-height: 0; overscroll-behavior: contain; }
 .groot .log .msg.extra { display: block; }
 .groot .log .tool.extra { display: flex; }
 .groot .msg { max-width: min(84%, 680px); }
