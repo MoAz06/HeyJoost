@@ -579,12 +579,11 @@ main { padding-bottom: var(--space-9); }
   .sources { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* On the narrowest phones the first example would otherwise push the input under the fold, the word on the
-   button in the header would push the name onto two lines, and Nieuw gesprek would add a row of chips. */
+/* On the narrowest phones the first example would otherwise push the input under the fold, and the word on the
+   button in the header would push the name onto two lines. */
 @media (max-width: 374px) {
   .msg { font-size: 15px; }
   .groter .i { display: none; }
-  .chip.nieuw span span { display: none; }
 }
 
 @media (max-width: 360px) {

@@ -591,7 +591,7 @@
     // button sits with the chips, because the top of the chat has no room for it on a small phone.
     const restart = button("", "Nieuw gesprek", "i-nieuw");
     restart.className = "chip nieuw";
-    restart.insertAdjacentHTML("beforeend", "<span>Nieuw<span> gesprek</span></span>");
+    restart.insertAdjacentHTML("beforeend", "<span>Nieuw gesprek</span>");
     restart.addEventListener("click", fresh);
 
     // The field grows with your question up to five lines, so a long or spoken question can be read back. Enter
@@ -651,7 +651,9 @@
       if (example) {
         log.replaceChildren(more);
         example = false;
-        chips.prepend(restart);
+        // Under the field only Nieuw gesprek stays. A chip that was used hands its focus to the stop button.
+        if (document.activeElement && document.activeElement.closest(".chips")) send.focus();
+        showSaved();
       }
       // The follow-ups of the last answer go. A follow-up that was used hands its focus to the stop button.
       if (document.activeElement && document.activeElement.closest(".vervolg")) send.focus();
@@ -885,7 +887,7 @@
       log.replaceChildren(...intro, more);
       log.scrollTop = 0;
       showMore();
-      restart.remove();
+      showSaved();
       say("Nieuw gesprek, het vorige is gewist");
       (matchMedia("(pointer: fine)").matches ? input : chips.querySelector("button") || input).focus();
     }
@@ -1000,7 +1002,7 @@
         const on = !saved.includes(question);
         save(on ? [question, ...saved] : saved.filter((text) => text !== question));
         // In the browser of an app the question stays in that app, and Safari or Chrome never see it.
-        const where = inApp ? `Bewaard, maar alleen in de browser van ${inApp}. Open heyjoost.nl in je eigen browser om je vragen daar te houden.` : "Bewaard bij je vaste vragen";
+        const where = inApp ? `Bewaard, maar alleen in de browser van ${inApp}. Open heyjoost.nl in je eigen browser om je vragen daar te houden.` : "Bewaard. Bij een nieuw gesprek staat hij onder het veld.";
         toast(on ? where : "Niet meer bewaard");
       });
       row.append(share, keep);
@@ -1089,8 +1091,9 @@
       });
     }
 
+    // Before the first question the examples or your saved questions, and during a conversation only Nieuw gesprek.
     function showSaved() {
-      chips.replaceChildren(...(example ? [] : [restart]), ...(saved.length ? saved.map(savedChip) : examples));
+      chips.replaceChildren(...(!example ? [restart] : saved.length ? saved.map(savedChip) : examples));
     }
 
     function savedChip(text) {
