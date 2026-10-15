@@ -511,7 +511,7 @@ async def home(request: Request) -> HTMLResponse:
     if request.method == "GET":
         tellers.tel("site")
     page = HOME[vraag.flights()].replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
-    return HTMLResponse(page.replace("{{VRAAG}}", vraag.state()).replace("{{PER_DAG}}", str(vraag.per_day())))
+    return HTMLResponse(page.replace("{{VRAAG}}", vraag.state()))
 
 
 @server.custom_route("/api/vraag", methods=["POST"])

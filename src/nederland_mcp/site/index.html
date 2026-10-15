@@ -72,7 +72,6 @@
         </form>
         <p class="teller" id="teller" hidden></p>
         <p class="nog" id="nog" hidden></p>
-        <p class="kan" hidden>Vraag naar je trein, bus of tram, de files, het weer, de stroomprijs, regelzaken en meer. {{PER_DAG}} vragen per dag, zonder account.<span class="praat" hidden>Inspreken kan ook: tik op de microfoon van je toetsenbord.</span></p>
         <p class="dicht" hidden><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
         <div class="chips" hidden>
           <button class="chip" type="button" data-vul="Hoe wordt het weer in " aria-label="Weer in …, vul zelf je plaats in">Weer in …</button>
@@ -80,7 +79,7 @@
           <button class="chip prompt" type="button" data-copy="Waar staat er nu file?" data-via="chip">Files nu?</button>
           <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?" data-via="chip">Vlucht KL1001?</button><!--/vluchten-->
         </div>
-        <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Je vraag gaat naar Anthropic, dus deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
+        <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
       </div>
 
       <div class="intro">
@@ -483,9 +482,7 @@
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
-    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog, .praat)").forEach((el) => { el.hidden = false; });
-    // Speaking works with the keyboard's own microphone, so a phone only gets a tip and Joost only gets text.
-    chat.querySelector(".praat").hidden = !matchMedia("(pointer: coarse)").matches;
+    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog)").forEach((el) => { el.hidden = false; });
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
 
     // While Joost answers, the chat scrolls along until your question reaches the top, and stops as soon as you
@@ -653,7 +650,6 @@
       };
       if (example) {
         log.replaceChildren(more);
-        chat.querySelector(".kan").hidden = true;
         example = false;
         chips.prepend(restart);
       }
@@ -889,7 +885,6 @@
       log.replaceChildren(...intro, more);
       log.scrollTop = 0;
       showMore();
-      chat.querySelector(".kan").hidden = false;
       restart.remove();
       say("Nieuw gesprek, het vorige is gewist");
       (matchMedia("(pointer: fine)").matches ? input : chips.querySelector("button") || input).focus();
@@ -921,7 +916,6 @@
       if (typeof draft === "string") put(draft);
       if (!turns.length) return;
       log.replaceChildren(more);
-      chat.querySelector(".kan").hidden = true;
       example = false;
       for (const turn of turns) {
         current = add("msg user");
