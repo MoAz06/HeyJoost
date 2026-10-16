@@ -70,6 +70,23 @@ TOO_LONG = f"Je vraag is te lang. Hou hem onder de {MAX_QUESTION} tekens."
 CONFUSED = "Dat snapte Joost niet. Ververs de pagina en probeer het nog eens."
 UNREACHABLE = "Joost is even niet bereikbaar. Probeer het zo nog eens."
 REFUSED = "Daar kan Joost niet mee helpen."
+# The same messages for the English chat, which a browser without Dutch gets.
+MIDNIGHT_EN = "You can ask again from midnight, Dutch time. Or add Joost to your own AI to use it any time."
+IN_ENGLISH = {
+    OFF: "Ask Joost is off right now. Add Joost to your own AI to use it any time.",
+    TIRED: f"Joost is a bit tired, today’s questions are used up. {MIDNIGHT_EN}",
+    CROWDED: "It’s busy at Joost right now. Try again in a moment.",
+    STILL_BUSY: "Joost is still working on your previous question.",
+    TOO_LONG: f"Your question is too long. Keep it under {MAX_QUESTION} characters.",
+    CONFUSED: "Joost didn’t understand that. Refresh the page and try again.",
+    UNREACHABLE: "Joost can’t be reached right now. Try again in a moment.",
+    REFUSED: "Joost can’t help with that.",
+}
+# For Claude: in the English chat a question without a clear language, like just a place or a flight number, gets an
+# English answer.
+ENGLISH_PAGE = (
+    " De bezoeker gebruikt de chat in het Engels. Is de taal van de vraag niet duidelijk, antwoord dan in het Engels."
+)
 # For Claude, not the visitor: without "not looked up" it reports a skipped lookup as a failed one.
 ENOUGH = (
     "Niet opgezocht: dit is het maximum voor één vraag, het is dus niet mislukt. Antwoord met wat je al weet, "
@@ -127,6 +144,30 @@ WHERE = {
     "verkeer": "bij NDW",
     "open_in_de_buurt": "in OpenStreetMap",
     "reis_plannen": "bij Transitous",
+}
+# In the English chat: "Hey Joost is checking NS".
+WHERE_EN = {
+    "trein_vertrek": "NS",
+    "trein_aankomst": "NS",
+    "trein_reis": "NS",
+    "ov_vertrek": "the transport companies",
+    "water_actueel": "Rijkswaterstaat",
+    "water_verwachting": "Rijkswaterstaat",
+    "trein_storingen": "NS",
+    "schoolvakanties": "the Dutch government",
+    "huis_info": "the address register (BAG)",
+    "vlucht_info": "Schiphol",
+    "weer": "Open-Meteo (KNMI)",
+    "regen": "the KNMI rain radar",
+    "weerwaarschuwingen": "the KNMI",
+    "stroomprijs": "the power exchange",
+    "buurt_info": "CBS",
+    "reisadvies": "Foreign Affairs",
+    "regelzaken": "the government",
+    "bekendmakingen": "the official announcements",
+    "verkeer": "NDW",
+    "open_in_de_buurt": "OpenStreetMap",
+    "reis_plannen": "Transitous",
 }
 # Named in every answer that uses their data: Schiphol as promised, Open-Meteo, KNMI, SMARD and CBS for their
 # licence (CC BY 4.0), and OpenStreetMap for the ODbL. The word to look for in the answer, and what to add when
@@ -348,28 +389,29 @@ def flights() -> bool:
 
 
 async def ask(request: Request, tools: MCPServer) -> Response:
+    english = _english(request)
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        return _refuse(503, OFF)
+        return _refuse(503, OFF, english)
     origin = request.headers.get("origin")
     if origin and origin.partition("://")[2] != request.headers.get("host"):
-        return _refuse(403, CONFUSED)
+        return _refuse(403, CONFUSED, english)
 
     body = b""
     async for chunk in request.stream():
         body += chunk
         if len(body) > MAX_BODY:
-            return _refuse(413, TOO_LONG)
+            return _refuse(413, TOO_LONG, english)
     # An earlier lookup only goes back to Claude with a tool he has now.
     known = {tool.name for tool in await tools.list_tools()} | ({FLIGHT_TOOL["name"]} if schiphol.available() else set())
     try:
         data = json.loads(body)
         messages = _messages(data, known)
     except ValueError as exc:
-        return _refuse(400, str(exc) if str(exc) in (TOO_LONG, CONFUSED) else CONFUSED)
+        return _refuse(400, str(exc) if str(exc) in (TOO_LONG, CONFUSED) else CONFUSED, english)
 
     day = _day.today()
     if day.spent >= _budget():
-        return _refuse(429, TIRED)
+        return _refuse(429, TIRED, english)
     visitor = _visitor(request)
     for _ in range(round(STOP_WAIT / 0.1)):
         started = _busy.get(visitor)
@@ -381,10 +423,12 @@ async def ask(request: Request, tools: MCPServer) -> Response:
         if now - started > BUSY_TIMEOUT:
             del _busy[key]
     if visitor in _busy:
-        return _refuse(429, STILL_BUSY)
+        return _refuse(429, STILL_BUSY, english)
     if len(_busy) >= MAX_BUSY:
-        return _refuse(503, CROWDED)
+        return _refuse(503, CROWDED, english)
     if day.asked.get(visitor, 0) >= per_day():
+        if english:
+            return _refuse(429, f"You’ve already asked {per_day()} questions today, the maximum. {MIDNIGHT_EN}")
         return _refuse(429, f"Je hebt vandaag al {per_day()} vragen gesteld, het maximum. {MIDNIGHT}")
     if visitor not in day.asked:
         tellers.tel("chat bezoeker")
@@ -395,11 +439,24 @@ async def ask(request: Request, tools: MCPServer) -> Response:
         tellers.tel(f"chat via {data['via']}")
     if data.get("app") is True:
         tellers.tel("chat in app")
-    return StreamingResponse(_events(tools, messages, visitor), media_type="text/event-stream", headers=STREAM_HEADERS)
+    return StreamingResponse(
+        _events(tools, messages, visitor, english), media_type="text/event-stream", headers=STREAM_HEADERS
+    )
 
 
-def _refuse(status: int, text: str) -> JSONResponse:
-    return JSONResponse({"error": text, "opnieuw": text in PASSING}, status_code=status)
+def _refuse(status: int, text: str, english: bool = False) -> JSONResponse:
+    return JSONResponse({"error": _say(text, english), "opnieuw": text in PASSING}, status_code=status)
+
+
+def _say(text: str, english: bool) -> str:
+    return IN_ENGLISH.get(text, text) if english else text
+
+
+def _english(request: Request) -> bool:
+    """Whether the visitor gets English messages: the English chat asks with "en", and a browser without Dutch too."""
+    tags = [part.split(";")[0].strip().lower() for part in request.headers.get("accept-language", "").split(",")]
+    tags = [tag for tag in tags if tag and tag != "*"]
+    return bool(tags) and not any(tag == "nl" or tag.startswith("nl-") for tag in tags)
 
 
 def _visitor(request: Request) -> str:
@@ -456,15 +513,19 @@ def _uses(tools: Any, known: set[str] | frozenset[str], at: int) -> list[dict[st
     return uses
 
 
-async def _events(tools: MCPServer, messages: list[dict[str, Any]], visitor: str) -> AsyncIterator[str]:
+async def _events(
+    tools: MCPServer, messages: list[dict[str, Any]], visitor: str, english: bool = False
+) -> AsyncIterator[str]:
     try:
-        async for event in _answer(tools, messages, visitor):
+        async for event in _answer(tools, messages, visitor, english):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
     finally:
         _busy.pop(visitor, None)
 
 
-async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str) -> AsyncIterator[dict[str, Any]]:
+async def _answer(
+    tools: MCPServer, messages: list[dict[str, Any]], visitor: str, english: bool = False
+) -> AsyncIterator[dict[str, Any]]:
     day = _day.today()
     definitions = [
         {"name": tool.name, "description": tool.description or "", "input_schema": tool.input_schema}
@@ -477,9 +538,10 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
     # The fixed part comes first and is cached; the clock changes every minute.
     system = [
         {"type": "text", "text": _system(with_flights), "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": _now()},
+        {"type": "text", "text": _now() + (ENGLISH_PAGE if english else "")},
     ]
-    note = [{"type": "text", "text": IN_DUTCH}] if _dutch(messages[-1]["content"]) else []
+    question = messages[-1]["content"]
+    note = [{"type": "text", "text": IN_DUTCH}] if _dutch(question) else []
     lookups: dict[str, int] = {}
     said, used, missed = "", set(), set()
     looked: list[dict[str, Any]] = []
@@ -508,18 +570,19 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
                         and event.content_block.name != MISSED_TOOL["name"]
                     ):
                         name = event.content_block.name
-                        yield {"type": "tool", "where": WHERE.get(name, "bij de bron"), "tool": name}
+                        where = WHERE_EN.get(name, "the source") if english else WHERE.get(name, "bij de bron")
+                        yield {"type": "tool", "where": where, "tool": name}
                 message = await stream.get_final_message()
         except anthropic.APIError as exc:
             day.spent -= ROUND_RESERVE
             text = _api_error(exc, day)
-            yield {"type": "error", "text": text, "opnieuw": text in PASSING}
+            yield {"type": "error", "text": _say(text, english), "opnieuw": text in PASSING}
             return
         spent = _cost(message.usage)
         day.spent += spent - ROUND_RESERVE
         cost += spent
         if message.stop_reason == "refusal":
-            yield {"type": "error", "text": REFUSED, "opnieuw": False}
+            yield {"type": "error", "text": _say(REFUSED, english), "opnieuw": False}
             return
         uses = [block for block in message.content if block.type == "tool_use"]
         if message.stop_reason != "tool_use" or not uses:
@@ -542,7 +605,11 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
     missing = [credit for name, (word, credit) in CREDITS.items() if name in used and word not in said.lower()]
     if missing:
         # Even if Claude forgets, the answer names these sources.
-        yield {"type": "text", "text": "\n\nBron: " + ", ".join(missing)}
+        # In the language of the answer: English for an English question, and in the English chat for any question
+        # that is not Dutch.
+        nl, en = _counts(question)
+        label = "Source" if en > nl or (english and nl <= en) else "Bron"
+        yield {"type": "text", "text": f"\n\n{label}: " + ", ".join(missing)}
     for topic in sorted(missed):
         tellers.tel(f"chat mist {topic}")
     log.info(
@@ -554,8 +621,14 @@ async def _answer(tools: MCPServer, messages: list[dict[str, Any]], visitor: str
 
 
 def _dutch(question: str) -> bool:
+    nl, en = _counts(question)
+    return nl > en
+
+
+def _counts(question: str) -> tuple[int, int]:
+    """How many small Dutch and English words a question has."""
     words = re.findall(r"[a-z']+", question.lower())
-    return sum(word in DUTCH_WORDS for word in words) > sum(word in ENGLISH_WORDS for word in words)
+    return sum(word in DUTCH_WORDS for word in words), sum(word in ENGLISH_WORDS for word in words)
 
 
 def _param(block: Any) -> dict[str, Any]:

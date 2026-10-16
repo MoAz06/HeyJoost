@@ -53,14 +53,16 @@
   --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   --narrow: 76%;
-  --text-2xs: 11px;
-  --text-xs: 13px;
-  --text-sm: 15px;
-  --text-md: 17px;
-  --text-lg: 20px;
-  --text-xl: 26px;
-  --text-2xl: clamp(36px, 4.2vw, 56px);
-  --text-3xl: clamp(46px, min(7.8vw, 13svh), 116px);
+  /* Letters grow with the text size you chose in your browser or phone: --px is 1 px at the usual size, 16 px for
+     1rem. Nothing you have to read is smaller than 14 px. */
+  --px: 0.0625rem;
+  --text-xs: calc(14 * var(--px));
+  --text-sm: calc(15 * var(--px));
+  --text-md: calc(17 * var(--px));
+  --text-lg: calc(20 * var(--px));
+  --text-xl: calc(26 * var(--px));
+  --text-2xl: clamp(calc(36 * var(--px)), 4.2vw, calc(56 * var(--px)));
+  --text-3xl: clamp(calc(46 * var(--px)), min(7.8vw, 13svh), calc(116 * var(--px)));
 
   /* Space in steps of 4 px. */
   --space-1: 4px;
@@ -101,6 +103,13 @@
 
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scrollbar-gutter: stable; }
 
+/* On an iPhone or iPad the letters follow the text size in its settings, as in apps. 17 px is the usual size there,
+   so --px stays 1 px until you change it. */
+@supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+  html { font: -apple-system-body; }
+  :root { --px: calc(1rem / 17); }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -109,7 +118,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 { font-weight: 700; font-stretch: var(--narrow); text-wrap: balance; }
+/* A long word in a heading may break when the letters are very large, rather than stick out of the screen. */
+h1, h2, h3 { font-weight: 700; font-stretch: var(--narrow); text-wrap: balance; overflow-wrap: break-word; hyphens: auto; }
 p, li { text-wrap: pretty; }
 b { font-weight: 600; }
 
@@ -142,7 +152,7 @@ a:hover { text-decoration-color: var(--accent); }
 .top { display: flex; align-items: center; gap: var(--space-6); min-height: 76px; border-bottom: 1px solid var(--rule); }
 .brand {
   display: inline-flex; align-items: center; gap: 10px;
-  font: 700 21px/1 var(--sans); font-stretch: 85%; text-decoration: none; white-space: nowrap;
+  font: 700 calc(21 * var(--px))/1 var(--sans); font-stretch: 85%; text-decoration: none; white-space: nowrap;
 }
 .brand .logo { width: 30px; height: 30px; }
 .nav { display: flex; gap: var(--space-6); margin-left: auto; font-size: var(--text-sm); }
@@ -185,8 +195,9 @@ a:hover { text-decoration-color: var(--accent); }
    It shows an example, and becomes a live chat when the server switches it on. */
 
 .chat { display: flex; flex-direction: column; border-radius: var(--radius-lg); background: var(--board); color: var(--board-ink); overflow: hidden; }
+/* With very large letters the button moves to a line of its own instead of sticking out. */
 .chat-top {
-  display: flex; align-items: center; gap: var(--space-3); padding: 14px 20px; border-bottom: 1px solid var(--board-line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: 14px 20px; border-bottom: 1px solid var(--board-line);
   color: var(--led); font: 600 var(--text-xs)/1 var(--mono); letter-spacing: 0.09em; text-transform: uppercase;
 }
 .chat-top b { font-weight: 600; }
@@ -203,7 +214,7 @@ a:hover { text-decoration-color: var(--accent); }
 /* Until the first question the examples get the room they need, so no example is ever cut off. */
 .chat.on .log:has(> .label) { height: auto; min-height: var(--log-h); }
 .chat.on .log > :first-child { margin-top: auto; }
-.label { align-self: center; padding-bottom: 6px; color: var(--board-dim); font: 400 var(--text-2xs)/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
+.label { align-self: center; padding-bottom: 6px; color: var(--board-dim); font: 400 var(--text-xs)/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
 
 .msg { max-width: 84%; padding: 11px 15px; border-radius: var(--radius-sm); line-height: 1.45; }
 .msg.user { align-self: flex-end; background: var(--accent); color: var(--on-accent); }
@@ -397,7 +408,7 @@ main { padding-bottom: var(--space-9); }
 .cols, .rows > li { display: grid; grid-template-columns: 132px minmax(0, 0.8fr) minmax(0, 1.5fr) 150px; column-gap: var(--space-6); }
 .cols {
   padding-bottom: var(--space-3); border-bottom: 1px solid var(--ink);
-  color: var(--ink-3); font: 400 var(--text-2xs)/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-3); font: 400 var(--text-xs)/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
 }
 .cols span:last-child { text-align: right; }
 .rows { margin: 0; padding: 0; list-style: none; }
@@ -406,6 +417,7 @@ main { padding-bottom: var(--space-9); }
 .rows p { margin: 0; color: var(--ink-2); }
 .rows .src { color: var(--ink-3); font: 400 var(--text-xs)/1.35 var(--mono); text-align: right; }
 
+/* A sign is a picture of a display with a fixed size, hidden from screen readers, so its letters stay in px. */
 .sign {
   display: flex; flex-direction: column; justify-content: space-between;
   width: 132px; height: 92px; padding: 10px 12px 11px; border-radius: var(--radius); background: var(--board);
@@ -440,7 +452,7 @@ main { padding-bottom: var(--space-9); }
 .steps li { position: relative; padding: 14px 0 14px 48px; border-bottom: 1px solid var(--rule); counter-increment: step; }
 .steps li::before {
   content: counter(step); position: absolute; left: 0; top: 13px;
-  color: var(--accent-text); font: 700 26px/1 var(--sans); font-stretch: 75%;
+  color: var(--accent-text); font: 700 calc(26 * var(--px))/1 var(--sans); font-stretch: 75%;
 }
 .small { margin: var(--space-3) 0 0; color: var(--ink-3); font-size: var(--text-sm); }
 
@@ -452,7 +464,7 @@ main { padding-bottom: var(--space-9); }
   padding: 18px 6px 18px 0; border: 0; border-bottom: 1px solid var(--rule); background: none;
   color: var(--ink); font: 400 var(--text-md)/1.45 var(--sans); text-align: left; cursor: pointer;
 }
-.prompts .topic { color: var(--accent-text); font: 600 10.5px/1.9 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.prompts .topic { color: var(--accent-text); font: 600 var(--text-xs)/1.45 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
 .prompts .prompt .i { align-self: center; color: var(--ink-3); transition: transform 0.15s ease; }
 .prompts .prompt:hover { background: var(--bg-2); }
 .prompts .prompt:hover .i { color: var(--ink); transform: translateX(3px); }
@@ -544,19 +556,19 @@ main { padding-bottom: var(--space-9); }
 
 /* Phone */
 @media (max-width: 600px) {
-  :root { --text-3xl: clamp(40px, 12.4vw, 60px); --text-xl: 22px; }
+  :root { --text-3xl: clamp(calc(40 * var(--px)), 12.4vw, calc(60 * var(--px))); --text-xl: calc(22 * var(--px)); }
   .wrap { padding-inline: var(--space-4); }
   .top { min-height: 64px; gap: var(--space-4); }
-  .brand { font-size: 19px; }
+  .brand { font-size: calc(19 * var(--px)); }
   .brand .logo { width: 26px; height: 26px; }
-  .top .btn { min-height: 40px; padding: 0 14px; font-size: 14px; }
+  .top .btn { min-height: 40px; padding: 0 14px; font-size: var(--text-xs); }
   .hero { padding-top: var(--space-5); padding-bottom: var(--space-6); }
   .hero h1 { line-height: 1.02; }
   .chat-top { padding-inline: var(--space-4); }
   .log { padding: var(--space-4); }
   .chat { --log-h: clamp(260px, 32svh, 360px); }
   .log .extra { display: none; }
-  .msg { max-width: 92%; font-size: 16px; }
+  .msg { max-width: 92%; font-size: calc(16 * var(--px)); }
   /* On a phone the chat is small, so the way down is a square arrow in the corner, above the send button. */
   .verder { align-self: flex-end; justify-content: center; width: 44px; height: 44px; margin-top: -54px; padding: 0; }
   .verder span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -589,8 +601,12 @@ main { padding-bottom: var(--space-9); }
 /* On the narrowest phones the first example would otherwise push the input under the fold, and the word on the
    button in the header would push the name onto two lines. */
 @media (max-width: 374px) {
-  .msg { font-size: 15px; }
+  .msg { font-size: calc(15 * var(--px)); }
   .groter .i { display: none; }
+  /* The top of the chat and the buttons under an answer each stay on one line. */
+  .chat-top { gap: var(--space-2); letter-spacing: 0.04em; }
+  .acties { margin-left: -7px; }
+  .acties button { padding: 0 7px; }
 }
 
 /* On the smallest phones the three buttons under an answer only fit on one line without their icons. */
@@ -599,7 +615,7 @@ main { padding-bottom: var(--space-9); }
 }
 
 @media (max-width: 360px) {
-  .brand { font-size: 17px; gap: var(--space-2); }
+  .brand { font-size: calc(17 * var(--px)); gap: var(--space-2); }
   .brand .logo { width: 24px; height: 24px; }
-  .top .btn { padding: 0 var(--space-3); font-size: 13px; }
+  .top .btn { padding: 0 var(--space-3); }
 }

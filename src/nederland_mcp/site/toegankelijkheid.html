@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toegankelijkheid | Hey Joost</title>
+<meta name="description" content="Hoe Hey Joost werkt met een schermlezer, grote letters, voorlezen en een toetsenbord, wat we testten en wat nog niet goed is.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/plex-sans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/style.css?v={{VERSION}}">
+</head>
+<body>
+<a class="skip" href="#main">Naar de inhoud</a>
+
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>Hey Joost</a>
+    <nav class="nav" aria-label="Menu">
+      <a href="/#wat">Wat Joost weet</a>
+      <a href="/#probeer">Probeer</a>
+      <a href="/#bronnen">Bronnen</a>
+    </nav>
+    <a class="btn btn-ink" href="/#erin">Zet Joost in je AI</a>
+  </header>
+
+  <main class="doc" id="main">
+    <h1>Toegankelijkheid</h1>
+    <p class="meta">Laatst bijgewerkt: 16 oktober 2026</p>
+
+    <p>Hey Joost moet voor iedereen werken. Ook als je slecht ziet, een schermlezer gebruikt, alleen met een toetsenbord werkt of liever luistert dan leest. Hier lees je wat we daarvoor doen, wat we hebben getest en wat nog niet goed is.</p>
+
+    <h2>Wat je kunt doen</h2>
+    <ul>
+      <li><b>Laten voorlezen.</b> Onder elk antwoord staat Lees voor. Dan leest een stem op je eigen telefoon of computer het antwoord voor. De tekst gaat dus nergens heen. Heeft je toestel geen stem voor de taal van het antwoord, dan zie je de knop niet.</li>
+      <li><b>Inspreken.</b> Op je telefoon kun je je vraag inspreken met de microfoon van je toetsenbord. Dat regelt je telefoon, net als in andere apps. Joost krijgt alleen de tekst.</li>
+      <li><b>Grotere letters.</b> De letters worden groter als je in je browser of op je telefoon grotere letters kiest, ook op een iPhone. Inzoomen tot 200% kan ook.</li>
+      <li><b>Eenvoudige taal.</b> Joost schrijft in korte zinnen met gewone woorden, op B1-niveau, en legt moeilijke woorden zoals kWh uit. Onder een lang antwoord staat Zeg het simpeler.</li>
+      <li><b>In je eigen taal.</b> Je kunt Joost iets vragen in elke taal. Hij antwoordt in de taal van je vraag. Staat je browser niet op Nederlands, dan staan de knoppen van de chat in het Engels. Onder de chat kun je dan wisselen naar Nederlands.</li>
+      <li><b>Met het toetsenbord.</b> Met Tab spring je naar de volgende knop, met Enter verstuur je je vraag en met Shift en Enter begin je een nieuwe regel. Escape sluit de grote chat. Je ziet altijd waar je bent.</li>
+      <li><b>Met een schermlezer.</b> Terwijl Joost schrijft, blijft de chat stil, zodat je niet steeds wordt onderbroken. Is het antwoord af, dan leest je schermlezer het in één keer voor. Ook als Joost iets opzoekt, als het langer duurt of als er iets misgaat, hoor je dat.</li>
+      <li><b>Hoog contrast en donker.</b> De site werkt met de contrastthema's van Windows en volgt de donkere modus van je toestel. Heb je minder beweging aangezet, dan staan de animaties uit.</li>
+    </ul>
+
+    <h2>Wat we hebben getest</h2>
+    <p>We testten de chat op 16 oktober 2026, op een telefoon en een computer, in licht en donker:</p>
+    <ul>
+      <li>Met axe-core, een automatische check op de regels van WCAG 2.2, niveau AA. Die vond geen fouten.</li>
+      <li>Met alleen het toetsenbord.</li>
+      <li>Wat de browser aan een schermlezer doorgeeft: de naam en de rol van elke knop en elk veld, en de meldingen tijdens een antwoord.</li>
+      <li>Met tekst op 200%, en met hoog contrast van Windows.</li>
+      <li>Het contrast van tekst, minstens 4,5 tegen 1, en van de randen van velden en knoppen in de chat, minstens 3 tegen 1.</li>
+    </ul>
+
+    <h2>Wat nog niet goed is</h2>
+    <ul>
+      <li>We hebben nog niet getest met echte schermlezers, zoals VoiceOver, TalkBack en NVDA, en nog niet met mensen die ze elke dag gebruiken. Een keuring door een expert is er ook nog niet.</li>
+      <li>Alleen de chat is er in het Engels. De rest van de site is Nederlands.</li>
+      <li>Joost is een AI. Een antwoord kan fouten bevatten en is niet altijd even eenvoudig. Gaat het ergens om, kijk dan ook in de officiële app of op de site van de bron.</li>
+      <li>Lees voor hangt af van de stemmen op je toestel. Op sommige telefoons is er geen stem die zonder internet werkt, en dan zie je de knop niet.</li>
+      <li>Links in een antwoord gaan naar de sites van de bronnen. Hoe toegankelijk die zijn, hebben wij niet in de hand.</li>
+    </ul>
+
+    <h2>Iets gemerkt?</h2>
+    <p>Werkt iets niet voor jou, of kan het beter? Mail naar <a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a>. Zet erbij wat je probeerde, op welk toestel, met welke browser of welk hulpmiddel, en wat er misging. Dan kijken we ernaar en laten we je weten wat we ermee doen.</p>
+
+    <section lang="en">
+      <h2>In English</h2>
+      <p>Hey Joost should work for everyone. You can ask Joost in any language, and he answers in the language of your question. If your browser isn’t set to Dutch, the buttons of the chat are in English, and you can switch to Dutch under the chat. Under every answer, Read aloud reads it out with a voice on your own device, so the text goes nowhere. The text grows with the text size you set in your browser or phone. Something not working for you? Mail <a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a>.</p>
+    </section>
+  </main>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-top">
+      <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>Hey Joost</a>
+      <div class="links"><a href="/">Start</a><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

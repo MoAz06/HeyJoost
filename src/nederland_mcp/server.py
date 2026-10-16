@@ -533,6 +533,7 @@ def _serve(path: str, filename: str, media_type: str, max_age: int) -> None:
 
 _serve("/privacy", "privacy.html", "text/html", 300)
 _serve("/voorwaarden", "voorwaarden.html", "text/html", 300)
+_serve("/toegankelijkheid", "toegankelijkheid.html", "text/html", 300)
 _serve("/style.css", "style.css", "text/css", 300)
 _serve("/favicon.svg", "favicon.svg", "image/svg+xml", 86400)
 # A font file never changes under the same name, so browsers may keep it for a year.

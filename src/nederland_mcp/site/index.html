@@ -56,32 +56,35 @@
     <div class="hero">
       <h1><span class="muted">Joost mag het weten?</span> <span>Joost <em>wéét</em> het.</span></h1>
 
-      <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek">
-        <div class="chat-top" hidden><b>Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg><span>Groter</span></button></div>
+      <!-- data-en is the English of an element and data-en-<attribute> that of an attribute, for a browser that is
+           not set to Dutch. -->
+      <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek" data-en-aria-label="Example of a conversation">
+        <div class="chat-top" hidden><b data-en="Ask Joost">Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken" data-en-aria-label="Make the chat bigger"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg><span data-en="Bigger">Groter</span></button></div>
         <div class="log" id="log">
-          <div class="label" hidden>Voorbeeld</div>
-          <div class="msg user"><h2 class="vh">Jij vroeg:<br></h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
-          <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek bij de NS</span></div>
-          <div class="msg ai"><h2 class="vh">Joost antwoordt:<br></h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
-          <div class="msg user extra"><h2 class="vh">Jij vroeg:<br></h2>En is het zeewater in Scheveningen nog te doen?</div>
-          <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span><b>Hey Joost</b> keek bij Rijkswaterstaat</span></div>
-          <div class="msg ai extra"><h2 class="vh">Joost antwoordt:<br></h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
+          <div class="label" hidden data-en="Example">Voorbeeld</div>
+          <div class="msg user" data-en='<h2 class="vh">You asked:<br></h2>When does the next train leave from Den Haag Centraal to Leiden?'><h2 class="vh">Jij vroeg:<br></h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
+          <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span data-en="<b>Hey Joost</b> checked NS"><b>Hey Joost</b> keek bij de NS</span></div>
+          <div class="msg ai" data-en='<h2 class="vh">Joost answers:<br></h2>At <b>19:39</b> from platform <b>12</b>. It’s on time, it’s quiet and you arrive at <b>19:58</b>. A ticket costs €&nbsp;4.60.'><h2 class="vh">Joost antwoordt:<br></h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
+          <div class="msg user extra" data-en='<h2 class="vh">You asked:<br></h2>And is the sea in Scheveningen still warm enough?'><h2 class="vh">Jij vroeg:<br></h2>En is het zeewater in Scheveningen nog te doen?</div>
+          <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span data-en="<b>Hey Joost</b> checked Rijkswaterstaat"><b>Hey Joost</b> keek bij Rijkswaterstaat</span></div>
+          <div class="msg ai extra" data-en='<h2 class="vh">Joost answers:<br></h2>At the measuring points nearby it’s <b>17.6&nbsp;°C</b> now. Fresh, but fine.'><h2 class="vh">Joost antwoordt:<br></h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
         </div>
         <p class="vh" id="status" role="status"></p>
         <form class="ask" id="ask" hidden>
-          <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" aria-label="Je vraag aan Joost" aria-describedby="teller nog"></textarea>
-          <button type="submit" aria-label="Verstuur" title="Verstuur"><svg class="pijl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg><svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/></svg></button>
+          <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" data-en-placeholder="Ask in any language…" aria-label="Je vraag aan Joost" data-en-aria-label="Your question for Joost" aria-describedby="teller nog"></textarea>
+          <button type="submit" aria-label="Verstuur" title="Verstuur" data-en-aria-label="Send" data-en-title="Send"><svg class="pijl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg><svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/></svg></button>
         </form>
         <p class="teller" id="teller" hidden></p>
         <p class="nog" id="nog" hidden></p>
-        <p class="dicht" hidden><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
+        <p class="dicht" hidden data-en='<b>Ask Joost is full for today.</b> From midnight you can ask again. Until then you can <a href="#erin">add Joost to your own AI</a>, then it always works.'><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
         <div class="chips" hidden>
-          <button class="chip" type="button" data-vul="Hoe wordt het weer in " aria-label="Weer in …, vul zelf je plaats in">Weer in …</button>
-          <button class="chip" type="button" data-vul="Welke treinen gaan er zo vanaf " aria-label="Trein vanaf …, vul zelf je station in">Trein vanaf …</button>
-          <button class="chip prompt" type="button" data-copy="Waar staat er nu file?" data-via="chip">Files nu?</button>
-          <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?" data-via="chip">Vlucht KL1001?</button><!--/vluchten-->
+          <button class="chip" type="button" data-vul="Hoe wordt het weer in " aria-label="Weer in …, vul zelf je plaats in" data-en="Weather in …" data-en-data-vul="What’s the weather in " data-en-aria-label="Weather in …, add your own place">Weer in …</button>
+          <button class="chip" type="button" data-vul="Welke treinen gaan er zo vanaf " aria-label="Trein vanaf …, vul zelf je station in" data-en="Train from …" data-en-data-vul="Which trains leave soon from " data-en-aria-label="Train from …, add your own station">Trein vanaf …</button>
+          <button class="chip prompt" type="button" data-copy="Waar staat er nu file?" data-via="chip" data-en="Traffic jams now?" data-en-data-copy="Where are the traffic jams right now?">Files nu?</button>
+          <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?" data-via="chip" data-en="Flight KL1001?" data-en-data-copy="What is the status of flight KL1001?">Vlucht KL1001?</button><!--/vluchten-->
         </div>
-        <p class="fine" hidden>Joost is een AI (Claude) en kan fouten maken. Deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a></p>
+        <!-- The switch between Dutch and English only shows in a browser that is not set to Dutch. -->
+        <p class="fine" hidden data-en='Joost is an AI (Claude) and can make mistakes. Don’t share personal details. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=nl" lang="nl" hreflang="nl">Nederlands</a></span>'>Joost is een AI (Claude) en kan fouten maken. Deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=en" lang="en" hreflang="en">English</a></span></p>
       </div>
 
       <div class="intro">
@@ -291,7 +294,7 @@
   <div class="wrap">
     <div class="foot-top">
       <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
-      <div class="links"><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
+      <div class="links"><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="/toegankelijkheid">Toegankelijkheid</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
     </div>
     <p>Gemaakt door Mohamed Azahrioui. Volg Joost op <a href="https://www.tiktok.com/@heyjoost.nl">TikTok</a> en <a href="https://www.instagram.com/heyjoost.nl/">Instagram</a>.</p>
   </div>
@@ -326,6 +329,22 @@
 <script>
   let askJoost = null;
 
+  // The chat in English when this browser is not set to Dutch at all: Joost answers in any language, and this shows
+  // it. A choice with ?lang=en or ?lang=nl, as the switch under the chat makes, is remembered. The rest of the page
+  // stays Dutch.
+  const dutchBrowser = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "nl"])
+    .some((language) => /^nl\b/i.test(language));
+  const english = (() => {
+    const asked = new URLSearchParams(location.search).get("lang");
+    if (asked === "en" || asked === "nl") {
+      remember("taal", asked);
+      window.history.replaceState(null, "", location.pathname + location.hash);
+    }
+    const chosen = remember("taal");
+    return chosen === "en" || chosen === "nl" ? chosen === "en" : !dutchBrowser;
+  })();
+  const t = (nl, en) => english ? en : nl;
+
   document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-copy]");
     if (!button) return;
@@ -335,15 +354,16 @@
     }
     try {
       await navigator.clipboard.writeText(button.dataset.copy);
-      toast("Gekopieerd");
+      toast(t("Gekopieerd", "Copied"));
     } catch {
-      toast("Kopiëren lukte niet. Selecteer de tekst zelf.");
+      toast(t("Kopiëren lukte niet. Selecteer de tekst zelf.", "Copying didn’t work. Select the text yourself."));
     }
   });
 
   // A longer message stays longer, about as long as it takes to read.
   function toast(text) {
     const el = document.getElementById("toast");
+    el.lang = english ? "en" : "nl";
     el.textContent = text;
     el.classList.add("show");
     clearTimeout(toast.timer);
@@ -398,7 +418,7 @@
   });
   addEventListener("appinstalled", () => {
     installButton.hidden = true;
-    toast("Joost staat op je beginscherm");
+    toast(t("Joost staat op je beginscherm", "Joost is on your home screen"));
   });
 
   function install() {
@@ -416,6 +436,16 @@
 
   // Vraag het Joost: the server switches the chat on when it has a key and budget left for today.
   const chat = document.getElementById("chat");
+  if (english) {
+    chat.lang = "en";
+    for (const el of [chat, ...chat.querySelectorAll("*")]) {
+      for (const { name, value } of [...el.attributes]) {
+        if (name === "data-en") el.innerHTML = value;
+        else if (name.startsWith("data-en-")) el.setAttribute(name.slice(8), value);
+      }
+    }
+  }
+  chat.querySelector(".fine .taal").hidden = dutchBrowser;
   if (chat.dataset.vraag === "aan") startChat();
   else closed();
 
@@ -452,35 +482,37 @@
     let example = true;
     let tipped = false;
     const calm = matchMedia("(prefers-reduced-motion: reduce)");
-    const LATE = ", duurt wat langer dan normaal";
-    const AWAY = "Joost is even niet bereikbaar en kreeg je vraag niet.";
-    const BROKEN = "De verbinding viel weg voordat het antwoord af was.";
-    const KEPT = " Je vraag staat nog in het veld.";
-    const STOPPED = "Gestopt.";
-    // Follow-up questions per source, short and the same for everyone. The page sends the conversation along, so
-    // "En terug?" is enough.
+    const LATE = t(", duurt wat langer dan normaal", ", taking longer than usual");
+    const AWAY = t("Joost is even niet bereikbaar en kreeg je vraag niet.", "Joost can’t be reached right now and didn’t get your question.");
+    const BROKEN = t("De verbinding viel weg voordat het antwoord af was.", "The connection dropped before the answer was finished.");
+    const KEPT = t(" Je vraag staat nog in het veld.", " Your question is still in the field.");
+    const STOPPED = t("Gestopt.", "Stopped.");
+    // Follow-up questions per source, short and the same for everyone, in Dutch and English. The page sends the
+    // conversation along, so "En terug?" is enough.
     const NEXT = {
-      trein_reis: ["En terug?", "Trein daarna?"],
-      trein_vertrek: ["Storingen?"],
-      trein_aankomst: ["Trein daarna?", "Storingen?"],
-      trein_storingen: ["Hoe lang nog?"],
-      ov_vertrek: ["En daarna?"],
-      reis_plannen: ["En terug?"],
-      weer: ["Regen straks?", "Deze week?"],
-      regen: ["Weer morgen?"],
-      weerwaarschuwingen: ["Weer morgen?"],
-      water_actueel: ["Hoogwater?"],
-      water_verwachting: ["Watertemperatuur?"],
-      stroomprijs: ["En morgen?", "Duurste uur?"],
-      verkeer: ["Wegen dicht?"],
-      reisadvies: ["Visum nodig?"],
-      schoolvakanties: ["Volgende vakantie?"],
-      regelzaken: ["Wat kost het?", "Wat neem ik mee?"],
-      bekendmakingen: ["Bezwaar maken?"],
-      open_in_de_buurt: ["Morgen open?"],
-      huis_info: ["Hoe is de buurt?"],
-      buurt_info: ["Wat is er open?"],
+      trein_reis: [["En terug?", "And back?"], ["Trein daarna?", "Next train?"]],
+      trein_vertrek: [["Storingen?", "Disruptions?"]],
+      trein_aankomst: [["Trein daarna?", "Next train?"], ["Storingen?", "Disruptions?"]],
+      trein_storingen: [["Hoe lang nog?", "How much longer?"]],
+      ov_vertrek: [["En daarna?", "And after that?"]],
+      reis_plannen: [["En terug?", "And back?"]],
+      weer: [["Regen straks?", "Rain later?"], ["Deze week?", "This week?"]],
+      regen: [["Weer morgen?", "Weather tomorrow?"]],
+      weerwaarschuwingen: [["Weer morgen?", "Weather tomorrow?"]],
+      water_actueel: [["Hoogwater?", "High tide?"]],
+      water_verwachting: [["Watertemperatuur?", "Water temperature?"]],
+      stroomprijs: [["En morgen?", "And tomorrow?"], ["Duurste uur?", "Priciest hour?"]],
+      verkeer: [["Wegen dicht?", "Roads closed?"]],
+      reisadvies: [["Visum nodig?", "Visa needed?"]],
+      schoolvakanties: [["Volgende vakantie?", "Next holiday?"]],
+      regelzaken: [["Wat kost het?", "What does it cost?"], ["Wat neem ik mee?", "What do I bring?"]],
+      bekendmakingen: [["Bezwaar maken?", "How to object?"]],
+      open_in_de_buurt: [["Morgen open?", "Open tomorrow?"]],
+      huis_info: [["Hoe is de buurt?", "The neighbourhood?"]],
+      buurt_info: [["Wat is er open?", "What’s open?"]],
     };
+    // The hidden heading of a bubble, in the language of the chat, also when the bubble itself is in another one.
+    const heading = (nl, en) => `<h2 class="vh" lang="${english ? "en" : "nl"}">${t(nl, en)}<br></h2>`;
     // The small words that tell Dutch and English apart, for the language of a question and its answer. Words that
     // other languages share, like "de" and "en" in Spanish or "die" in German, are not in it.
     const SMALL = {
@@ -504,21 +536,21 @@
     }
 
     chat.classList.add("on");
-    chat.setAttribute("aria-label", "Chat met Joost");
-    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog)").forEach((el) => { el.hidden = false; });
+    chat.setAttribute("aria-label", t("Chat met Joost", "Chat with Joost"));
+    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog, .taal)").forEach((el) => { el.hidden = false; });
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
     // On a phone the keyboard has a microphone, so the field says you can also say your question. Short enough for
-    // one line on the smallest phone.
-    if (matchMedia("(pointer: coarse)").matches) input.placeholder = "Typ of zeg je vraag…";
+    // one line on the smallest phone. In English it says you can ask in any language.
+    if (!english && matchMedia("(pointer: coarse)").matches) input.placeholder = "Typ of zeg je vraag…";
 
     // While Joost answers, the chat scrolls along until your question reaches the top, and stops as soon as you
     // scroll yourself, so the text never moves while you read. What is still below the edge gets a button.
     let follow = false;
     let current = null;
-    const more = button("", "Verder lezen", "i-omlaag");
+    const more = button("", t("Verder lezen", "Read on"), "i-omlaag");
     more.className = "verder";
-    more.title = "Verder lezen";
-    more.insertAdjacentHTML("beforeend", "<span>Verder lezen</span>");
+    more.title = t("Verder lezen", "Read on");
+    more.insertAdjacentHTML("beforeend", `<span>${t("Verder lezen", "Read on")}</span>`);
     more.hidden = true;
     log.append(more);
     // One view further, with a bit of overlap to keep your place, or right to the end when only a little is left.
@@ -540,7 +572,7 @@
     const spot = document.createElement("div");
     const note = document.getElementById("toast");
     big.className = "groot";
-    big.setAttribute("aria-label", "Vraag het Joost");
+    big.setAttribute("aria-label", t("Vraag het Joost", "Ask Joost"));
     spot.className = "chat";
     spot.setAttribute("aria-hidden", "true");
     document.body.append(big);
@@ -615,9 +647,9 @@
 
     // A new conversation: Joost forgets everything so far and the chat looks as it did when the page opened. The
     // button sits with the chips, because the top of the chat has no room for it on a small phone.
-    const restart = button("", "Nieuw gesprek", "i-nieuw");
+    const restart = button("", t("Nieuw gesprek", "New chat"), "i-nieuw");
     restart.className = "chip nieuw";
-    restart.insertAdjacentHTML("beforeend", "<span>Nieuw gesprek</span>");
+    restart.insertAdjacentHTML("beforeend", `<span>${t("Nieuw gesprek", "New chat")}</span>`);
     restart.addEventListener("click", fresh);
 
     // The field grows with your question up to five lines, so a long or spoken question can be read back. Enter
@@ -661,7 +693,7 @@
       // Too long: nothing is cut off, the counter says by how much, and the question stays in the field.
       if ([...text].length > MAX) {
         count();
-        say("Je vraag is te lang: " + counter.textContent + ".");
+        say(t("Je vraag is te lang: ", "Your question is too long: ") + counter.textContent + ".");
         return;
       }
       if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "center" });
@@ -697,14 +729,15 @@
       follow = true;
       current = add("msg user");
       // The hidden label ends in a line break, so a copied conversation has the question on a line of its own.
-      current.innerHTML = '<h2 class="vh">Jij vroeg:<br></h2>';
+      current.innerHTML = heading("Jij vroeg:", "You asked:");
       current.append(editable(text));
       const asked = current;
       history.push({ role: "user", text });
 
-      let thinking = line("is bezig");
-      say("Joost is bezig");
+      let thinking = line(t("is bezig", "is on it"));
+      say(t("Joost is bezig", "Joost is on it"));
       let bubble = null;
+      const bubbles = [];
       let shown = "";
       let answer = "";
       // The first source Joost used, for the follow-ups, where he looked, how many questions are left today, and
@@ -722,7 +755,7 @@
       const slow = setTimeout(() => {
         late = true;
         log.querySelectorAll(".tool.busy i").forEach((el) => { el.textContent += LATE; });
-        say("Het duurt wat langer dan normaal");
+        say(t("Het duurt wat langer dan normaal", "It’s taking longer than usual"));
       }, 10000);
       // The answer is drawn at most once per frame. A bold part that is still coming in is bold right away, so no
       // stars flash by.
@@ -732,7 +765,7 @@
         frame = 0;
         if (!bubble) return;
         const open = !final && (shown.match(/\*\*/g) || []).length % 2;
-        bubble.innerHTML = '<h2 class="vh">Joost antwoordt:<br></h2>' + render(open ? shown + "**" : shown);
+        bubble.innerHTML = heading("Joost antwoordt:", "Joost answers:") + render(open ? shown + "**" : shown);
         settle();
       };
       const done = () => {
@@ -740,7 +773,7 @@
         thinking = null;
         log.querySelectorAll(".tool.busy").forEach((el) => {
           el.classList.remove("busy");
-          el.querySelector("i").textContent = "keek " + el.dataset.where;
+          el.querySelector("i").textContent = t("keek ", "checked ") + el.dataset.where;
         });
       };
       const handle = (event) => {
@@ -752,8 +785,8 @@
           const last = more.previousElementSibling;
           if (!(last && last.dataset.where === event.where && last.classList.contains("busy"))) {
             wheres.push(event.where);
-            line("kijkt " + event.where + (late ? LATE : "")).dataset.where = event.where;
-            say("Joost kijkt " + event.where);
+            line(t("kijkt ", "is checking ") + event.where + (late ? LATE : "")).dataset.where = event.where;
+            say(t("Joost kijkt ", "Joost is checking ") + event.where);
           }
           bubble = null;
         } else if (event.type === "text") {
@@ -761,6 +794,7 @@
           done();
           if (!bubble) {
             bubble = add("msg ai");
+            bubbles.push(bubble);
             shown = "";
             if (answer) answer += "\n\n";
           }
@@ -779,7 +813,8 @@
       try {
         const response = await fetch("/api/vraag", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          // The language of the chat, for what the server says itself, like where Joost looks.
+          headers: { "Content-Type": "application/json", "Accept-Language": english ? "en" : "nl" },
           // Where the question came from and whether Joost is on a home screen, only for the counts per day.
           body: JSON.stringify({ messages: history.slice(-12), via, app: standalone }),
           signal: control.signal,
@@ -821,15 +856,19 @@
         history.push({ role: "assistant", text: answer, tools: looked });
         turns = [...turns, { q: text, a: answer, w: wheres, s: source, t: looked }].slice(-20);
         hold("gesprek", turns);
-        actions(text, answer);
-        followUps(source, answer);
-        if (canInstall && !tipped && !remember("tip")) tip();
-        say("Joost antwoordt: " + spoken(answer) + (remaining(over) ? " " + quota.textContent.replace(/\.?$/, ".") : ""));
+        // The question and its answer in their own language, so a screen reader and Lees voor pronounce them right.
+        const lang = language(text + " " + answer);
+        for (const el of [asked, ...bubbles]) el.lang = lang;
+        actions(text, answer, lang);
+        followUps(source, answer, lang);
+        // The steps for the home screen are only in Dutch.
+        if (!english && canInstall && !tipped && !remember("tip")) tip();
+        say(t("Joost antwoordt: ", "Joost answers: ") + spoken(answer) + (remaining(over) ? " " + quota.textContent.replace(/\.?$/, ".") : ""));
       } else {
         history.pop();
         // Your question is never lost: it goes back in the field, unless you are already typing a new one. After a
         // stop it stays where it is, and a tap on it puts it back.
-        const problem = failure || { text: "Joost weet het even niet. Probeer het anders te vragen.", again: false };
+        const problem = failure || { text: t("Joost weet het even niet. Probeer het anders te vragen.", "Joost doesn’t know right now. Try asking it another way."), again: false };
         const back = !problem.stopped && !input.value.trim();
         if (back) put(text);
         fail(problem, text, !problem.stopped && answer.trim() !== "", asked, back && (problem.again || !failure));
@@ -843,13 +882,17 @@
 
     // After an answer: at most two follow-up questions that fit the source, and "Zeg het simpeler" under a long
     // answer, so you can ask for it without having to say why. In one place, and gone with the next question.
-    function followUps(source, answer) {
-      const list = [...(NEXT[source] || [])];
-      if (plain(answer).length > 240) list.push("Zeg het simpeler");
+    // They are in the language of the conversation, since Joost answers a follow-up in its language. English for
+    // English, and in the English chat also for a language they do not come in.
+    function followUps(source, answer, lang) {
+      const en = /^en/i.test(lang) || (english && !/^nl/i.test(lang));
+      const list = (NEXT[source] || []).map((pair) => pair[en ? 1 : 0]);
+      if (plain(answer).length > 240) list.push(en ? "Say it more simply" : "Zeg het simpeler");
       if (!list.length) return;
       const row = add("vervolg");
+      row.lang = en ? "en" : "nl";
       row.setAttribute("role", "group");
-      row.setAttribute("aria-label", "Vervolgvragen");
+      row.setAttribute("aria-label", t("Vervolgvragen", "Follow-up questions"));
       for (const text of list) {
         const el = document.createElement("button");
         el.type = "button";
@@ -865,16 +908,16 @@
     function remaining(over) {
       quota.hidden = !(typeof over === "number" && over <= 3);
       quota.textContent = quota.hidden ? ""
-        : over === 0 ? "Dit was je laatste vraag voor vandaag. Vanaf middernacht kan het weer."
-        : over === 1 ? "Nog 1 vraag vandaag" : `Nog ${over} vragen vandaag`;
+        : over === 0 ? t("Dit was je laatste vraag voor vandaag. Vanaf middernacht kan het weer.", "That was your last question for today. From midnight you can ask again.")
+        : over === 1 ? t("Nog 1 vraag vandaag", "1 question left today") : t(`Nog ${over} vragen vandaag`, `${over} questions left today`);
       return !quota.hidden;
     }
 
     function working(on) {
       busy = on;
       form.classList.toggle("bezig", on);
-      send.setAttribute("aria-label", on ? "Stop antwoord" : "Verstuur");
-      send.title = on ? "Stop antwoord" : "Verstuur";
+      send.setAttribute("aria-label", on ? t("Stop antwoord", "Stop answer") : t("Verstuur", "Send"));
+      send.title = send.getAttribute("aria-label");
     }
 
     // Your last question is a button: one tap puts it back in the field, to change it or to ask it again.
@@ -884,16 +927,16 @@
       el.type = "button";
       el.className = "pas";
       el.dataset.vraag = text;
-      el.title = "Pas je vraag aan";
+      el.title = t("Pas je vraag aan", "Edit your question");
       // In the name, not in the text: a copied conversation shows only the question.
-      el.setAttribute("aria-label", "Pas aan: " + text);
+      el.setAttribute("aria-label", t("Pas aan: ", "Edit: ") + text);
       el.append(text);
       el.insertAdjacentHTML("beforeend", '<svg class="i" aria-hidden="true"><use href="#i-pas"/></svg>');
       el.addEventListener("click", () => {
         put(text);
         input.focus();
         input.setSelectionRange(input.value.length, input.value.length);
-        say("Je vraag staat weer in het veld");
+        say(t("Je vraag staat weer in het veld", "Your question is back in the field"));
       });
       return el;
     }
@@ -916,13 +959,13 @@
       log.scrollTop = 0;
       showMore();
       showSaved();
-      say("Nieuw gesprek, het vorige is gewist");
+      say(t("Nieuw gesprek, het vorige is gewist", "New chat, the last one is cleared"));
       (matchMedia("(pointer: fine)").matches ? input : chips.querySelector("button") || input).focus();
     }
 
     function resize(open) {
-      toggle.setAttribute("aria-label", open ? "Chat kleiner maken" : "Chat groter maken");
-      toggle.querySelector("span").textContent = open ? "Kleiner" : "Groter";
+      toggle.setAttribute("aria-label", open ? t("Chat kleiner maken", "Make the chat smaller") : t("Chat groter maken", "Make the chat bigger"));
+      toggle.querySelector("span").textContent = open ? t("Kleiner", "Smaller") : t("Groter", "Bigger");
       toggle.querySelector("use").setAttribute("href", open ? "#i-klein" : "#i-groot");
       settle(true);
       if (open && matchMedia("(pointer: fine)").matches) input.focus();
@@ -948,19 +991,23 @@
       log.replaceChildren(more);
       example = false;
       for (const turn of turns) {
+        const lang = language(turn.q + " " + turn.a);
         current = add("msg user");
-        current.innerHTML = '<h2 class="vh">Jij vroeg:<br></h2>';
+        current.lang = lang;
+        current.innerHTML = heading("Jij vroeg:", "You asked:");
         current.append(editable(turn.q));
         for (const where of Array.isArray(turn.w) ? turn.w : []) {
-          const el = line("keek " + where);
+          const el = line(t("keek ", "checked ") + where);
           el.classList.remove("busy");
           el.dataset.where = where;
         }
-        add("msg ai").innerHTML = '<h2 class="vh">Joost antwoordt:<br></h2>' + render(turn.a);
-        actions(turn.q, turn.a);
+        const bubble = add("msg ai");
+        bubble.lang = lang;
+        bubble.innerHTML = heading("Joost antwoordt:", "Joost answers:") + render(turn.a);
+        actions(turn.q, turn.a, lang);
         history.push({ role: "user", text: turn.q }, { role: "assistant", text: turn.a, tools: Array.isArray(turn.t) ? turn.t : [] });
       }
-      followUps(turns.at(-1).s, turns.at(-1).a);
+      followUps(turns.at(-1).s, turns.at(-1).a, language(turns.at(-1).q + " " + turns.at(-1).a));
       settle(true);
     }
 
@@ -974,10 +1021,11 @@
     // From 450 characters on the counter says how many are left, and over 500 by how many it is too long.
     function count() {
       const left = MAX - [...input.value.trim()].length;
-      const many = (n) => n + (n === 1 ? " teken" : " tekens");
+      const many = (n) => n + (n === 1 ? t(" teken", " character") : t(" tekens", " characters"));
       counter.hidden = left > 50;
       counter.classList.toggle("over", left < 0);
-      counter.textContent = counter.hidden ? "" : left < 0 ? many(-left) + " te veel" : left === 0 ? `Precies ${MAX} tekens, het maximum` : "Nog " + many(left);
+      counter.textContent = counter.hidden ? "" : left < 0 ? many(-left) + t(" te veel", " too many")
+        : left === 0 ? t(`Precies ${MAX} tekens, het maximum`, `Exactly ${MAX} characters, the maximum`) : t("Nog " + many(left), many(left) + " left");
     }
 
     // Scrolls to the newest text, but never further than your last question at the top.
@@ -1019,18 +1067,18 @@
     }
 
     // Under every answer: hear it, share it, or keep the question to ask again with one tap.
-    function actions(question, answer) {
+    function actions(question, answer, lang) {
       const row = add("acties");
       if (speech) {
-        const read = button("Lees voor", "Lees dit antwoord voor", "i-luister");
+        const read = button(t("Lees voor", "Read aloud"), t("Lees dit antwoord voor", "Read this answer aloud"), "i-luister");
         read.className = "lees";
-        read.dataset.taal = language(question + " " + answer);
-        read.hidden = !voiceFor(read.dataset.taal);
+        read.dataset.taal = lang;
+        read.hidden = !voiceFor(lang);
         read.addEventListener("click", () => readAloud(read, answer));
         row.append(read);
       }
-      const share = button("Deel", "Deel dit antwoord", "i-deel");
-      const keep = button("Bewaar", "Bewaar deze vraag", "i-ster");
+      const share = button(t("Deel", "Share"), t("Deel dit antwoord", "Share this answer"), "i-deel");
+      const keep = button(t("Bewaar", "Save"), t("Bewaar deze vraag", "Save this question"), "i-ster");
       keep.dataset.vraag = question;
       keep.setAttribute("aria-pressed", saved.includes(question));
       share.addEventListener("click", () => shareAnswer(question, answer));
@@ -1038,20 +1086,23 @@
         const on = !saved.includes(question);
         save(on ? [question, ...saved] : saved.filter((text) => text !== question));
         // In the browser of an app the question stays in that app, and Safari or Chrome never see it.
-        const where = inApp ? `Bewaard, maar alleen in de browser van ${inApp}. Open heyjoost.nl in je eigen browser om je vragen daar te houden.` : "Bewaard. Bij een nieuw gesprek staat hij onder het veld.";
-        toast(on ? where : "Niet meer bewaard");
+        const where = inApp ? t(`Bewaard, maar alleen in de browser van ${inApp}. Open heyjoost.nl in je eigen browser om je vragen daar te houden.`,
+          `Saved, but only in the browser of ${inApp}. Open heyjoost.nl in your own browser to keep your questions there.`)
+          : t("Bewaard. Bij een nieuw gesprek staat hij onder het veld.", "Saved. In a new chat it’s under the field.");
+        toast(on ? where : t("Niet meer bewaard", "No longer saved"));
       });
       row.append(share, keep);
       settle();
     }
 
-    // The language of a question and its answer: Dutch or English by their small words, otherwise the language of
-    // this browser, since Joost answers in the language of the question.
+    // The language of a question and its answer: Dutch or English by their small words. Otherwise Dutch in the
+    // Dutch chat, and in the English one the language of this browser, since Joost answers in the language of the
+    // question.
     function language(text) {
       const words = text.toLowerCase().match(/[a-z]+/g) || [];
       const nl = words.filter((word) => SMALL.nl.has(word)).length;
       const en = words.filter((word) => SMALL.en.has(word)).length;
-      return nl >= 2 && nl > 2 * en ? "nl" : en >= 2 && en > 2 * nl ? "en" : (navigator.language || "nl");
+      return nl >= 2 && nl > 2 * en ? "nl" : en >= 2 && en > 2 * nl ? "en" : english ? (navigator.language || "en") : "nl";
     }
 
     // A voice on this device for a language, for Dutch one from the Netherlands first.
@@ -1103,8 +1154,8 @@
 
     function look(el, on) {
       el.querySelector("use").setAttribute("href", on ? "#i-stil" : "#i-luister");
-      el.lastChild.textContent = on ? "Stop" : "Lees voor";
-      el.setAttribute("aria-label", on ? "Stop met voorlezen" : "Lees dit antwoord voor");
+      el.lastChild.textContent = on ? "Stop" : t("Lees voor", "Read aloud");
+      el.setAttribute("aria-label", on ? t("Stop met voorlezen", "Stop reading") : t("Lees dit antwoord voor", "Read this answer aloud"));
     }
 
     // Something went wrong. The message says whether the question arrived and marks a half answer as such, and
@@ -1112,19 +1163,19 @@
     function fail(failure, question, partial, asked, kept) {
       const el = add("msg ai fout");
       const text = failure.text + (kept ? KEPT : "");
-      el.innerHTML = '<h2 class="vh">Melding:<br></h2>';
+      el.innerHTML = heading("Melding:", "Notice:");
       if (partial) {
         const mark = document.createElement("b");
-        mark.textContent = "Afgebroken. ";
+        mark.textContent = t("Afgebroken. ", "Cut off. ");
         el.append(mark);
       }
       el.append(text);
-      say((partial ? "Afgebroken. " : "") + text);
+      say((partial ? t("Afgebroken. ", "Cut off. ") : "") + text);
       if (failure.again) {
         // The failed try goes away, so the conversation reads as if it worked the first time.
         const parts = [];
         for (let part = asked; part && part !== more; part = part.nextElementSibling) parts.push(part);
-        const retry = button("Probeer opnieuw", "Probeer opnieuw", "i-opnieuw");
+        const retry = button(t("Probeer opnieuw", "Try again"), t("Probeer opnieuw", "Try again"), "i-opnieuw");
         retry.className = "opnieuw";
         retry.addEventListener("click", () => {
           if (busy) return;
@@ -1162,7 +1213,7 @@
 
     async function shareAnswer(question, answer) {
       const link = location.origin + "/#vraag=" + encodeURIComponent(question);
-      const text = `${question}\n\n${plain(answer)}\n\nVraag het Joost: ${link}`;
+      const text = `${question}\n\n${plain(answer)}\n\n${t("Vraag het Joost", "Ask Joost")}: ${link}`;
       if (navigator.share) {
         try {
           await navigator.share({ text });
@@ -1173,9 +1224,9 @@
       }
       try {
         await navigator.clipboard.writeText(text);
-        toast("Gekopieerd, plak het waar je wilt");
+        toast(t("Gekopieerd, plak het waar je wilt", "Copied, paste it wherever you like"));
       } catch {
-        toast("Delen lukte niet");
+        toast(t("Delen lukte niet", "Sharing didn’t work"));
       }
     }
 
@@ -1198,7 +1249,7 @@
       const wrap = document.createElement("span");
       const chip = document.createElement("button");
       const label = document.createElement("span");
-      const remove = button("", "Vergeet vaste vraag: " + text, "i-weg");
+      const remove = button("", t("Vergeet vaste vraag: ", "Forget saved question: ") + text, "i-weg");
       wrap.className = "vaste";
       chip.type = "button";
       chip.className = "chip prompt";
@@ -1209,10 +1260,10 @@
       label.textContent = text;
       chip.append(label);
       remove.className = "weg";
-      remove.title = "Vergeet";
+      remove.title = t("Vergeet", "Forget");
       remove.addEventListener("click", () => {
         save(saved.filter((other) => other !== text));
-        toast("Vergeten");
+        toast(t("Vergeten", "Forgotten"));
         (chips.querySelector("button") || input).focus();
       });
       wrap.append(chip, remove);
