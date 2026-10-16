@@ -34,6 +34,8 @@
   <symbol id="i-opnieuw" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></symbol>
   <symbol id="i-pas" viewBox="0 0 24 24"><path d="M4 20v-4L15 5l4 4L8 20zM12 8l4 4"/></symbol>
   <symbol id="i-nieuw" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-luister" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 9a4.5 4.5 0 0 1 0 6M19.5 6a8.5 8.5 0 0 1 0 12"/></symbol>
+  <symbol id="i-stil" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></symbol>
 </svg>
 <a class="skip" href="#main">Naar de inhoud</a>
 
@@ -479,11 +481,35 @@
       huis_info: ["Hoe is de buurt?"],
       buurt_info: ["Wat is er open?"],
     };
+    // The small words that tell Dutch and English apart, for the language of a question and its answer. Words that
+    // other languages share, like "de" and "en" in Spanish or "die" in German, are not in it.
+    const SMALL = {
+      nl: new Set("het een van naar niet geen ook nog wordt gaat vandaag jij bij voor mijn zijn deze dit dat wat hoe wanneer waar uur graden".split(" ")),
+      en: new Set("the and what how when where which could does there you your from this that today tomorrow with for are can it".split(" ")),
+    };
+
+    // Lees voor: the answer read aloud by a voice on this device itself, so the text goes nowhere. Without such a
+    // voice for the language of the answer there is no button.
+    const speech = window.speechSynthesis && window.SpeechSynthesisUtterance ? window.speechSynthesis : null;
+    let voices = [];
+    let reading = null;
+    if (speech) {
+      const load = () => {
+        voices = speech.getVoices().filter((voice) => voice.localService);
+        log.querySelectorAll(".lees").forEach((el) => { el.hidden = !voiceFor(el.dataset.taal); });
+      };
+      load();
+      speech.addEventListener("voiceschanged", load);
+      addEventListener("pagehide", () => speech.cancel());
+    }
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", "Chat met Joost");
     chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog)").forEach((el) => { el.hidden = false; });
     document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
+    // On a phone the keyboard has a microphone, so the field says you can also say your question. Short enough for
+    // one line on the smallest phone.
+    if (matchMedia("(pointer: coarse)").matches) input.placeholder = "Typ of zeg je vraag…";
 
     // While Joost answers, the chat scrolls along until your question reaches the top, and stops as soon as you
     // scroll yourself, so the text never moves while you read. What is still below the edge gets a button.
@@ -639,6 +665,7 @@
         return;
       }
       if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "center" });
+      quiet();
       working(true);
       let finish;
       running = new Promise((resolve) => { finish = resolve; });
@@ -874,6 +901,7 @@
     // A stop first when Joost is still answering, then everything goes: the conversation he remembers, and what the
     // chat shows. Your next question in the field stays.
     async function fresh() {
+      quiet();
       if (stop) {
         stop();
         await running;
@@ -990,9 +1018,17 @@
       return el;
     }
 
-    // Under every answer: share it, or keep the question to ask again with one tap.
+    // Under every answer: hear it, share it, or keep the question to ask again with one tap.
     function actions(question, answer) {
       const row = add("acties");
+      if (speech) {
+        const read = button("Lees voor", "Lees dit antwoord voor", "i-luister");
+        read.className = "lees";
+        read.dataset.taal = language(question + " " + answer);
+        read.hidden = !voiceFor(read.dataset.taal);
+        read.addEventListener("click", () => readAloud(read, answer));
+        row.append(read);
+      }
       const share = button("Deel", "Deel dit antwoord", "i-deel");
       const keep = button("Bewaar", "Bewaar deze vraag", "i-ster");
       keep.dataset.vraag = question;
@@ -1007,6 +1043,68 @@
       });
       row.append(share, keep);
       settle();
+    }
+
+    // The language of a question and its answer: Dutch or English by their small words, otherwise the language of
+    // this browser, since Joost answers in the language of the question.
+    function language(text) {
+      const words = text.toLowerCase().match(/[a-z]+/g) || [];
+      const nl = words.filter((word) => SMALL.nl.has(word)).length;
+      const en = words.filter((word) => SMALL.en.has(word)).length;
+      return nl >= 2 && nl > 2 * en ? "nl" : en >= 2 && en > 2 * nl ? "en" : (navigator.language || "nl");
+    }
+
+    // A voice on this device for a language, for Dutch one from the Netherlands first.
+    function voiceFor(lang) {
+      const tag = (text) => (text || "").toLowerCase().replace("_", "-");
+      const want = tag(lang) === "nl" ? "nl-nl" : tag(lang);
+      const fits = voices.filter((voice) => tag(voice.lang).split("-")[0] === want.split("-")[0]);
+      return fits.find((voice) => tag(voice.lang) === want) || fits.find((voice) => voice.default) || fits[0] || null;
+    }
+
+    // Sentence by sentence, because some voices stop halfway through a long text. A link is read as its domain. A
+    // second tap stops, and a tap under another answer reads that one instead.
+    function readAloud(el, answer) {
+      const again = reading === el;
+      const was = !!reading;
+      quiet();
+      const voice = voiceFor(el.dataset.taal);
+      if (again || !voice) return;
+      reading = el;
+      look(el, true);
+      // A sentence ends at a full stop with a space after it, so a domain like ns.nl stays whole.
+      const text = spoken(answer).replace(/https?:\/\/(?:www\.)?([^\s/]+)\S*/g, "$1");
+      const parts = text.replace(/([.!?])\s+/g, "$1\n").split("\n").map((part) => part.trim()).filter(Boolean);
+      const start = () => {
+        if (reading !== el) return;
+        parts.forEach((part, index) => {
+          const utterance = new SpeechSynthesisUtterance(part);
+          utterance.voice = voice;
+          utterance.lang = voice.lang;
+          const end = () => { if (reading === el) quiet(); };
+          if (index === parts.length - 1) utterance.addEventListener("end", end);
+          utterance.addEventListener("error", end);
+          speech.speak(utterance);
+        });
+      };
+      // Right after a stop some browsers skip what comes next, so a new answer waits a moment. The first one starts
+      // at once, because a phone only lets a tap start the voice.
+      if (was) setTimeout(start, 120);
+      else start();
+    }
+
+    function quiet() {
+      if (!reading) return;
+      const el = reading;
+      reading = null;
+      speech.cancel();
+      look(el, false);
+    }
+
+    function look(el, on) {
+      el.querySelector("use").setAttribute("href", on ? "#i-stil" : "#i-luister");
+      el.lastChild.textContent = on ? "Stop" : "Lees voor";
+      el.setAttribute("aria-label", on ? "Stop met voorlezen" : "Lees dit antwoord voor");
     }
 
     // Something went wrong. The message says whether the question arrived and marks a half answer as such, and

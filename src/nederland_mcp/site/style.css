@@ -287,8 +287,8 @@ a:hover { text-decoration-color: var(--accent); }
 .fine { margin: 0; padding: 14px 20px 18px; color: var(--board-dim); font-size: var(--text-xs); line-height: 1.5; }
 .fine a { color: var(--board-ink); }
 
-/* Under an answer: share it, or keep the question. Kept questions replace the examples, with a star. */
-.acties { align-self: flex-start; display: flex; gap: var(--space-1); margin: -10px 0 0 -10px; }
+/* Under an answer: hear it, share it, or keep the question. Kept questions replace the examples, with a star. */
+.acties { align-self: flex-start; display: flex; flex-wrap: wrap; gap: var(--space-1); margin: -10px 0 0 -10px; }
 .acties button {
   display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 10px;
   border: 0; border-radius: var(--radius-sm); background: none; color: var(--board-dim);
@@ -508,6 +508,13 @@ main { padding-bottom: var(--space-9); }
   .link-arrow:hover .i, .prompts .prompt:hover .i { transform: none; }
 }
 
+/* Windows high contrast: the browser paints its own colours and drops the shadows, so what was only a colour, like a
+   bubble or the send button, gets an edge in the colour of its text. */
+@media (forced-colors: active) {
+  .chat, .msg, .ask button, .verder, .acties button, .groter, .vaste .weg, .toast, .btn, .copy, .sluit, .sign { border: 1px solid; }
+  .msg.fout, .ask.bezig button { border-width: 2px; }
+}
+
 /* On a low screen the second example would push the input under the fold. */
 @media (max-height: 860px) {
   .log .extra { display: none; }
@@ -584,6 +591,11 @@ main { padding-bottom: var(--space-9); }
 @media (max-width: 374px) {
   .msg { font-size: 15px; }
   .groter .i { display: none; }
+}
+
+/* On the smallest phones the three buttons under an answer only fit on one line without their icons. */
+@media (max-width: 340px) {
+  .acties .i { display: none; }
 }
 
 @media (max-width: 360px) {
