@@ -69,7 +69,7 @@ claude mcp add heyjoost -- uv --directory /pad/naar/HeyJoost run nederland-mcp
 uv run nederland-mcp --http --host 0.0.0.0 --port 8000
 ```
 
-De MCP-url is dan `http://<jouw-host>:8000/mcp`. Mensen voegen hem toe als remote MCP server of custom connector met die url, ze hoeven zelf niks te installeren. De server onthoudt niks tussen aanvragen (stateless), dus je kunt er gerust meerdere naast elkaar draaien. Op `/` staat de website met uitleg, privacy, voorwaarden en toegankelijkheid (bestanden in `src/nederland_mcp/site/`), ook handig als health check.
+De MCP-url is dan `http://<jouw-host>:8000/mcp`. Mensen voegen hem toe als remote MCP server of custom connector met die url, ze hoeven zelf niks te installeren. De server onthoudt niks tussen aanvragen (stateless), dus je kunt er gerust meerdere naast elkaar draaien. Op `/` staat de chat, op `/over` de uitleg en daarnaast privacy, voorwaarden en toegankelijkheid (bestanden in `src/nederland_mcp/site/`). `/` is ook handig als health check.
 
 Voor hosting staan er een `Dockerfile` en een `railway.json` klaar. Op Railway koppel je de GitHub-repo, kies je regio EU West (Amsterdam) en zet je de keys bij Variables. De poort komt vanzelf uit `$PORT`.
 
@@ -109,7 +109,7 @@ Kopieer `.env.example` naar `.env` en vul in wat je hebt. Tools zonder key geven
 ## Hoe het in elkaar zit
 
 - `src/nederland_mcp/server.py`: de tools en hun beschrijvingen, plus de routes van de website.
-- `src/nederland_mcp/site/`: de website (startpagina, privacy, voorwaarden, toegankelijkheid), met de lettertypes zelf erbij, zodat de site niks van anderen laadt. Je kunt Joost op je beginscherm zetten (manifest en iconen), vragen bewaren (alleen in de browser) en een antwoord delen met een link die de vraag na de `#` meegeeft, zodat de server hem niet ziet. Een antwoord laat je voorlezen met een stem op je eigen toestel, en staat je browser niet op Nederlands, dan is de chat Engels.
+- `src/nederland_mcp/site/`: de website (de chat als startpagina, de uitleg op `/over`, privacy, voorwaarden, toegankelijkheid), met de lettertypes zelf erbij, zodat de site niks van anderen laadt. Je kunt Joost op je beginscherm zetten (manifest en iconen), vragen bewaren (alleen in de browser) en een antwoord delen met een link die de vraag na de `#` meegeeft, zodat de server hem niet ziet. Een antwoord laat je voorlezen met een stem op je eigen toestel, en staat je browser niet op Nederlands, dan is de chat Engels.
 - `src/nederland_mcp/bronnen/`: één bestand per bron.
 - `src/nederland_mcp/common.py`: HTTP-client, cache en tijdzone (alles in Nederlandse tijd).
 - `src/nederland_mcp/vraag.py`: de chat op de website. Claude krijgt dezelfde tools als via MCP, plus vluchten van Schiphol, en de server onthoudt geen gesprekken.

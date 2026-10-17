@@ -493,9 +493,16 @@ def _planner(page: str) -> str:
     return PLANNER.sub(lambda match: match[1] if reisplanner.AAN else "", page)
 
 
-# The version in the stylesheet link makes browsers load a changed stylesheet right away.
-_home = _planner((SITE / "index.html").read_text(encoding="utf-8").replace("{{VERSION}}", __version__))
-HOME = {keep: _flights(_home, keep) for keep in (True, False)}
+# The home page is the chat, and /over says what Joost knows and how to add him to your own AI. Both show the
+# flights only when the chat can look them up. The version in the stylesheet link makes browsers load a changed
+# stylesheet right away.
+def _page(filename: str) -> dict[bool, str]:
+    page = _planner((SITE / filename).read_text(encoding="utf-8").replace("{{VERSION}}", __version__))
+    return {keep: _flights(page, keep) for keep in (True, False)}
+
+
+HOME = _page("index.html")
+ABOUT = _page("over.html")
 
 
 def _mcp_url(request: Request) -> str:
@@ -506,12 +513,21 @@ def _mcp_url(request: Request) -> str:
     return f"{scheme}://{match[0]}/mcp"
 
 
+def _fill(pages: dict[bool, str], request: Request) -> HTMLResponse:
+    page = pages[vraag.flights()].replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
+    return HTMLResponse(page.replace("{{VRAAG}}", vraag.state()))
+
+
 @server.custom_route("/", methods=["GET"])
 async def home(request: Request) -> HTMLResponse:
     if request.method == "GET":
         tellers.tel("site")
-    page = HOME[vraag.flights()].replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
-    return HTMLResponse(page.replace("{{VRAAG}}", vraag.state()))
+    return _fill(HOME, request)
+
+
+@server.custom_route("/over", methods=["GET"])
+async def about(request: Request) -> HTMLResponse:
+    return _fill(ABOUT, request)
 
 
 @server.custom_route("/api/vraag", methods=["POST"])

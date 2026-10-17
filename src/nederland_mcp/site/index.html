@@ -18,14 +18,18 @@
 <link rel="preload" href="/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css?v={{VERSION}}">
+<script>
+  // What was further down the old home page is on /over now, so an old link like heyjoost.nl/#erin still gets there.
+  const moved = () => { if (/^#(wat|erin|probeer|bronnen)$/.test(location.hash)) location.replace("/over" + location.hash); };
+  moved();
+  addEventListener("hashchange", moved);
+</script>
 </head>
 <body>
 <svg class="sprite" aria-hidden="true" focusable="false">
   <symbol id="logo" viewBox="0 0 64 64"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h12v12H8zM16 8V4H4v12h4"/></symbol>
-  <symbol id="i-groot" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M19 5l-5 5M5 19l5-5"/></symbol>
-  <symbol id="i-klein" viewBox="0 0 24 24"><path d="M14 4v6h6M10 20v-6H4M15 9l5-5M9 15l-5 5"/></symbol>
   <symbol id="i-deel" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 12v9h14v-9"/></symbol>
   <symbol id="i-ster" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1.1 6.2L12 17.4l-5.6 2.9 1.1-6.2L3 9.7l6.2-.9z"/></symbol>
   <symbol id="i-weg" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
@@ -39,266 +43,60 @@
 </svg>
 <a class="skip" href="#main">Naar de inhoud</a>
 
-<div class="wrap">
-  <header class="top">
-    <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
-    <nav class="nav" aria-label="Menu">
-      <a href="#wat">Wat Joost weet</a>
-      <a href="#probeer">Probeer</a>
-      <a href="#bronnen">Bronnen</a>
-    </nav>
-    <a class="btn btn-ink" href="#erin">Zet Joost in je AI</a>
-  </header>
-</div>
-
-<main id="main">
+<!-- The home page is the chat. What Joost knows, how to add him to your own AI and his sources are on /over. -->
+<div class="app">
   <div class="wrap">
-    <div class="hero">
-      <h1><span class="muted">Joost mag het weten?</span> <span>Joost <em>wéét</em> het.</span></h1>
+    <header class="top">
+      <a class="brand" href="/" aria-label="Hey Joost, naar de start" data-en-aria-label="Hey Joost, home"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
+      <nav class="nav" aria-label="Menu">
+        <a href="/over#wat" data-en="What Joost knows">Wat Joost weet</a>
+        <a href="/over#bronnen" data-en="Sources">Bronnen</a>
+      </nav>
+      <a class="btn btn-ink erin" href="/over#erin" data-en="Add Joost to your AI">Zet Joost in je AI</a>
+      <a class="btn btn-ink meer" href="/over" data-en="About Joost">Over Joost</a>
+    </header>
+  </div>
 
-      <!-- data-en is the English of an element and data-en-<attribute> that of an attribute, for a browser that is
-           not set to Dutch. -->
-      <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek" data-en-aria-label="Example of a conversation">
-        <div class="chat-top" hidden><b data-en="Ask Joost">Vraag het Joost</b><span class="ai">AI</span><button class="groter" type="button" aria-label="Chat groter maken" data-en-aria-label="Make the chat bigger"><svg class="i" aria-hidden="true"><use href="#i-groot"/></svg><span data-en="Bigger">Groter</span></button></div>
-        <div class="log" id="log">
-          <div class="label" hidden data-en="Example">Voorbeeld</div>
-          <div class="msg user" data-en='<h2 class="vh">You asked:<br></h2>When does the next train leave from Den Haag Centraal to Leiden?'><h2 class="vh">Jij vroeg:<br></h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
-          <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span data-en="<b>Hey Joost</b> checked NS"><b>Hey Joost</b> keek bij de NS</span></div>
-          <div class="msg ai" data-en='<h2 class="vh">Joost answers:<br></h2>At <b>19:39</b> from platform <b>12</b>. It’s on time, it’s quiet and you arrive at <b>19:58</b>. A ticket costs €&nbsp;4.60.'><h2 class="vh">Joost antwoordt:<br></h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
-          <div class="msg user extra" data-en='<h2 class="vh">You asked:<br></h2>And is the sea in Scheveningen still warm enough?'><h2 class="vh">Jij vroeg:<br></h2>En is het zeewater in Scheveningen nog te doen?</div>
-          <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span data-en="<b>Hey Joost</b> checked Rijkswaterstaat"><b>Hey Joost</b> keek bij Rijkswaterstaat</span></div>
-          <div class="msg ai extra" data-en='<h2 class="vh">Joost answers:<br></h2>At the measuring points nearby it’s <b>17.6&nbsp;°C</b> now. Fresh, but fine.'><h2 class="vh">Joost antwoordt:<br></h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
-        </div>
-        <p class="vh" id="status" role="status"></p>
-        <form class="ask" id="ask" hidden>
-          <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" data-en-placeholder="Ask in any language…" aria-label="Je vraag aan Joost" data-en-aria-label="Your question for Joost" aria-describedby="teller nog"></textarea>
-          <button type="submit" aria-label="Verstuur" title="Verstuur" data-en-aria-label="Send" data-en-title="Send"><svg class="pijl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg><svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/></svg></button>
-        </form>
-        <p class="teller" id="teller" hidden></p>
-        <p class="nog" id="nog" hidden></p>
-        <p class="dicht" hidden data-en='<b>Ask Joost is full for today.</b> From midnight you can ask again. Until then you can <a href="#erin">add Joost to your own AI</a>, then it always works.'><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
-        <div class="chips" hidden>
-          <button class="chip" type="button" data-vul="Hoe wordt het weer in " aria-label="Weer in …, vul zelf je plaats in" data-en="Weather in …" data-en-data-vul="What’s the weather in " data-en-aria-label="Weather in …, add your own place">Weer in …</button>
-          <button class="chip" type="button" data-vul="Welke treinen gaan er zo vanaf " aria-label="Trein vanaf …, vul zelf je station in" data-en="Train from …" data-en-data-vul="Which trains leave soon from " data-en-aria-label="Train from …, add your own station">Trein vanaf …</button>
-          <button class="chip prompt" type="button" data-copy="Waar staat er nu file?" data-via="chip" data-en="Traffic jams now?" data-en-data-copy="Where are the traffic jams right now?">Files nu?</button>
-          <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?" data-via="chip" data-en="Flight KL1001?" data-en-data-copy="What is the status of flight KL1001?">Vlucht KL1001?</button><!--/vluchten-->
-        </div>
-        <!-- The switch between Dutch and English only shows in a browser that is not set to Dutch. -->
-        <p class="fine" hidden data-en='Joost is an AI (Claude) and can make mistakes. Don’t share personal details. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=nl" lang="nl" hreflang="nl">Nederlands</a></span>'>Joost is een AI (Claude) en kan fouten maken. Deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=en" lang="en" hreflang="en">English</a></span></p>
-      </div>
-
-      <div class="intro">
-        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, de files, het weer, het water, de stroomprijs, de schoolvakanties, het reisadvies, je huis, je buurt en je straat, en wat je bij de overheid regelt. Rechtstreeks uit de officiële bronnen, en gratis.</p>
-        <div class="actions">
-          <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
-          <a class="link-arrow" href="#probeer">Wat kan ik vragen? <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+  <main class="wrap kamer" id="main">
+    <!-- data-en is the English of an element and data-en-<attribute> that of an attribute, for a browser that is
+         not set to Dutch. -->
+    <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek" data-en-aria-label="Example of a conversation">
+      <!-- The heading shows in capitals, like the board, but a screen reader gets it as written: some spell out words in capitals. -->
+      <div class="chat-top"><h1><span class="vh" data-en="Ask Joost">Vraag het Joost</span><span aria-hidden="true" data-en="Ask Joost">Vraag het Joost</span></h1><span class="ai">AI</span></div>
+      <div class="log" id="log">
+        <div class="welkom">
+          <p class="groet" data-en="<span>Who knows?</span> Joost <em>knows</em>."><span>Joost mag het weten?</span> Joost <em>wéét</em> het.</p>
+          <p class="wat" data-en="Your train and bus, traffic, the weather, the water, power prices, school holidays, travel advice, your neighbourhood and Dutch government services. Live from the official sources, and free.">Je trein en bus, de files, het weer, het water, de stroomprijs, schoolvakanties, het reisadvies, je buurt en wat je bij de overheid regelt. Live uit de officiële bronnen, en gratis.</p>
           <button class="link-arrow beginscherm" type="button" hidden><svg class="i" aria-hidden="true"><use href="#i-telefoon"/></svg>Zet Joost op je beginscherm</button>
         </div>
-        <p class="works">Werkt met Claude en ChatGPT.</p>
+        <div class="label" hidden data-en="Example">Voorbeeld</div>
+        <div class="msg user" data-en='<h2 class="vh">You asked:<br></h2>When does the next train leave from Den Haag Centraal to Leiden?'><h2 class="vh">Jij vroeg:<br></h2>Hoe laat gaat de volgende trein van Den Haag Centraal naar Leiden?</div>
+        <div class="tool"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span data-en="<b>Hey Joost</b> checked NS"><b>Hey Joost</b> keek bij de NS</span></div>
+        <div class="msg ai" data-en='<h2 class="vh">Joost answers:<br></h2>At <b>19:39</b> from platform <b>12</b>. It’s on time, it’s quiet and you arrive at <b>19:58</b>. A ticket costs €&nbsp;4.60.'><h2 class="vh">Joost antwoordt:<br></h2>Om <b>19:39</b> van spoor <b>12</b>. Hij rijdt op tijd, het is rustig en je bent er om <b>19:58</b>. Een kaartje kost €&nbsp;4,60.</div>
+        <div class="msg user extra" data-en='<h2 class="vh">You asked:<br></h2>And is the sea in Scheveningen still warm enough?'><h2 class="vh">Jij vroeg:<br></h2>En is het zeewater in Scheveningen nog te doen?</div>
+        <div class="tool extra"><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="currentColor"/></svg><span data-en="<b>Hey Joost</b> checked Rijkswaterstaat"><b>Hey Joost</b> keek bij Rijkswaterstaat</span></div>
+        <div class="msg ai extra" data-en='<h2 class="vh">Joost answers:<br></h2>At the measuring points nearby it’s <b>17.6&nbsp;°C</b> now. Fresh, but fine.'><h2 class="vh">Joost antwoordt:<br></h2>Bij de meetpunten vlakbij is het nu <b>17,6&nbsp;°C</b>. Fris, maar te doen.</div>
       </div>
+      <p class="vh" id="status" role="status"></p>
+      <form class="ask" id="ask" hidden>
+        <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" data-en-placeholder="Ask in any language…" aria-label="Je vraag aan Joost" data-en-aria-label="Your question for Joost" aria-describedby="teller nog"></textarea>
+        <button type="submit" aria-label="Verstuur" title="Verstuur" data-en-aria-label="Send" data-en-title="Send"><svg class="pijl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg><svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/></svg></button>
+      </form>
+      <p class="teller" id="teller" hidden></p>
+      <p class="nog" id="nog" hidden></p>
+      <p class="dicht" data-voor="vol" hidden data-en='<b>Ask Joost is full for today.</b> From midnight you can ask again. Until then you can <a href="/over#erin">add Joost to your own AI</a>, then it always works.'><b>Vraag het Joost is voor vandaag vol.</b> Vanaf middernacht kan het weer. Tot die tijd kun je <a href="/over#erin">Joost in je eigen AI zetten</a>, dan kan het altijd.</p>
+      <p class="dicht" data-voor="uit" hidden data-en='<b>Ask Joost is off here.</b> You can still <a href="/over#erin">add Joost to your own AI</a>.'><b>Vraag het Joost staat hier uit.</b> Je kunt Joost wel <a href="/over#erin">in je eigen AI zetten</a>.</p>
+      <div class="chips" hidden>
+        <button class="chip" type="button" data-vul="Hoe wordt het weer in " aria-label="Weer in …, vul zelf je plaats in" data-en="Weather in …" data-en-data-vul="What’s the weather in " data-en-aria-label="Weather in …, add your own place">Weer in …</button>
+        <button class="chip" type="button" data-vul="Welke treinen gaan er zo vanaf " aria-label="Trein vanaf …, vul zelf je station in" data-en="Train from …" data-en-data-vul="Which trains leave soon from " data-en-aria-label="Train from …, add your own station">Trein vanaf …</button>
+        <button class="chip prompt" type="button" data-copy="Waar staat er nu file?" data-via="chip" data-en="Traffic jams now?" data-en-data-copy="Where are the traffic jams right now?">Files nu?</button>
+        <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?" data-via="chip" data-en="Flight KL1001?" data-en-data-copy="What is the status of flight KL1001?">Vlucht KL1001?</button><!--/vluchten-->
+      </div>
+      <!-- The switch between Dutch and English only shows in a browser that is not set to Dutch. -->
+      <p class="fine" hidden data-en='Joost is an AI (Claude) and can make mistakes. Don’t share personal details. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=nl" lang="nl" hreflang="nl">Nederlands</a></span>'>Joost is een AI (Claude) en kan fouten maken. Deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=en" lang="en" hreflang="en">English</a></span></p>
     </div>
-
-    <section class="section" id="wat">
-      <div class="head">
-        <h2>Wat Joost weet</h2>
-        <p class="sub">Alles live, en bij elk antwoord staat waar het vandaan komt.</p>
-      </div>
-      <div class="cols" aria-hidden="true"><span>Voorbeeld</span><span>Onderwerp</span><span>Wat erin zit</span><span>Bron</span></div>
-      <ul class="rows" role="list">
-        <li>
-          <div class="sign" aria-hidden="true"><b>12</b><span>Spoor</span></div>
-          <h3>Treinen</h3>
-          <p>Vertrek- en aankomsttijden, vertraging, spoor en uitval. Plus reisadvies met overstappen, drukte en prijs, en storingen en werkzaamheden op het spoor, met de bussen die dan rijden.</p>
-          <p class="src"><span class="vh">Bron: </span>NS</p>
-        </li>
-        <li>
-          <div class="sign" aria-hidden="true"><b>08:02</b><span>Tram 2</span></div>
-          <h3>Bus, tram en metro</h3>
-          <p>Live vertrektijden vanaf elke halte of vanaf je adres, met vertraging en uitval, en welke bus of tram je naar je bestemming brengt.</p>
-          <p class="src"><span class="vh">Bron: </span>OpenOV via Transitous</p>
-        </li>
-        <!--reisplanner--><li>
-          <div class="sign" aria-hidden="true"><b>09:41</b><span>Aankomst</span></div>
-          <h3>Van deur tot deur</h3>
-          <p>De snelste reis met het ov van je adres naar waar je moet zijn, met lopen, bus, tram, metro en trein, waar je overstapt en hoe laat je er bent. Ook als je op een vaste tijd ergens moet zijn.</p>
-          <p class="src"><span class="vh">Bron: </span>Transitous</p>
-        </li><!--/reisplanner-->
-        <li>
-          <div class="sign" aria-hidden="true"><b>A12</b><span>File</span></div>
-          <h3>Verkeer</h3>
-          <p>Files, ongelukken, afgesloten wegen en werk aan de weg, op de snelweg en in je eigen stad, met de afrit en de richting.</p>
-          <p class="src"><span class="vh">Bron: </span>NDW</p>
-        </li>
-        <!--vluchten--><li>
-          <div class="sign" aria-hidden="true"><b>D25</b><span>Gate</span></div>
-          <h3>Vluchten</h3>
-          <p>Status, gate en bagageband van je vlucht van of naar Schiphol, voor gisteren, vandaag en morgen. Alleen hier in de chat.</p>
-          <p class="src"><span class="vh">Bron: </span>Schiphol</p>
-        </li><!--/vluchten-->
-        <li>
-          <div class="sign" aria-hidden="true"><b>Geel</b><span>Kleurcode</span></div>
-          <h3>Reisadvies</h3>
-          <p>Hoe veilig een land is, per gebied met de kleurcode, wat er speelt en wanneer het advies voor het laatst veranderde. Ook over visum en paspoort, vaccinaties en wat je doet bij nood.</p>
-          <p class="src"><span class="vh">Bron: </span>Buitenlandse Zaken</p>
-        </li>
-        <li>
-          <div class="sign long" aria-hidden="true"><b>0,4 mm</b><span>Regen</span></div>
-          <h3>Weer</h3>
-          <p>Regen, temperatuur en wind per uur en per dag, de regenradar voor de komende twee uur en de weerwaarschuwingen. Voor elke plaats of wijk.</p>
-          <p class="src"><span class="vh">Bron: </span>KNMI, ook via Open-Meteo</p>
-        </li>
-        <li>
-          <div class="sign" aria-hidden="true"><b>17,5°</b><span>Zeewater</span></div>
-          <h3>Water</h3>
-          <p>Waterstand en watertemperatuur bij jou in de buurt, en eb en vloed: hoog- en laagwater met de wind erbij, aan de kust en de grote rivieren.</p>
-          <p class="src"><span class="vh">Bron: </span>Rijkswaterstaat</p>
-        </li>
-        <li>
-          <div class="sign long" aria-hidden="true"><b>23,6 ct</b><span>Per kWh</span></div>
-          <h3>Stroomprijs</h3>
-          <p>De stroomprijs per kwartier voor vandaag en morgen, kaal en met belasting, en wanneer stroom het goedkoopst is. Handig met een dynamisch contract.</p>
-          <p class="src"><span class="vh">Bron: </span>Bundesnetzagentur | SMARD.de</p>
-        </li>
-        <li>
-          <div class="sign long" aria-hidden="true"><b>19 dec</b><span>Kerst</span></div>
-          <h3>Schoolvakanties</h3>
-          <p>Wanneer is de vakantie in noord, midden of zuid? Voor dit en het volgende schooljaar.</p>
-          <p class="src"><span class="vh">Bron: </span>Rijksoverheid</p>
-        </li>
-        <li>
-          <div class="sign long" aria-hidden="true"><b>10 jaar</b><span>Paspoort</span></div>
-          <h3>Regelzaken</h3>
-          <p>Officiële antwoorden over toeslagen, AOW, je paspoort, je rijbewijs en meer. Plus wat je bij je eigen gemeente regelt, met de link en of het online kan.</p>
-          <p class="src"><span class="vh">Bron: </span>Rijksoverheid en gemeenten</p>
-        </li>
-        <li>
-          <div class="sign long" aria-hidden="true"><b>Kappen</b><span>Vergunning</span></div>
-          <h3>In je straat</h3>
-          <p>Wat er in je buurt is aangevraagd of vergund, zoals een verbouwing, een boom kappen of een evenement, en hoe je kunt reageren. Alleen rond een adres, nooit op naam.</p>
-          <p class="src"><span class="vh">Bron: </span>Officiële bekendmakingen</p>
-        </li>
-        <li>
-          <div class="sign long" aria-hidden="true"><b>22:00</b><span>Open tot</span></div>
-          <h3>Open in de buurt</h3>
-          <p>Supermarkten, apotheken en pinautomaten bij jou in de buurt of bij het station, met de afstand, of ze nu open zijn en tot hoe laat.</p>
-          <p class="src"><span class="vh">Bron: </span>OpenStreetMap</p>
-        </li>
-        <li>
-          <div class="sign" aria-hidden="true"><b>1917</b><span>Bouwjaar</span></div>
-          <h3>Huis-check</h3>
-          <p>Bouwjaar, oppervlakte, gebruik en buurt van elk adres in Nederland, uit de BAG.</p>
-          <p class="src"><span class="vh">Bron: </span>Kadaster</p>
-        </li>
-        <li>
-          <div class="sign" aria-hidden="true"><b>57%</b><span>Koophuis</span></div>
-          <h3>Buurten</h3>
-          <p>Wie er wonen, de gemiddelde WOZ-waarde, koop en huur, inkomen, energie en hoe ver de huisarts is. Voor elke buurt, wijk en gemeente, met heel Nederland ernaast.</p>
-          <p class="src"><span class="vh">Bron: </span>CBS</p>
-        </li>
-      </ul>
-    </section>
-  </div>
-
-  <div class="band">
-    <div class="wrap">
-      <section class="section" id="erin">
-        <div class="head">
-          <h2>Zo zet je Joost erin</h2>
-          <p class="sub">Eén keer instellen. Daarna vraagt je AI het zelf aan Joost als dat nodig is.</p>
-        </div>
-        <div class="url"><code>{{MCP_URL}}</code><button class="copy" type="button" data-copy="{{MCP_URL}}"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg>Kopieer</button></div>
-        <div class="setup">
-          <div>
-            <div class="step-head"><h3>Claude</h3><span class="tag">Werkt ook gratis</span></div>
-            <ol class="steps" role="list">
-              <li>Ga naar <b>Customize</b> en dan <b>Connectors</b>.</li>
-              <li>Klik op <b>+ Add</b> en kies <b>Add custom connector</b>.</li>
-              <li>Vul als naam <b>Hey Joost</b> in en plak de URL hierboven.</li>
-              <li>Kies <b>No sign in</b> en klik op <b>Add</b>.</li>
-              <li>Zet Joost aan in een chat via <b>+</b> en <b>Connectors</b>.</li>
-            </ol>
-          </div>
-          <div>
-            <div class="step-head"><h3>ChatGPT</h3><span class="tag">Plus of Pro</span></div>
-            <ol class="steps" role="list">
-              <li>Zet de ontwikkelaarsmodus aan via <b>Settings</b>, <b>Apps</b>, <b>Advanced settings</b>.</li>
-              <li>Ga naar <b>chatgpt.com/plugins</b>, klik op <b>+</b> en kies <b>Add custom MCP server</b>.</li>
-              <li>Vul als naam <b>Hey Joost</b> in, plak de URL hierboven en kies <b>No authentication</b>.</li>
-              <li>Typ in een chat <b>@</b> en kies Hey Joost.</li>
-            </ol>
-            <p class="small">Werkt op chatgpt.com, nog niet in de app.</p>
-          </div>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <div class="wrap">
-    <section class="section" id="probeer">
-      <div class="head">
-        <h2>Probeer eens</h2>
-        <p class="sub">Tik op een vraag om hem te kopiëren en plak hem in je AI.</p>
-      </div>
-      <div class="prompts">
-        <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?"><span class="topic" aria-hidden="true">Trein</span><span>Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?"><span class="topic" aria-hidden="true">Ophalen</span><span>Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Moet ik morgen een paraplu meenemen in Amsterdam?"><span class="topic" aria-hidden="true">Weer</span><span>Moet ik morgen een paraplu meenemen in Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?"><span class="topic" aria-hidden="true">Regen</span><span>Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="topic" aria-hidden="true">Tram</span><span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Staat er nu file op de A12, en is er ergens een weg dicht?"><span class="topic" aria-hidden="true">File</span><span>Staat er nu file op de A12, en is er ergens een weg dicht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?"><span class="topic" aria-hidden="true">Spoor</span><span>Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?"><span class="topic" aria-hidden="true">Reizen</span><span>Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="topic" aria-hidden="true">Water</span><span>Hoe warm is het zeewater in Scheveningen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Hoe laat is het laagwater morgen bij Harlingen?"><span class="topic" aria-hidden="true">Getij</span><span>Hoe laat is het laagwater morgen bij Harlingen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?"><span class="topic" aria-hidden="true">Strand</span><span>Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Wanneer is stroom vandaag het goedkoopst om de was te draaien?"><span class="topic" aria-hidden="true">Stroom</span><span>Wanneer is stroom vandaag het goedkoopst om de was te draaien?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?"><span class="topic" aria-hidden="true">Regelen</span><span>Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?"><span class="topic" aria-hidden="true">Straat</span><span>Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Welke supermarkt bij Utrecht Centraal is nu nog open?"><span class="topic" aria-hidden="true">Open</span><span>Welke supermarkt bij Utrecht Centraal is nu nog open?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-        <button class="prompt" type="button" data-copy="Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?"><span class="topic" aria-hidden="true">Buurt</span><span>Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-      </div>
-    </section>
-
-    <section class="section" id="bronnen">
-      <div class="head">
-        <h2>Waar Joost het vandaan haalt</h2>
-        <p class="sub">Officiële open data, live opgehaald.</p>
-      </div>
-      <ul class="sources">
-        <li><b>NS Reisinformatie API</b>treinen, storingen en werkzaamheden</li>
-        <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b>bus, tram en metro<!--reisplanner--> en reizen van deur tot deur<!--/reisplanner-->, met haltes<!--reisplanner--> en looproutes<!--/reisplanner--> van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
-        <!--vluchten--><li><b>Schiphol Public Flight API</b>vluchten, alleen in de chat</li><!--/vluchten-->
-        <li><b>KNMI en ECMWF via Open-Meteo</b>het weer: <a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
-        <li><b>KNMI Data Platform</b>de regenradar en de weerwaarschuwingen, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
-        <li><b>Rijkswaterstaat Waterinfo</b>waterstanden, temperatuur, eb en vloed</li>
-        <li><b>Bundesnetzagentur | SMARD.de, via Energy-Charts</b>de stroomprijs per kwartier, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
-        <li><b>Ministerie van Buitenlandse Zaken, via NederlandWereldwijd</b>het reisadvies</li>
-        <li><b>Rijksoverheid</b>schoolvakanties en vragen en antwoorden over regelzaken</li>
-        <li><b>Samenwerkende Catalogi (KOOP)</b>wat je bij je gemeente regelt</li>
-        <li><b>Officiële bekendmakingen (KOOP)</b>vergunningen en andere bekendmakingen rond een adres</li>
-        <li><b>NDW (Nationaal Dataportaal Wegverkeer)</b>files, ongelukken, afsluitingen en werkzaamheden, met wegen en afritten uit VILD</li>
-        <li><b>© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers</b>supermarkten, apotheken en pinautomaten met hun openingstijden, onder de <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a></li>
-        <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
-        <li><b>CBS</b>cijfers over buurten, wijken en gemeenten, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
-      </ul>
-      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Bij zwaar weer heeft <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a> altijd de laatste stand, en voor een reis <a href="https://www.nederlandwereldwijd.nl/reisadvies">nederlandwereldwijd.nl</a>.</p>
-    </section>
-  </div>
-</main>
-
-<footer class="foot">
-  <div class="wrap">
-    <div class="foot-top">
-      <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
-      <div class="links"><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="/toegankelijkheid">Toegankelijkheid</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
-    </div>
-    <p>Gemaakt door Mohamed Azahrioui. Volg Joost op <a href="https://www.tiktok.com/@heyjoost.nl">TikTok</a> en <a href="https://www.instagram.com/heyjoost.nl/">Instagram</a>.</p>
-  </div>
-</footer>
+  </main>
+</div>
 
 <dialog class="uitleg" id="beginscherm" aria-labelledby="beginscherm-kop">
   <div class="uitleg-in">
@@ -330,8 +128,8 @@
   let askJoost = null;
 
   // The chat in English when this browser is not set to Dutch at all: Joost answers in any language, and this shows
-  // it. A choice with ?lang=en or ?lang=nl, as the switch under the chat makes, is remembered. The rest of the page
-  // stays Dutch.
+  // it. A choice with ?lang=en or ?lang=nl, as the switch under the chat makes, is remembered. The page about Joost
+  // and the other pages stay Dutch.
   const dutchBrowser = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "nl"])
     .some((language) => /^nl\b/i.test(language));
   const english = (() => {
@@ -407,7 +205,8 @@
   const canInstall = !standalone && matchMedia("(pointer: coarse)").matches && !!installSteps.showModal;
   let installPrompt = null;
 
-  installButton.hidden = !canInstall;
+  // The steps are only in Dutch.
+  installButton.hidden = !canInstall || english;
   installButton.addEventListener("click", install);
   installSteps.addEventListener("click", (event) => {
     if (event.target === installSteps) installSteps.close();
@@ -437,11 +236,13 @@
   // Vraag het Joost: the server switches the chat on when it has a key and budget left for today.
   const chat = document.getElementById("chat");
   if (english) {
-    chat.lang = "en";
-    for (const el of [chat, ...chat.querySelectorAll("*")]) {
-      for (const { name, value } of [...el.attributes]) {
-        if (name === "data-en") el.innerHTML = value;
-        else if (name.startsWith("data-en-")) el.setAttribute(name.slice(8), value);
+    for (const part of [document.querySelector(".top"), chat]) {
+      part.lang = "en";
+      for (const el of [part, ...part.querySelectorAll("*")]) {
+        for (const { name, value } of [...el.attributes]) {
+          if (name === "data-en") el.innerHTML = value;
+          else if (name.startsWith("data-en-")) el.setAttribute(name.slice(8), value);
+        }
       }
     }
   }
@@ -449,13 +250,36 @@
   if (chat.dataset.vraag === "aan") startChat();
   else closed();
 
-  // Off, the example says it is one. When today's questions are used up, the chat also says until when.
+  // Off, the example says it is one, and the chat says why: until midnight when today's questions are used up, or
+  // for good on a server without a key. That message sits where the field would be, so it is always in view.
   function closed() {
+    chat.classList.add("toe");
     chat.querySelector(".label").hidden = false;
-    if (chat.dataset.vraag !== "vol") return;
-    chat.querySelector(".chat-top").hidden = false;
-    chat.querySelector(".groter").hidden = true;
-    chat.querySelector(".dicht").hidden = false;
+    const why = chat.querySelector(`.dicht[data-voor="${chat.dataset.vraag}"]`);
+    if (why) why.hidden = false;
+    const log = document.getElementById("log");
+    fitting(log, log.querySelector(".welkom"));
+  }
+
+  // Before the first question the welcome and the example show as far as they fit, so nothing is cut off. On a
+  // smaller screen the button for the home screen makes way first, then the example instead of it, then both.
+  // Only while the welcome is in the log. Gives back the check, for when the start comes back; then() runs after
+  // every check.
+  function fitting(log, welcome, then = () => {}) {
+    const TIGHT = [[], ["krap"], ["kort"], ["krap", "kort"]];
+    function fits() {
+      if (!welcome.isConnected) return;
+      for (const classes of TIGHT) {
+        log.classList.remove("krap", "kort");
+        log.classList.add(...classes);
+        if (log.scrollHeight <= log.clientHeight) break;
+      }
+      then();
+    }
+    fits();
+    if (window.ResizeObserver) new ResizeObserver(fits).observe(log);
+    if (document.fonts) document.fonts.ready.then(fits);
+    return fits;
   }
 
   function startChat() {
@@ -537,8 +361,7 @@
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", t("Chat met Joost", "Chat with Joost"));
-    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog, .taal)").forEach((el) => { el.hidden = false; });
-    document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
+    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog, .taal, .beginscherm)").forEach((el) => { el.hidden = false; });
     // On a phone the keyboard has a microphone, so the field says you can also say your question. Short enough for
     // one line on the smallest phone. In English it says you can ask in any language.
     if (!english && matchMedia("(pointer: coarse)").matches) input.placeholder = "Typ of zeg je vraag…";
@@ -565,56 +388,23 @@
     }
     log.addEventListener("scroll", showMore, { passive: true });
 
-    // Bigger, like the expand button in other chat windows: the chat moves into a dialog over the page and back.
-    // The toast goes along, or the dialog would hide it and make it silent for a screen reader.
-    const toggle = chat.querySelector(".groter");
-    const big = document.createElement("dialog");
-    const spot = document.createElement("div");
-    const note = document.getElementById("toast");
-    big.className = "groot";
-    big.setAttribute("aria-label", t("Vraag het Joost", "Ask Joost"));
-    spot.className = "chat";
-    spot.setAttribute("aria-hidden", "true");
-    document.body.append(big);
-    toggle.hidden = !big.showModal;
-
-    toggle.addEventListener("click", () => {
-      if (big.open) {
-        big.close();
-        return;
-      }
-      spot.style.height = chat.offsetHeight + "px";
-      chat.replaceWith(spot);
-      big.append(chat, note);
-      big.showModal();
-      fit();
-      resize(true);
-    });
-    big.addEventListener("close", () => {
-      spot.replaceWith(chat);
-      document.body.append(note);
-      fit();
-      resize(false);
-      toggle.focus();
-    });
-
-    // On a phone the keyboard covers the bottom of the screen. Android shrinks the page for it (see the viewport
-    // meta), Safari does not, so there the big chat takes the height that is still visible, and the field and the
-    // top of the chat both stay in view.
+    // On a phone the page is pinned to the screen and the keyboard covers its bottom. Android shrinks the page for it
+    // (see the viewport meta), Safari does not, so there the page takes the height that is still visible, and the
+    // field and the top of the chat both stay in view. Not while you zoom in with two fingers.
+    const app = document.querySelector(".app");
     const view = window.visualViewport;
     const phone = matchMedia("(max-width: 600px)");
     if (view) {
       view.addEventListener("resize", fit);
       view.addEventListener("scroll", fit);
+      phone.addEventListener("change", fit);
+      fit();
     }
     function fit() {
-      const on = big.open && view && phone.matches;
-      big.style.height = on ? view.height + "px" : "";
-      big.style.top = on ? view.offsetTop + "px" : "";
+      const on = phone.matches && view.scale < 1.01;
+      app.style.height = on ? view.height + "px" : "";
+      app.style.top = on ? view.offsetTop + "px" : "";
     }
-    big.addEventListener("click", (event) => {
-      if (event.target === big) big.close();
-    });
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -672,16 +462,20 @@
     restore();
     showSaved();
 
-    // A shared link carries its question after the #, so it never reaches the server or its logs.
+    // The welcome and the example as far as they fit, and the button that says there is more.
+    const fits = fitting(log, intro.find((el) => el.matches(".welkom")), showMore);
+
+    // A shared link carries its question after the #, so it never reaches the server or its logs. So does an example
+    // on /over, as #voorbeeld=, to count it as one.
     askFromLink();
     addEventListener("hashchange", askFromLink);
 
     function askFromLink() {
-      const shared = location.hash.match(/^#vraag=(.+)/);
+      const shared = location.hash.match(/^#(vraag|voorbeeld)=(.+)/);
       if (!shared) return;
       window.history.replaceState(null, "", location.pathname + location.search);
       try {
-        ask(decodeURIComponent(shared[1]).slice(0, 500), true, "link");
+        ask(decodeURIComponent(shared[2]).slice(0, 500), true, shared[1] === "vraag" ? "link" : "voorbeeld");
       } catch {
         // A broken link: then there is simply no question.
       }
@@ -696,7 +490,8 @@
         say(t("Je vraag is te lang: ", "Your question is too long: ") + counter.textContent + ".");
         return;
       }
-      if (fromPrompt && !big.open) chat.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "center" });
+      // Only when the page is taller than the screen, as with very large letters, is the chat not all in view.
+      if (fromPrompt) log.scrollIntoView({ behavior: calm.matches ? "auto" : "smooth", block: "nearest" });
       quiet();
       working(true);
       let finish;
@@ -709,6 +504,7 @@
       };
       if (example) {
         log.replaceChildren(more);
+        log.classList.remove("krap", "kort");
         example = false;
         // Under the field only Nieuw gesprek stays. A chip that was used hands its focus to the stop button.
         if (document.activeElement && document.activeElement.closest(".chips")) send.focus();
@@ -957,18 +753,10 @@
       example = true;
       log.replaceChildren(...intro, more);
       log.scrollTop = 0;
-      showMore();
       showSaved();
+      fits();
       say(t("Nieuw gesprek, het vorige is gewist", "New chat, the last one is cleared"));
       (matchMedia("(pointer: fine)").matches ? input : chips.querySelector("button") || input).focus();
-    }
-
-    function resize(open) {
-      toggle.setAttribute("aria-label", open ? t("Chat kleiner maken", "Make the chat smaller") : t("Chat groter maken", "Make the chat bigger"));
-      toggle.querySelector("span").textContent = open ? t("Kleiner", "Smaller") : t("Groter", "Bigger");
-      toggle.querySelector("use").setAttribute("href", open ? "#i-klein" : "#i-groot");
-      settle(true);
-      if (open && matchMedia("(pointer: fine)").matches) input.focus();
     }
 
     // A question in the field, typed or put there by the page.

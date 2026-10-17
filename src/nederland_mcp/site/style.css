@@ -135,7 +135,7 @@ a:hover { text-decoration-color: var(--accent); }
   width: 18px; height: 18px; flex: none;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square;
 }
-.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; text-transform: none; }
 
 .wrap { max-width: 1280px; margin-inline: auto; padding-inline: 40px; }
 
@@ -169,18 +169,17 @@ a:hover { text-decoration-color: var(--accent); }
 .btn-accent { min-height: 54px; padding: 0 26px; background: var(--accent); color: var(--on-accent); font-size: var(--text-md); }
 .btn-accent:hover { background: var(--accent-hover); }
 
-/* Hero: the headline across the page, the chat display under it on the right. */
+/* The top of /over: the headline across the page, the introduction under it. */
 
 .hero {
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--space-5);
-  padding: var(--space-7) 0 var(--space-9);
+  padding-top: var(--space-7);
 }
-.hero h1 { grid-column: 1 / -1; margin: 0 0 var(--space-7); font-size: var(--text-3xl); line-height: 1.08; letter-spacing: -0.012em; }
+.hero h1 { grid-column: 1 / -1; margin: 0 0 var(--space-6); font-size: var(--text-3xl); line-height: 1.08; letter-spacing: -0.012em; }
 .hero h1 span { display: block; }
 .hero h1 .muted { color: var(--ink-3); }
 .hero h1 em { font-style: normal; }
-.chat { grid-column: 6 / -1; grid-row: 2 / span 2; }
-.intro { grid-column: 1 / 6; grid-row: 2; padding-right: var(--space-6); }
+.intro { grid-column: 1 / 9; }
 .lead { margin: 0 0 var(--space-6); color: var(--ink-2); font-size: var(--text-lg); line-height: 1.5; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-6); }
 .link-arrow { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; font-weight: 600; text-decoration: none; }
@@ -191,29 +190,57 @@ a:hover { text-decoration-color: var(--accent); }
 .beginscherm:hover .i { transform: none; }
 .works { margin: var(--space-6) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--rule); color: var(--ink-3); font-size: var(--text-sm); }
 
-/* The chat looks like a display at a stop: black, with orange light.
-   It shows an example, and becomes a live chat when the server switches it on. */
+/* The home page is the chat: the header on top and the display filling the rest of the screen, so only the
+   conversation scrolls. On a low screen or with very large letters the conversation keeps room for a few lines and
+   the page scrolls instead. Pulling down at the top never reloads the page, which would stop an answer. */
 
-.chat { display: flex; flex-direction: column; border-radius: var(--radius-lg); background: var(--board); color: var(--board-ink); overflow: hidden; }
-/* With very large letters the button moves to a line of its own instead of sticking out. */
+html:has(.app) { overscroll-behavior-y: none; }
+.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.app > * { width: 100%; }
+.kamer { flex: 1 1 0; display: flex; flex-direction: column; padding-block: var(--space-5); }
+.kamer .chat { flex: 1 1 0; }
+
+/* The chat looks like a display at a stop: black, with orange light. It shows an example, and becomes a live chat
+   when the server switches it on. The conversation runs in a column down the middle, so on a wide screen the lines
+   stay short enough to read. */
+
+.chat {
+  --kant: 20px;
+  --rand: max(var(--kant), (100% - 760px) / 2);
+  display: flex; flex-direction: column; border-radius: var(--radius-lg); background: var(--board); color: var(--board-ink);
+}
 .chat-top {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: 14px 20px; border-bottom: 1px solid var(--board-line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: 14px var(--rand); border-bottom: 1px solid var(--board-line);
   color: var(--led); font: 600 var(--text-xs)/1 var(--mono); letter-spacing: 0.09em; text-transform: uppercase;
 }
-.chat-top b { font-weight: 600; }
+.chat-top h1 { margin: 0; font: inherit; letter-spacing: inherit; }
 /* Joost has a human name, so the chat says at the top that it is an AI. */
 .chat-top .ai { margin-block: -4px; padding: 3px 5px; border: 1px solid var(--led); border-radius: var(--radius-sm); line-height: 1; }
 
-.log { display: flex; flex-direction: column; gap: 10px; padding: 20px; }
-.chat { --log-h: clamp(240px, calc(100svh - 500px), 380px); }
-/* At the top or bottom of the conversation a swipe goes on to the page, so a finger on the chat never gets stuck. */
-.chat.on .log {
-  height: var(--log-h); overflow-y: auto;
+.log { flex: 1 0 auto; display: flex; flex-direction: column; gap: 10px; padding: 20px var(--rand); }
+.log > :first-child { margin-top: auto; }
+/* At the top or bottom of the conversation a swipe goes on to the page, so a finger on the chat never gets stuck
+   when the page is taller than the screen. A closed chat keeps this shape, with why at the bottom. */
+.chat:is(.on, .toe) .log {
+  flex: 1 1 0; min-height: 15rem; overflow-y: auto;
   scrollbar-width: thin; scrollbar-color: var(--board-line) transparent;
 }
-/* Until the first question the examples get the room they need, so no example is ever cut off. */
-.chat.on .log:has(> .label) { height: auto; min-height: var(--log-h); }
-.chat.on .log > :first-child { margin-top: auto; }
+
+/* Before the first question: who Joost is and what you can ask him, then an example. */
+.welkom { margin-bottom: var(--space-5); }
+.groet {
+  margin: 0; color: var(--board-ink); font: 700 var(--text-2xl)/1.02 var(--sans); font-stretch: var(--narrow);
+  letter-spacing: -0.01em; text-wrap: balance;
+}
+.groet span { display: block; color: var(--board-dim); }
+.groet em { color: var(--led); font-style: normal; }
+.wat { max-width: 38em; margin: var(--space-3) 0 0; color: var(--board-dim); }
+.welkom .beginscherm { margin-top: var(--space-2); color: var(--board-ink); }
+.welkom .beginscherm .i { color: var(--led); }
+/* What does not fit makes way (see fits() in index.html). */
+.log.krap .beginscherm, .log.kort > :is(.label, .msg, .tool) { display: none; }
+.log.kort .welkom { margin-bottom: 0; }
+
 .label { align-self: center; padding-bottom: 6px; color: var(--board-dim); font: 400 var(--text-xs)/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
 
 .msg { max-width: 84%; padding: 11px 15px; border-radius: var(--radius-sm); line-height: 1.45; }
@@ -254,7 +281,7 @@ a:hover { text-decoration-color: var(--accent); }
 .tool.busy { animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.45; } }
 
-.ask { display: flex; align-items: flex-end; gap: var(--space-2); padding: 0 20px; }
+.ask { display: flex; align-items: flex-end; gap: var(--space-2); padding: 0 var(--rand); }
 /* One line to start with, growing with the question up to five lines. At 17 px a phone does not zoom in. */
 .ask textarea {
   flex: 1; min-width: 0; min-height: 50px; max-height: calc(5 * 1.4em + 26px); padding: 12px var(--space-4);
@@ -264,10 +291,10 @@ a:hover { text-decoration-color: var(--accent); }
 }
 .ask textarea::placeholder { color: var(--board-dim); opacity: 1; }
 .ask textarea:focus { outline: 2px solid var(--led); outline-offset: -1px; }
-.teller { margin: 0; padding: 6px 20px 0; color: var(--board-dim); font: 400 var(--text-xs)/1.3 var(--mono); text-align: right; }
+.teller { margin: 0; padding: 6px var(--rand) 0; color: var(--board-dim); font: 400 var(--text-xs)/1.3 var(--mono); text-align: right; }
 .teller.over { color: var(--led); font-weight: 600; }
 /* From three questions left today. */
-.nog { margin: 0; padding: 6px 20px 0; color: var(--board-ink); font: 400 var(--text-xs)/1.4 var(--mono); }
+.nog { margin: 0; padding: 6px var(--rand) 0; color: var(--board-ink); font: 400 var(--text-xs)/1.4 var(--mono); }
 .ask button {
   flex: none; display: grid; place-items: center; width: 50px; height: 50px;
   border: 0; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-accent); cursor: pointer;
@@ -282,12 +309,12 @@ a:hover { text-decoration-color: var(--accent); }
 
 /* When today's questions are used up: until when, and what you can do instead. */
 .dicht {
-  margin: 0 20px 20px; padding: var(--space-3) var(--space-4); border-left: 2px solid var(--led);
+  margin: 0 var(--rand) 20px; padding: var(--space-3) var(--space-4); border-left: 2px solid var(--led);
   color: var(--board-dim); font-size: var(--text-sm); line-height: 1.5;
 }
 .dicht b { color: var(--board-ink); }
 .dicht a { color: var(--board-ink); text-decoration-color: var(--led); }
-.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) 20px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--rand) 0; }
 .chip {
   min-height: 44px; padding: 0 13px; border: 1px solid var(--board-edge); border-radius: var(--radius-sm);
   background: none; color: var(--board-ink); font: 500 var(--text-sm)/1 var(--sans); cursor: pointer;
@@ -295,7 +322,7 @@ a:hover { text-decoration-color: var(--accent); }
 .chip:hover { border-color: var(--led); color: var(--led); }
 .chip.nieuw { display: inline-flex; align-items: center; gap: 7px; padding-left: 10px; }
 .chip.nieuw .i { width: 15px; height: 15px; color: var(--led); }
-.fine { margin: 0; padding: 14px 20px 18px; color: var(--board-dim); font-size: var(--text-xs); line-height: 1.5; }
+.fine { margin: 0; padding: 14px var(--rand) 18px; color: var(--board-dim); font-size: var(--text-xs); line-height: 1.5; }
 .fine a { color: var(--board-ink); }
 
 /* Under an answer: hear it, share it, or keep the question. Kept questions replace the examples, with a star. */
@@ -346,30 +373,6 @@ a:hover { text-decoration-color: var(--accent); }
 }
 .verder:hover { background: var(--accent-hover); }
 .verder .i { width: 15px; height: 15px; stroke-width: 2.5; }
-
-/* With a word, because on a touch screen nobody sees a tooltip. */
-.groter {
-  display: inline-flex; align-items: center; gap: 7px; height: 44px; margin: -14px -12px -14px auto; padding: 0 12px;
-  border: 0; border-radius: var(--radius-sm); background: none; color: var(--board-dim); cursor: pointer;
-  font: 600 var(--text-xs)/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
-}
-.groter:hover { background: var(--board-2); color: var(--board-ink); }
-.groter .i { width: 15px; height: 15px; }
-.groter:focus-visible { outline-offset: -3px; }
-
-/* The bigger chat: a large window over the page, the whole screen on a phone. */
-.groot {
-  width: min(960px, 100% - 48px); height: calc(100dvh - 48px); max-width: none; max-height: none;
-  padding: 0; border: 0; background: none; color: inherit; overflow: visible;
-}
-.groot::backdrop { background: rgb(0 0 0 / 0.6); }
-.groot .chat { height: 100%; margin: 0; }
-/* Over the page, the page behind stays put. */
-.groot .chat.on .log, .groot .chat.on .log:has(> .label) { flex: 1; height: auto; min-height: 0; overscroll-behavior: contain; }
-.groot .log .msg.extra { display: block; }
-.groot .log .tool.extra { display: flex; }
-.groot .msg { max-width: min(84%, 680px); }
-html:has(.groot[open]) { overflow: hidden; }
 
 /* The steps for the home screen, in a window over the page. */
 .uitleg {
@@ -523,22 +526,19 @@ main { padding-bottom: var(--space-9); }
 /* Windows high contrast: the browser paints its own colours and drops the shadows, so what was only a colour, like a
    bubble or the send button, gets an edge in the colour of its text. */
 @media (forced-colors: active) {
-  .chat, .msg, .ask button, .verder, .acties button, .groter, .vaste .weg, .toast, .btn, .copy, .sluit, .sign { border: 1px solid; }
+  .chat, .msg, .ask button, .verder, .acties button, .vaste .weg, .toast, .btn, .copy, .sluit, .sign { border: 1px solid; }
   .msg.fout, .ask.bezig button { border-width: 2px; }
 }
 
-/* On a low screen the second example would push the input under the fold. */
-@media (max-height: 860px) {
+/* On a lower screen the second example would not fit above the field. */
+@media (max-height: 1000px) {
   .log .extra { display: none; }
 }
 
-/* Tablet: one column, the chat right under the heading. */
+/* Tablet: one column. */
 @media (max-width: 999px) {
-  .hero { display: flex; flex-direction: column; padding-bottom: var(--space-8); }
-  .hero h1 { margin-bottom: var(--space-6); }
-  .chat { margin-bottom: var(--space-6); }
-  .chat { --log-h: min(340px, 44svh); }
-  .intro { padding-right: 0; }
+  .hero h1 { margin-bottom: var(--space-5); }
+  .intro { grid-column: 1 / -1; }
   .head { display: block; }
   .sub { margin-top: var(--space-3); }
   .cols { display: none; }
@@ -549,9 +549,13 @@ main { padding-bottom: var(--space-9); }
   .sources { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* On the home page a narrow screen has room for one button: to the page about Joost, which also says how to add
+   him to your own AI. */
+.top .meer { display: none; }
 @media (max-width: 760px) {
-  .nav { display: none; }
+  .nav, .top .erin { display: none; }
   .top .btn { margin-left: auto; }
+  .top .meer { display: inline-flex; }
 }
 
 /* Phone */
@@ -562,25 +566,24 @@ main { padding-bottom: var(--space-9); }
   .brand { font-size: calc(19 * var(--px)); }
   .brand .logo { width: 26px; height: 26px; }
   .top .btn { min-height: 40px; padding: 0 14px; font-size: var(--text-xs); }
-  .hero { padding-top: var(--space-5); padding-bottom: var(--space-6); }
+  .hero { padding-top: var(--space-5); }
   .hero h1 { line-height: 1.02; }
-  .chat-top { padding-inline: var(--space-4); }
-  .log { padding: var(--space-4); }
-  .chat { --log-h: clamp(260px, 32svh, 360px); }
+  /* On a phone the chat is the whole screen under the header, pinned to it, so the keyboard can make it lower (see
+     fit() in index.html). Only when it does not fit does the page scroll, inside itself. */
+  .app { position: fixed; inset: 0 0 auto; height: 100vh; height: 100dvh; overflow-y: auto; }
+  .kamer { padding: 0; }
+  .kamer .chat { border-radius: 0; }
+  .chat { --kant: var(--space-4); }
+  .log { padding-block: var(--space-4); }
   .log .extra { display: none; }
+  .groet { font-size: clamp(calc(30 * var(--px)), 9vw, calc(36 * var(--px))); }
   .msg { max-width: 92%; font-size: calc(16 * var(--px)); }
   /* On a phone the chat is small, so the way down is a square arrow in the corner, above the send button. */
   .verder { align-self: flex-end; justify-content: center; width: 44px; height: 44px; margin-top: -54px; padding: 0; }
   .verder span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .verder .i { width: 20px; height: 20px; }
-  .ask { padding: 0 var(--space-4); }
-  .teller, .nog { padding-inline: var(--space-4); }
-  .dicht { margin: 0 var(--space-4) var(--space-4); }
-  .chips { padding: var(--space-3) var(--space-4) 0; }
-  .fine { padding: var(--space-3) var(--space-4) var(--space-4); }
-  .groot { width: 100%; height: 100dvh; margin: 0; }
-  .groot .chat { border-radius: 0; }
-  .groot .msg { max-width: 92%; }
+  .dicht { margin-bottom: var(--space-4); }
+  .fine { padding-block: var(--space-3) var(--space-4); }
   .lead, .sub { font-size: var(--text-md); }
   .section { padding-top: var(--space-8); scroll-margin-top: calc(var(--space-5) - var(--space-8)); }
   main { padding-bottom: var(--space-8); }
@@ -602,7 +605,6 @@ main { padding-bottom: var(--space-9); }
    button in the header would push the name onto two lines. */
 @media (max-width: 374px) {
   .msg { font-size: calc(15 * var(--px)); }
-  .groter .i { display: none; }
   /* The top of the chat and the buttons under an answer each stay on one line. */
   .chat-top { gap: var(--space-2); letter-spacing: 0.04em; }
   .acties { margin-left: -7px; }

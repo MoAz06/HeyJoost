@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Over Hey Joost: live Nederland in je AI</title>
+<meta name="description" content="Wat Hey Joost weet, hoe je Joost in Claude of ChatGPT zet en waar hij het vandaan haalt: treinen en storingen, bus en tram, files, het weer en de regenradar, eb en vloed, de stroomprijs, schoolvakanties, huizen en buurten, vergunningen in je straat, wat er open is, het reisadvies en regelzaken. Gratis, uit officiële bronnen.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/plex-sans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/style.css?v={{VERSION}}">
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="logo" viewBox="0 0 64 64"><path d="M18 6H46A12 12 0 0 1 58 18V36A12 12 0 0 1 46 48H27L16 58L18 48A12 12 0 0 1 6 36V18A12 12 0 0 1 18 6Z" fill="#ff6b00"/><path d="M37 15V30a7 7 0 0 1-12.5 4.3" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h12v12H8zM16 8V4H4v12h4"/></symbol>
+</svg>
+<a class="skip" href="#main">Naar de inhoud</a>
+
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
+    <nav class="nav" aria-label="Menu">
+      <a href="/">Vraag het Joost</a>
+      <a href="/over#wat">Wat Joost weet</a>
+      <a href="/over#bronnen">Bronnen</a>
+    </nav>
+    <a class="btn btn-ink" href="/over#erin">Zet Joost in je AI</a>
+  </header>
+</div>
+
+<main id="main">
+  <div class="wrap">
+    <div class="hero">
+      <h1><span class="muted">Joost mag het weten?</span> <span>Joost <em>wéét</em> het.</span></h1>
+      <div class="intro">
+        <p class="lead">Hey Joost geeft je AI live Nederland: je trein en je bus, de files, het weer, het water, de stroomprijs, de schoolvakanties, het reisadvies, je huis, je buurt en je straat, en wat je bij de overheid regelt. Rechtstreeks uit de officiële bronnen, en gratis.</p>
+        <div class="actions">
+          <a class="btn btn-accent" href="#erin">Zet Joost in je AI</a>
+          <a class="link-arrow" href="/">Of vraag het Joost meteen <svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </div>
+        <p class="works">Werkt met Claude en ChatGPT.</p>
+      </div>
+    </div>
+
+    <section class="section" id="wat">
+      <div class="head">
+        <h2>Wat Joost weet</h2>
+        <p class="sub">Alles live, en bij elk antwoord staat waar het vandaan komt.</p>
+      </div>
+      <div class="cols" aria-hidden="true"><span>Voorbeeld</span><span>Onderwerp</span><span>Wat erin zit</span><span>Bron</span></div>
+      <ul class="rows" role="list">
+        <li>
+          <div class="sign" aria-hidden="true"><b>12</b><span>Spoor</span></div>
+          <h3>Treinen</h3>
+          <p>Vertrek- en aankomsttijden, vertraging, spoor en uitval. Plus reisadvies met overstappen, drukte en prijs, en storingen en werkzaamheden op het spoor, met de bussen die dan rijden.</p>
+          <p class="src"><span class="vh">Bron: </span>NS</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>08:02</b><span>Tram 2</span></div>
+          <h3>Bus, tram en metro</h3>
+          <p>Live vertrektijden vanaf elke halte of vanaf je adres, met vertraging en uitval, en welke bus of tram je naar je bestemming brengt.</p>
+          <p class="src"><span class="vh">Bron: </span>OpenOV via Transitous</p>
+        </li>
+        <!--reisplanner--><li>
+          <div class="sign" aria-hidden="true"><b>09:41</b><span>Aankomst</span></div>
+          <h3>Van deur tot deur</h3>
+          <p>De snelste reis met het ov van je adres naar waar je moet zijn, met lopen, bus, tram, metro en trein, waar je overstapt en hoe laat je er bent. Ook als je op een vaste tijd ergens moet zijn.</p>
+          <p class="src"><span class="vh">Bron: </span>Transitous</p>
+        </li><!--/reisplanner-->
+        <li>
+          <div class="sign" aria-hidden="true"><b>A12</b><span>File</span></div>
+          <h3>Verkeer</h3>
+          <p>Files, ongelukken, afgesloten wegen en werk aan de weg, op de snelweg en in je eigen stad, met de afrit en de richting.</p>
+          <p class="src"><span class="vh">Bron: </span>NDW</p>
+        </li>
+        <!--vluchten--><li>
+          <div class="sign" aria-hidden="true"><b>D25</b><span>Gate</span></div>
+          <h3>Vluchten</h3>
+          <p>Status, gate en bagageband van je vlucht van of naar Schiphol, voor gisteren, vandaag en morgen. Alleen in de chat op deze site.</p>
+          <p class="src"><span class="vh">Bron: </span>Schiphol</p>
+        </li><!--/vluchten-->
+        <li>
+          <div class="sign" aria-hidden="true"><b>Geel</b><span>Kleurcode</span></div>
+          <h3>Reisadvies</h3>
+          <p>Hoe veilig een land is, per gebied met de kleurcode, wat er speelt en wanneer het advies voor het laatst veranderde. Ook over visum en paspoort, vaccinaties en wat je doet bij nood.</p>
+          <p class="src"><span class="vh">Bron: </span>Buitenlandse Zaken</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>0,4 mm</b><span>Regen</span></div>
+          <h3>Weer</h3>
+          <p>Regen, temperatuur en wind per uur en per dag, de regenradar voor de komende twee uur en de weerwaarschuwingen. Voor elke plaats of wijk.</p>
+          <p class="src"><span class="vh">Bron: </span>KNMI, ook via Open-Meteo</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>17,5°</b><span>Zeewater</span></div>
+          <h3>Water</h3>
+          <p>Waterstand en watertemperatuur bij jou in de buurt, en eb en vloed: hoog- en laagwater met de wind erbij, aan de kust en de grote rivieren.</p>
+          <p class="src"><span class="vh">Bron: </span>Rijkswaterstaat</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>23,6 ct</b><span>Per kWh</span></div>
+          <h3>Stroomprijs</h3>
+          <p>De stroomprijs per kwartier voor vandaag en morgen, kaal en met belasting, en wanneer stroom het goedkoopst is. Handig met een dynamisch contract.</p>
+          <p class="src"><span class="vh">Bron: </span>Bundesnetzagentur | SMARD.de</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>19 dec</b><span>Kerst</span></div>
+          <h3>Schoolvakanties</h3>
+          <p>Wanneer is de vakantie in noord, midden of zuid? Voor dit en het volgende schooljaar.</p>
+          <p class="src"><span class="vh">Bron: </span>Rijksoverheid</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>10 jaar</b><span>Paspoort</span></div>
+          <h3>Regelzaken</h3>
+          <p>Officiële antwoorden over toeslagen, AOW, je paspoort, je rijbewijs en meer. Plus wat je bij je eigen gemeente regelt, met de link en of het online kan.</p>
+          <p class="src"><span class="vh">Bron: </span>Rijksoverheid en gemeenten</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>Kappen</b><span>Vergunning</span></div>
+          <h3>In je straat</h3>
+          <p>Wat er in je buurt is aangevraagd of vergund, zoals een verbouwing, een boom kappen of een evenement, en hoe je kunt reageren. Alleen rond een adres, nooit op naam.</p>
+          <p class="src"><span class="vh">Bron: </span>Officiële bekendmakingen</p>
+        </li>
+        <li>
+          <div class="sign long" aria-hidden="true"><b>22:00</b><span>Open tot</span></div>
+          <h3>Open in de buurt</h3>
+          <p>Supermarkten, apotheken en pinautomaten bij jou in de buurt of bij het station, met de afstand, of ze nu open zijn en tot hoe laat.</p>
+          <p class="src"><span class="vh">Bron: </span>OpenStreetMap</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>1917</b><span>Bouwjaar</span></div>
+          <h3>Huis-check</h3>
+          <p>Bouwjaar, oppervlakte, gebruik en buurt van elk adres in Nederland, uit de BAG.</p>
+          <p class="src"><span class="vh">Bron: </span>Kadaster</p>
+        </li>
+        <li>
+          <div class="sign" aria-hidden="true"><b>57%</b><span>Koophuis</span></div>
+          <h3>Buurten</h3>
+          <p>Wie er wonen, de gemiddelde WOZ-waarde, koop en huur, inkomen, energie en hoe ver de huisarts is. Voor elke buurt, wijk en gemeente, met heel Nederland ernaast.</p>
+          <p class="src"><span class="vh">Bron: </span>CBS</p>
+        </li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="band">
+    <div class="wrap">
+      <section class="section" id="erin">
+        <div class="head">
+          <h2>Zo zet je Joost erin</h2>
+          <p class="sub">Eén keer instellen. Daarna vraagt je AI het zelf aan Joost als dat nodig is.</p>
+        </div>
+        <div class="url"><code>{{MCP_URL}}</code><button class="copy" type="button" data-copy="{{MCP_URL}}"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg>Kopieer</button></div>
+        <div class="setup">
+          <div>
+            <div class="step-head"><h3>Claude</h3><span class="tag">Werkt ook gratis</span></div>
+            <ol class="steps" role="list">
+              <li>Ga naar <b>Customize</b> en dan <b>Connectors</b>.</li>
+              <li>Klik op <b>+ Add</b> en kies <b>Add custom connector</b>.</li>
+              <li>Vul als naam <b>Hey Joost</b> in en plak de URL hierboven.</li>
+              <li>Kies <b>No sign in</b> en klik op <b>Add</b>.</li>
+              <li>Zet Joost aan in een chat via <b>+</b> en <b>Connectors</b>.</li>
+            </ol>
+          </div>
+          <div>
+            <div class="step-head"><h3>ChatGPT</h3><span class="tag">Plus of Pro</span></div>
+            <ol class="steps" role="list">
+              <li>Zet de ontwikkelaarsmodus aan via <b>Settings</b>, <b>Apps</b>, <b>Advanced settings</b>.</li>
+              <li>Ga naar <b>chatgpt.com/plugins</b>, klik op <b>+</b> en kies <b>Add custom MCP server</b>.</li>
+              <li>Vul als naam <b>Hey Joost</b> in, plak de URL hierboven en kies <b>No authentication</b>.</li>
+              <li>Typ in een chat <b>@</b> en kies Hey Joost.</li>
+            </ol>
+            <p class="small">Werkt op chatgpt.com, nog niet in de app.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section class="section" id="probeer" data-vraag="{{VRAAG}}">
+      <div class="head">
+        <h2>Probeer eens</h2>
+        <p class="sub">Tik op een vraag om hem te kopiëren en plak hem in je AI.</p>
+      </div>
+      <div class="prompts">
+        <button class="prompt" type="button" data-copy="Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?"><span class="topic" aria-hidden="true">Trein</span><span>Hoe laat gaat de volgende trein van Utrecht naar Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?"><span class="topic" aria-hidden="true">Ophalen</span><span>Ik haal iemand op in Leiden die met de trein uit Utrecht komt. Hoe laat komt hij aan en op welk spoor?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Moet ik morgen een paraplu meenemen in Amsterdam?"><span class="topic" aria-hidden="true">Weer</span><span>Moet ik morgen een paraplu meenemen in Amsterdam?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?"><span class="topic" aria-hidden="true">Regen</span><span>Kan ik nu droog naar huis fietsen in Leiden, of komt er een bui aan?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wanneer gaat tram 2 vanaf het Spui in Den Haag?"><span class="topic" aria-hidden="true">Tram</span><span>Wanneer gaat tram 2 vanaf het Spui in Den Haag?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?"><span class="topic" aria-hidden="true">Bus</span><span>Welke bus of tram gaat er zo van Utrecht Centraal naar het Science Park, en van welk perron?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Staat er nu file op de A12, en is er ergens een weg dicht?"><span class="topic" aria-hidden="true">File</span><span>Staat er nu file op de A12, en is er ergens een weg dicht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?"><span class="topic" aria-hidden="true">Prijs</span><span>Wat kost de trein van Den Haag naar Groningen morgen om 9 uur, en hoe druk is het?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?"><span class="topic" aria-hidden="true">Spoor</span><span>Zijn er dit weekend werkzaamheden op het spoor rond Utrecht?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?"><span class="topic" aria-hidden="true">Reizen</span><span>Is het veilig om naar Egypte te reizen, en heb ik een visum nodig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoe warm is het zeewater in Scheveningen?"><span class="topic" aria-hidden="true">Water</span><span>Hoe warm is het zeewater in Scheveningen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoe laat is het laagwater morgen bij Harlingen?"><span class="topic" aria-hidden="true">Getij</span><span>Hoe laat is het laagwater morgen bij Harlingen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?"><span class="topic" aria-hidden="true">Strand</span><span>Ik wil morgen naar het strand in Scheveningen. Blijft het droog, en hoe warm is het zeewater?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wanneer is stroom vandaag het goedkoopst om de was te draaien?"><span class="topic" aria-hidden="true">Stroom</span><span>Wanneer is stroom vandaag het goedkoopst om de was te draaien?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wanneer is de kerstvakantie in regio midden?"><span class="topic" aria-hidden="true">Vakantie</span><span>Wanneer is de kerstvakantie in regio midden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?"><span class="topic" aria-hidden="true">Regelen</span><span>Hoe vraag ik in Leiden een nieuw paspoort aan, en hoe lang is het geldig?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?"><span class="topic" aria-hidden="true">Straat</span><span>Is er bij de Laan van Meerdervoort in Den Haag iets aangevraagd, zoals een verbouwing of een boom kappen?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Welke supermarkt bij Utrecht Centraal is nu nog open?"><span class="topic" aria-hidden="true">Open</span><span>Welke supermarkt bij Utrecht Centraal is nu nog open?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Wat is het bouwjaar van Rapenburg 70 in Leiden?"><span class="topic" aria-hidden="true">Huis</span><span>Wat is het bouwjaar van Rapenburg 70 in Leiden?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="prompt" type="button" data-copy="Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?"><span class="topic" aria-hidden="true">Buurt</span><span>Hoeveel mensen wonen er in de Vogelwijk in Den Haag, en wat is de gemiddelde WOZ-waarde?</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+      </div>
+    </section>
+
+    <section class="section" id="bronnen">
+      <div class="head">
+        <h2>Waar Joost het vandaan haalt</h2>
+        <p class="sub">Officiële open data, live opgehaald.</p>
+      </div>
+      <ul class="sources">
+        <li><b>NS Reisinformatie API</b>treinen, storingen en werkzaamheden</li>
+        <li><b>OpenOV via <a href="https://transitous.org/sources/">Transitous</a></b>bus, tram en metro<!--reisplanner--> en reizen van deur tot deur<!--/reisplanner-->, met haltes<!--reisplanner--> en looproutes<!--/reisplanner--> van © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></li>
+        <!--vluchten--><li><b>Schiphol Public Flight API</b>vluchten, alleen in de chat</li><!--/vluchten-->
+        <li><b>KNMI en ECMWF via Open-Meteo</b>het weer: <a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
+        <li><b>KNMI Data Platform</b>de regenradar en de weerwaarschuwingen, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
+        <li><b>Rijkswaterstaat Waterinfo</b>waterstanden, temperatuur, eb en vloed</li>
+        <li><b>Bundesnetzagentur | SMARD.de, via Energy-Charts</b>de stroomprijs per kwartier, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
+        <li><b>Ministerie van Buitenlandse Zaken, via NederlandWereldwijd</b>het reisadvies</li>
+        <li><b>Rijksoverheid</b>schoolvakanties en vragen en antwoorden over regelzaken</li>
+        <li><b>Samenwerkende Catalogi (KOOP)</b>wat je bij je gemeente regelt</li>
+        <li><b>Officiële bekendmakingen (KOOP)</b>vergunningen en andere bekendmakingen rond een adres</li>
+        <li><b>NDW (Nationaal Dataportaal Wegverkeer)</b>files, ongelukken, afsluitingen en werkzaamheden, met wegen en afritten uit VILD</li>
+        <li><b>© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers</b>supermarkten, apotheken en pinautomaten met hun openingstijden, onder de <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a></li>
+        <li><b>BAG via PDOK (Kadaster)</b>adressen en gebouwen</li>
+        <li><b>CBS</b>cijfers over buurten, wijken en gemeenten, onder <a href="https://creativecommons.org/licenses/by/4.0/deed.nl">CC BY 4.0</a></li>
+      </ul>
+      <p class="note">Hey Joost is een onafhankelijk project en geen dienst van NS, <!--vluchten-->Schiphol, <!--/vluchten-->het KNMI, de vervoerders of de overheid. Gaat het ergens om, zoals een trein<!--vluchten--> of vlucht<!--/vluchten--> halen? Kijk dan ook even in de officiële app. Bij zwaar weer heeft <a href="https://www.knmi.nl/nederland-nu/weer/waarschuwingen/nederland">knmi.nl</a> altijd de laatste stand, en voor een reis <a href="https://www.nederlandwereldwijd.nl/reisadvies">nederlandwereldwijd.nl</a>.</p>
+    </section>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-top">
+      <a class="brand" href="/" aria-label="Hey Joost, naar de start"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
+      <div class="links"><a href="/">Start</a><a href="/privacy">Privacy</a><a href="/voorwaarden">Voorwaarden</a><a href="/toegankelijkheid">Toegankelijkheid</a><a href="https://github.com/MoAz06/HeyJoost">Broncode</a><a href="mailto:help@heyjoost.nl">help@heyjoost.nl</a></div>
+    </div>
+    <p>Gemaakt door Mohamed Azahrioui. Volg Joost op <a href="https://www.tiktok.com/@heyjoost.nl">TikTok</a> en <a href="https://www.instagram.com/heyjoost.nl/">Instagram</a>.</p>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+  // With the chat on, a question under Probeer eens goes to the chat on the home page, which asks it right away. The
+  // question rides after the #, so it never reaches the server. Otherwise, and for the URL, a tap copies.
+  const live = document.getElementById("probeer").dataset.vraag === "aan";
+  if (live) document.querySelector("#probeer .sub").textContent = "Tik op een vraag en Joost zoekt het meteen op.";
+
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-copy]");
+    if (!button) return;
+    if (live && button.classList.contains("prompt")) {
+      location.href = "/#voorbeeld=" + encodeURIComponent(button.dataset.copy);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(button.dataset.copy);
+      toast("Gekopieerd");
+    } catch {
+      toast("Kopiëren lukte niet. Selecteer de tekst zelf.");
+    }
+  });
+
+  // A longer message stays longer, about as long as it takes to read.
+  function toast(text) {
+    const el = document.getElementById("toast");
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => el.classList.remove("show"), Math.min(10000, Math.max(2200, text.length * 60)));
+  }
+</script>
+</body>
+</html>
