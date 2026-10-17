@@ -3,7 +3,7 @@
 import argparse
 import os
 
-__version__ = "0.31.0"
+__version__ = "0.32.0"
 
 
 def main() -> None:
@@ -20,6 +20,13 @@ def main() -> None:
     from .server import server
 
     if args.http:
-        server.run("streamable-http", host=args.host, port=args.port, stateless_http=True, json_response=True)
+        import uvicorn
+
+        from .veilig import headers
+
+        # As server.run("streamable-http") does, with the security headers around the whole app.
+        app = server.streamable_http_app(stateless_http=True, json_response=True, host=args.host)
+        uvicorn.run(headers(app), host=args.host, port=args.port, log_level=server.settings.log_level.lower(),
+                    server_header=False)
     else:
         server.run()

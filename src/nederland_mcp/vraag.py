@@ -68,6 +68,7 @@ CROWDED = "Het is even druk bij Joost. Probeer het zo nog eens."
 STILL_BUSY = "Joost is nog bezig met je vorige vraag."
 TOO_LONG = f"Je vraag is te lang. Hou hem onder de {MAX_QUESTION} tekens."
 CONFUSED = "Dat snapte Joost niet. Ververs de pagina en probeer het nog eens."
+ELSEWHERE = "Vraag het Joost werkt op heyjoost.nl."
 UNREACHABLE = "Joost is even niet bereikbaar. Probeer het zo nog eens."
 REFUSED = "Daar kan Joost niet mee helpen."
 # The same messages for the English chat, which a browser without Dutch gets.
@@ -79,6 +80,7 @@ IN_ENGLISH = {
     STILL_BUSY: "Joost is still working on your previous question.",
     TOO_LONG: f"Your question is too long. Keep it under {MAX_QUESTION} characters.",
     CONFUSED: "Joost didn’t understand that. Refresh the page and try again.",
+    ELSEWHERE: "Ask Joost works on heyjoost.nl.",
     UNREACHABLE: "Joost can’t be reached right now. Try again in a moment.",
     REFUSED: "Joost can’t help with that.",
 }
@@ -395,6 +397,9 @@ async def ask(request: Request, tools: MCPServer) -> Response:
     origin = request.headers.get("origin")
     if origin and origin.partition("://")[2] != request.headers.get("host"):
         return _refuse(403, CONFUSED, english)
+    # Railway's own address skips Cloudflare, so there a visitor could write his own address (see _visitor).
+    if request.headers.get("host", "").endswith(".up.railway.app"):
+        return _refuse(403, ELSEWHERE, english)
 
     body = b""
     async for chunk in request.stream():
@@ -460,9 +465,11 @@ def _english(request: Request) -> bool:
 
 
 def _visitor(request: Request) -> str:
-    # Behind Cloudflare the visitor's address is in cf-connecting-ip. It can be faked by skipping
-    # Cloudflare, which only buys more questions per day: the daily budget still holds.
-    address = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    # Behind Cloudflare the visitor's address is in cf-connecting-ip, otherwise Railway's edge puts it in x-real-ip.
+    # Who reaches Railway without Cloudflare can write his own cf-connecting-ip. On Railway's own address the chat
+    # refuses (see ask), so that takes finding Railway's servers, and it only buys more questions per day: the
+    # daily budget still holds. The first address in x-forwarded-for is never used, since anyone can write it.
+    address = request.headers.get("cf-connecting-ip") or request.headers.get("x-real-ip") or ""
     if not address and request.client:
         address = request.client.host
     return hashlib.sha256(_salt + address.encode()).hexdigest()[:16]

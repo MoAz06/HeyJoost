@@ -12,7 +12,7 @@ from pydantic import BeforeValidator, Field
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, Response
 
-from . import __version__, tellers, vraag
+from . import __version__, tellers, veilig, vraag
 from .bronnen import bekendmakingen as bekendmakingbron
 from .bronnen import (
     buurt,
@@ -515,7 +515,8 @@ def _mcp_url(request: Request) -> str:
 
 def _fill(pages: dict[bool, str], request: Request) -> HTMLResponse:
     page = pages[vraag.flights()].replace("{{MCP_URL}}", html.escape(_mcp_url(request)))
-    return HTMLResponse(page.replace("{{VRAAG}}", vraag.state()))
+    page = page.replace("{{VRAAG}}", vraag.state())
+    return HTMLResponse(page, headers={"Content-Security-Policy": veilig.csp(page)})
 
 
 @server.custom_route("/", methods=["GET"])
@@ -537,9 +538,11 @@ async def ask_joost(request: Request) -> Response:
 
 def _serve(path: str, filename: str, media_type: str, max_age: int) -> None:
     body = (SITE / filename).read_bytes()
-    if media_type == "text/html":
-        body = _planner(_flights(body.decode(), schiphol.available())).replace("{{VERSION}}", __version__).encode()
     headers = {"Cache-Control": f"public, max-age={max_age}"}
+    if media_type == "text/html":
+        page = _planner(_flights(body.decode(), schiphol.available())).replace("{{VERSION}}", __version__)
+        body = page.encode()
+        headers["Content-Security-Policy"] = veilig.csp(page)
 
     async def page(request: Request) -> Response:
         return Response(body, media_type=media_type, headers=headers)
