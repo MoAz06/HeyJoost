@@ -462,8 +462,9 @@ if reisplanner.AAN:
         "ongelukken en pech, afgesloten wegen, afritten en rijstroken, werkzaamheden, open bruggen en lagere "
         "snelheden, met waar het is (weg, afrit en richting, of straat en plaats), de lengte van een file, sinds en "
         "tot wanneer. Met een plaats de berichten in de buurt, met een weg (A12, N206) die weg. Zonder plaats en weg "
-        "alleen files, ongelukken en afsluitingen op de grote wegen in heel Nederland. De berichten zijn niet "
-        "gecontroleerd en niet elke wegbeheerder meldt alles, zie 'let_op'."
+        "van elk wat: files, ongelukken en afsluitingen op de grote wegen in heel Nederland. Met 'soort' alleen die "
+        "soort, zoals 'afsluitingen' voor de wegen die dicht zijn, met 'per_weg' waar de rest is. De berichten zijn "
+        "niet gecontroleerd en niet elke wegbeheerder meldt alles, zie 'let_op'."
     ),
     annotations=READ_ONLY,
 )
@@ -471,8 +472,12 @@ async def verkeer(
     waar: Annotated[str | None, Field(description="Plaats of wijk, bijvoorbeeld Utrecht of Scheveningen. Leeg = heel Nederland of de hele weg")] = None,
     weg: Annotated[str | None, Field(description="Wegnummer, bijvoorbeeld A12 of N206")] = None,
     straal_km: Annotated[float | None, Field(ge=1, le=25, description="Zoekstraal rond de plaats in km. Leeg = 8 km")] = None,
+    soort: Annotated[
+        Literal["files", "ongelukken_en_pech", "afsluitingen", "werkzaamheden", "snelheid"] | None, LOWER,
+        Field(description="Alleen deze soort berichten, zoals afsluitingen als iemand vraagt welke wegen dicht zijn. Leeg = alles"),
+    ] = None,
 ) -> dict[str, Any]:
-    return await verkeersbron.verkeer(waar, weg, straal_km)
+    return await verkeersbron.verkeer(waar, weg, straal_km, soort)
 
 
 # The home page shows the MCP URL of the host it was reached on, so a local run shows its own address.

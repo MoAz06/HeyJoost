@@ -14,6 +14,7 @@ import logging
 import math
 import re
 import xml.etree.ElementTree as ET
+from collections import Counter
 from datetime import timedelta
 from functools import cache
 from pathlib import Path
@@ -40,6 +41,13 @@ RADIUS_KM, MAX_RADIUS_KM = 8, 25
 INCIDENTS = ("ongeluk", "pech", "obstakel")
 STALE = timedelta(hours=24)
 MAX_ITEMS = 12
+# Heel Nederland without a soort: some of each, so a day with many jams still shows what is shut.
+SHARES = {"files": 6, "ongelukken_en_pech": 3, "afsluitingen": 3}
+# A whole road shut weighs more than an exit, and an exit more than a parking area.
+CLOSED = {
+    "weg dicht": 0, "verbindingsweg dicht": 1, "parallelbaan dicht": 2, "afrit dicht": 3, "oprit dicht": 3,
+    "parkeerplaats dicht": 4,
+}
 S = "{http://datex2.eu/schema/3/situation}"
 C = "{http://datex2.eu/schema/3/common}"
 L = "{http://datex2.eu/schema/3/locationReferencing}"
@@ -53,6 +61,10 @@ GROUPS = (
     ("werkzaamheden", ("rijstrook", "werk")),
     ("snelheid", ("snelheid",)),
 )
+NOTHING = {
+    "files": "files", "ongelukken_en_pech": "ongelukken of pech", "afsluitingen": "afsluitingen",
+    "werkzaamheden": "werkzaamheden", "snelheid": "lagere snelheden",
+}
 JAMS = {
     "stationaryTraffic": "stilstaand verkeer", "queuingTraffic": "file", "slowTraffic": "langzaam rijdend verkeer",
     "heavyTraffic": "druk verkeer",
@@ -79,7 +91,11 @@ CAUSES = {
     "roadMaintenance": "werkzaamheden", "constructionWork": "werkzaamheden", "publicEvent": "een evenement",
     "accident": "een ongeluk", "roadworks": "werkzaamheden",
 }
-SLIP_ROADS = {"exitSlipRoad": "afrit", "entrySlipRoad": "oprit", "connectingCarriageway": "verbindingsweg"}
+# The part of the road that is shut, when it is not the road itself.
+PARTS = {
+    "exitSlipRoad": "afrit", "entrySlipRoad": "oprit", "connectingCarriageway": "verbindingsweg",
+    "parallelCarriageway": "parallelbaan",
+}
 OTHER = {
     "PoorEnvironmentConditions": "slecht zicht of zwaar weer", "WeatherRelatedRoadConditions": "gladheid of water op de weg",
     "NonWeatherRelatedRoadConditions": "slecht wegdek of olie op de weg", "PublicEvent": "evenement",
@@ -125,9 +141,9 @@ def _kind(record: ET.Element, kind: str) -> tuple[str, str] | None:
     if kind == "RoadOrCarriagewayOrLaneManagement":
         group, name = MEASURES.get(_text(record, f"{S}roadOrCarriagewayOrLaneManagementType") or "", ("werk", "afzetting"))
         lanes = {_text(part, f"{L}carriageway") for part in record.iter(f"{L}carriageway")}
-        slip = next((SLIP_ROADS[lane] for lane in lanes if lane in SLIP_ROADS), None)
-        if slip and group == "dicht":
-            name = f"{slip} dicht"
+        part = next((PARTS[lane] for lane in lanes if lane in PARTS), None)
+        if part and group == "dicht":
+            name = f"{part} dicht"
         cause = CAUSES.get(_text(record, f"{S}cause/{S}causeType") or "")
         return group, f"{name} door {cause}" if cause else name
     if kind == "SpeedManagement":
@@ -193,14 +209,19 @@ def _parse(raw: bytes) -> dict[str, Any]:
             record, f".//{L}alertCMethod2SecondaryPointLocation//{L}specificLocation"
         )
         length = _text(record, f".//{S}queueLength") or _text(record, f".//{S}lengthAffected")
-        messages.append({
+        message = {
             "group": what[0], "wat": what[1], "start": start, "end": end, "points": points,
             "primary": primary, "secondary": secondary if secondary != primary else None,
             "direction": _text(record, f".//{L}alertCDirectionCoded"),
             "table": _text(record, f".//{L}alertCLocationTableNumber"),
             "source": _text(record, f"{S}source/{C}sourceName/{C}values/{C}value") or "",
             "length": float(length) if length else (_length(points) if what[0] == "file" else 0.0),
-        })
+        }
+        # An exit or entry shut at a parking area is the parking area that is shut.
+        head = _head(message)
+        if what[0] == "dicht" and head and head[2].lower().startswith("parkeerplaats"):
+            message["wat"] = re.sub(r"^(afrit|oprit) dicht", "parkeerplaats dicht", message["wat"])
+        messages.append(message)
     published = parse_time(_text(root, f".//{C}publicationTime"))
     return {"published": published, "messages": messages}
 
@@ -229,15 +250,20 @@ def _point_name(point: list[str]) -> str:
     return f"{kind} {first}".strip()
 
 
-def _where(message: dict) -> str | None:
-    """Where on the road, from the VILD codes: 'A12 tussen afrit 6 en afrit 7, richting Utrecht'."""
+def _head(message: dict) -> list[str] | None:
+    """The VILD point a message starts at, or None without one or when NDW uses a newer table."""
     version, _ = _vild()
     if not message["primary"]:
         return None
     if message["table"] and version and not version.startswith(message["table"]):
         _new_table(message["table"])
         return None
-    head, tail = _road_point(message["primary"]), _road_point(message["secondary"])
+    return _road_point(message["primary"])
+
+
+def _where(message: dict) -> str | None:
+    """Where on the road, from the VILD codes: 'A12 tussen afrit 6 en afrit 7, richting Utrecht'."""
+    head, tail = _head(message), _road_point(message["secondary"])
     if not head:
         return None
     # A city road has an internal number like H153, so it goes by its street name.
@@ -274,10 +300,55 @@ def _road_key(text: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", text.upper())
 
 
-async def verkeer(waar: str | None = None, weg: str | None = None, straal_km: float | None = None) -> dict[str, Any]:
+def _road(message: dict) -> str:
+    return (_road_point(message["primary"]) or [""])[0]
+
+
+def _bare(wat: str) -> str:
+    """'weg dicht' for 'weg dicht door werkzaamheden': the same closure, with or without its cause."""
+    return wat.split(" door ")[0]
+
+
+def _weight(message: dict) -> tuple[int, int]:
+    """Closures first by what is shut, then a motorway before a provincial road. Other messages weigh the same."""
+    if message["group"] != "dicht":
+        return 0, 0
+    road = _road(message)
+    return CLOSED.get(_bare(message["wat"]), len(CLOSED)), "ANS".find(road[0]) if ROAD.fullmatch(road) else 3
+
+
+def _spread(chosen: list) -> list:
+    """Heel Nederland: within each group one message per road first, so one road with many closures does not fill
+    the list."""
+    order = [kind for _, kinds in GROUPS for kind in kinds]
+    nth: Counter = Counter()
+    keyed = []
+    for index, pair in enumerate(chosen):
+        group, road = pair[0]["group"], _road(pair[0])
+        keyed.append(((order.index(group), nth[group, road], index), pair))
+        nth[group, road] += 1
+    return [pair for _, pair in sorted(keyed, key=lambda item: item[0])]
+
+
+def _share(chosen: list) -> list:
+    """Some of each group (SHARES), then the rest in order, up to MAX_ITEMS."""
+    picked = set()
+    for name, kinds in GROUPS:
+        group = [index for index, (message, _) in enumerate(chosen) if message["group"] in kinds]
+        picked.update(group[: SHARES.get(name, 0)])
+    picked.update([index for index in range(len(chosen)) if index not in picked][: MAX_ITEMS - len(picked)])
+    return [chosen[index] for index in sorted(picked)]
+
+
+async def verkeer(
+    waar: str | None = None, weg: str | None = None, straal_km: float | None = None, soort: str | None = None
+) -> dict[str, Any]:
     road = _road_key(weg) if weg else None
     if road and not ROAD.fullmatch(road):
         raise ToolError(f"'{weg}' is geen wegnummer. Noem een snelweg of provinciale weg, zoals A12 of N44.")
+    if soort and soort not in NOTHING:
+        raise ToolError(f"'{soort}' ken ik niet. Kies uit: {', '.join(NOTHING)}.")
+    wanted = dict(GROUPS)[soort] if soort else None
     centre = None
     if waar:
         place = await plaatsen.zoek(waar)
@@ -285,8 +356,10 @@ async def verkeer(waar: str | None = None, weg: str | None = None, straal_km: fl
     radius = min(max(float(straal_km or RADIUS_KM), 1.0), MAX_RADIUS_KM) * 1000
     picture = await _picture()
 
-    chosen, seen = [], set()
+    chosen, seen = [], {}
     for message in picture["messages"]:
+        if wanted and message["group"] not in wanted:
+            continue
         on_road = road and any(
             (_road_point(code) or [""])[0] == road for code in (message["primary"], message["secondary"]) if code
         )
@@ -296,22 +369,29 @@ async def verkeer(waar: str | None = None, weg: str | None = None, straal_km: fl
         if distance is not None and distance > radius:
             continue
         # Heel Nederland: only what matters on the main roads, not every street with works.
-        main_road = ROAD.fullmatch((_road_point(message["primary"]) or [""])[0])
-        if not road and not centre and not (main_road and message["group"] in ("file", "ongeluk", "dicht")):
+        main_road = ROAD.fullmatch(_road(message))
+        if not road and not centre and not (main_road and message["group"] in (wanted or ("file", "ongeluk", "dicht"))):
             continue
-        # Road authorities often send the same closure twice, for each side or in two systems.
+        # Road authorities often send the same closure twice: for each side, in two systems, or once without its cause.
         middle = message["points"][len(message["points"]) // 2]
-        same = (message["wat"], message["primary"], message["secondary"], message["direction"]) if message["primary"] else (
-            message["wat"], round(middle[0], 3), round(middle[1], 3)
+        bare = _bare(message["wat"])
+        same = (bare, message["primary"], message["secondary"], message["direction"]) if message["primary"] else (
+            bare, round(middle[0], 3), round(middle[1], 3)
         )
         if same in seen:
+            # Keep the one that says why.
+            if len(message["wat"]) > len(chosen[seen[same]][0]["wat"]):
+                chosen[seen[same]] = (message, distance)
             continue
-        seen.add(same)
+        seen[same] = len(chosen)
         chosen.append((message, distance))
 
     order = [kind for _, kinds in GROUPS for kind in kinds]
-    chosen.sort(key=lambda pair: (order.index(pair[0]["group"]), pair[1] or 0, -(pair[0]["length"] or 0)))
-    shown = chosen[:MAX_ITEMS]
+    chosen.sort(key=lambda pair: (order.index(pair[0]["group"]), _weight(pair[0]), pair[1] or 0, -(pair[0]["length"] or 0)))
+    everywhere = not road and not centre
+    if everywhere:
+        chosen = _spread(chosen)
+    shown = _share(chosen) if everywhere and not soort else chosen[:MAX_ITEMS]
     streets = await asyncio.gather(*(
         _street(message["points"][len(message["points"]) // 2]) if not _where(message) else asyncio.sleep(0, None)
         for message, _ in shown
@@ -343,10 +423,15 @@ async def verkeer(waar: str | None = None, weg: str | None = None, straal_km: fl
             result[name] = items
     counts = {name: sum(message["group"] in kinds for message, _ in chosen) for name, kinds in GROUPS}
     result["aantal"] = {name: count for name, count in counts.items() if count}
-    if len(chosen) > MAX_ITEMS:
-        result["meer"] = f"Er zijn {len(chosen)} berichten; dit zijn de {MAX_ITEMS} belangrijkste. Noem een weg of een kleiner gebied."
+    if len(chosen) > len(shown):
+        narrower = "Noem een plaats langs de weg." if road else "Noem een weg of een kleinere straal." if centre else "Noem een weg of een plaats."
+        result["meer"] = f"Er zijn {len(chosen)} berichten; dit zijn de {len(shown)} belangrijkste. {narrower}"
+        # Where the rest is, so one answer can name the other roads too.
+        if everywhere and soort:
+            result["per_weg"] = dict(Counter(_road(message) for message, _ in chosen).most_common(20))
     if not chosen:
-        result["uitleg"] = "Op dit moment meldt NDW hier geen files, ongelukken, afsluitingen of werkzaamheden."
+        what = NOTHING[soort] if soort else "files, ongelukken, afsluitingen of werkzaamheden"
+        result["uitleg"] = f"Op dit moment meldt NDW hier geen {what}."
     result["let_op"] = LET_OP
     result["bron"] = BRON
     return result
