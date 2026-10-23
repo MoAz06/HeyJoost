@@ -571,3 +571,6 @@ _serve("/apple-touch-icon.png", "icons/apple-touch-icon.png", "image/png", 86400
 _serve("/icons/joost-192.png", "icons/joost-192.png", "image/png", 86400)
 _serve("/icons/joost-512.png", "icons/joost-512.png", "image/png", 86400)
 _serve("/icons/joost-maskable-512.png", "icons/joost-maskable-512.png", "image/png", 86400)
+# The picture a link to heyjoost.nl gets on LinkedIn, X, WhatsApp and Slack. Those sites keep a picture for days,
+# so a new one needs a new name.
+_serve("/og.png", "og.png", "image/png", 86400)
