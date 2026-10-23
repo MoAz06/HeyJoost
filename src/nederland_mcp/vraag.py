@@ -306,11 +306,11 @@ NO_PLANNER = (
     "is iets verder.\n"
     "- Moet iemand op een vaste tijd ergens zijn, plan dan terug vanaf die tijd en zoek de stukjes na elkaar in "
     "plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true. Als tijd neem je de afspraak min "
-    "het laatste stuk (lopen: reken 10 tot 15 minuten als je het niet weet) en 5 minuten marge. Bijvoorbeeld: "
-    "afspraak om 10:00 en een kwartier lopen, dan zoek je met 09:40. Neem de reis met 'beste', want die vertrekt "
-    "zo laat mogelijk en is nog op tijd. Een eerdere trein noem je hooguit als extra zekerheid. Zoek daarna de bus of "
-    "tram naar het station, met als tijd een half uur voor die trein, en kies de laatste die minstens 5 minuten "
-    "voor vertrek bij het station is."
+    "het laatste stuk (lopen: reken 10 tot 15 minuten als je het niet weet, en niks als iemand op het station "
+    "zelf moet zijn) en 5 minuten marge. Bijvoorbeeld: afspraak om 10:00 en een kwartier lopen, dan zoek je met "
+    "09:40. Neem de reis met 'beste', want die vertrekt zo laat mogelijk en is nog op tijd. Een eerdere trein noem "
+    "je hooguit als extra zekerheid. Zoek daarna de bus of tram naar het station, met als tijd een half uur voor "
+    "die trein, en kies de laatste die minstens 5 minuten voor vertrek bij het station is."
 )
 PLANNER = (
     "- Van deur tot deur met het ov gebruik je reis_plannen, met het adres, de straat, het station of de plaats "

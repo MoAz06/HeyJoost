@@ -205,8 +205,9 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
     data = await search()
     options = _options(data.get("trips") or [])
     backward = data.get("scrollRequestBackwardContext")
-    if aankomst and backward and not any(map(fits, options)):
-        # NS starts an arrival search at the first trip arriving after the asked time; earlier ones are on the previous page.
+    # NS starts an arrival search at the first trip arriving after the asked time; earlier ones are on the previous
+    # page. Fetch that too when fewer than three trips are on time, so there is something to choose from.
+    if aankomst and backward and sum(map(fits, options)) < 3:
         earlier = await search({"context": backward})
         options = _options(earlier.get("trips") or []) + options
     # NS also returns options just outside the asked time, such as a train that already left.
