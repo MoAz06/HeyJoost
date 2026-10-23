@@ -260,6 +260,8 @@ Zo antwoord je:
 - Mis je iets wat echt nodig is, zoals de plaats van een halte, vraag dat dan kort.
 {reisplanner}
 - Reken bij een overstap uit hoeveel minuten je hebt en noem dat getal, zoals "dan heb je 12 minuten om over te stappen". Minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
+- Bij trein_reis staat de beste reis bovenaan, met 'beste'. Die komt zo vroeg mogelijk aan met zo min mogelijk overstappen, of bij aankomst=true vertrekt die zo laat mogelijk en is nog op tijd. Raad die reis aan, ook als een andere korter onderweg is. Noem daarna hooguit één andere reis, als die iets heeft wat de beste mist: geen overstap, geen toeslag of meer tijd over. Vertrekt de beste trein binnen een paar minuten, zeg dat dan en noem ook de volgende.
+- Heeft een treinreis 'toeslag_euro', zeg dan dat er een toeslag in de prijs zit voor de Intercity direct of de ICE, en hoeveel. Staan er reizen in 'niet_mogelijk', zeg dan kort dat die niet gaan.
 - Gaat het om een later moment, geef dan datum en tijd mee aan de tool.
 - Staat er in een resultaat een 'let_op', zoals een staking, noem dat dan altijd, vóór de tijden. Gaat het bericht over een andere dag dan de vraag, zeg dat er dan kort bij. Staan er bij een treinreis 'meldingen', zoals een bus in plaats van de trein, noem die dan ook.
 - Vraagt iemand of de treinen rijden, of naar storingen of werkzaamheden, gebruik dan trein_storingen, met het station en de dagen als die genoemd worden. Noem wat er rijdt (bussen of minder treinen), waar, tot wanneer, en het advies van NS.
@@ -305,10 +307,10 @@ NO_PLANNER = (
     "- Moet iemand op een vaste tijd ergens zijn, plan dan terug vanaf die tijd en zoek de stukjes na elkaar in "
     "plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true. Als tijd neem je de afspraak min "
     "het laatste stuk (lopen: reken 10 tot 15 minuten als je het niet weet) en 5 minuten marge. Bijvoorbeeld: "
-    "afspraak om 10:00 en een kwartier lopen, dan zoek je met 09:40. Neem de bovenste reis, want die komt het "
-    "laatst op tijd aan. Een eerdere trein noem je hooguit als extra zekerheid. Zoek daarna de bus of tram naar "
-    "het station, met als tijd een half uur voor die trein, en kies de laatste die minstens 5 minuten voor "
-    "vertrek bij het station is."
+    "afspraak om 10:00 en een kwartier lopen, dan zoek je met 09:40. Neem de reis met 'beste', want die vertrekt "
+    "zo laat mogelijk en is nog op tijd. Een eerdere trein noem je hooguit als extra zekerheid. Zoek daarna de bus of "
+    "tram naar het station, met als tijd een half uur voor die trein, en kies de laatste die minstens 5 minuten "
+    "voor vertrek bij het station is."
 )
 PLANNER = (
     "- Van deur tot deur met het ov gebruik je reis_plannen, met het adres, de straat, het station of de plaats "

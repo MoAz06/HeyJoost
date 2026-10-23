@@ -364,9 +364,13 @@ async def trein_aankomst(
     title="Treinreis plannen",
     description=(
         "Reisadvies met de trein tussen twee stations: vertrek, aankomst, overstappen, vertraging, drukte en "
-        "prijs. Zonder datum en tijd wordt er gezocht vanaf nu. Met aankomst=true komen alleen reizen die op tijd "
-        "aankomen, en staat de reis die het laatst op tijd aankomt bovenaan. Rijdt er door werkzaamheden of een "
-        "storing een bus in plaats van de trein, dan staat het bericht van NS in 'meldingen'."
+        "prijs. Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
+        "komt zo vroeg mogelijk aan met zo min mogelijk overstappen (een overstap telt als 5 minuten). Met "
+        "aankomst=true komen alleen reizen die op tijd aankomen, en vertrekt de beste zo laat mogelijk. Daarna "
+        "volgen de andere reizen op tijd; een reis die in alles slechter is dan een andere valt weg. Bij de "
+        "Intercity direct en de ICE staat de toeslag in 'toeslag_euro', en die zit al in de prijs. Reizen die niet "
+        "gaan, omdat een trein uitvalt of een overstap niet meer lukt, staan in 'niet_mogelijk'. Rijdt er door "
+        "werkzaamheden of een storing een bus in plaats van de trein, dan staat het bericht van NS in 'meldingen'."
     ),
     annotations=READ_ONLY,
 )

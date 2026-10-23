@@ -4,6 +4,7 @@ Needs NS_API_KEY (a subscription key from apiportal.ns.nl).
 """
 
 import asyncio
+import math
 import os
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -30,6 +31,12 @@ STATUS = {
 SOON = timedelta(days=3)
 MAX_DAYS = 31
 MAX_ITEMS = 20
+MAX_TRIPS = 5
+# In comparing trips a transfer counts as this many minutes: it takes effort, and a late train makes you miss the next.
+TRANSFER_MINUTES = 5
+# The other end of a trip counts for a quarter: each minute you leave later, or for an arrival search each minute you
+# arrive earlier. So a much shorter trip beats one that arrives a minute sooner.
+OTHER_END = 0.25
 
 
 def _headers() -> dict:
@@ -204,8 +211,12 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
         options = _options(earlier.get("trips") or []) + options
     # NS also returns options just outside the asked time, such as a train that already left.
     fitting = [o for o in options if fits(o)]
-    # The best option comes first: for an arrival search that is the last one still on time.
-    chosen = (fitting[-5:][::-1] if aankomst else fitting[:5]) or options[:5]
+    running = [o for o in fitting if not _cancelled(o)]
+    if running:
+        chosen = _pick(running, aankomst)
+    else:
+        # Nothing on time runs: show what NS has, so the answer can say so.
+        chosen = (fitting[-MAX_TRIPS:][::-1] if aankomst else fitting[:MAX_TRIPS]) or options[:MAX_TRIPS]
 
     trips = []
     for departure, arrival, trip, legs in chosen:
@@ -218,6 +229,8 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
             "status": STATUS.get(trip.get("status"), trip.get("status")),
             "drukte": CROWD.get(trip.get("crowdForecast"), trip.get("crowdForecast")),
             "prijs_euro": fare["priceInCents"] / 100 if fare.get("priceInCents") else None,
+            # Intercity direct and ICE cost extra on part of the way; the price above includes it.
+            **({"toeslag_euro": fare["supplementInCents"] / 100} if fare.get("supplementInCents") else {}),
             "delen": [_leg(leg) for leg in legs],
             "link": (trip.get("shareUrl") or {}).get("uri"),
         }
@@ -226,20 +239,28 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
         trips.append(option)
     if not trips:
         raise ToolError(f"Geen reisadvies gevonden van {_station_name(origin)} naar {_station_name(destination)}.")
-    return {
+    if running:
+        trips[0] = {"beste": True, **trips[0]}
+    result = {
         "van": _station_name(origin),
         "naar": _station_name(destination),
         "gezocht_op": f"{'aankomst' if aankomst else 'vertrek'} {moment.strftime('%Y-%m-%d %H:%M')}",
         "reisadviezen": trips,
-        "bron": BRON,
     }
+    if running and (gone := [o for o in fitting if _cancelled(o)]):
+        # Often the first train runs and a connection does not, so say which trip, not which train.
+        result["niet_mogelijk"] = [_describe(o) for o in gone]
+    return {**result, "bron": BRON}
 
 
 def _notes(trip: dict) -> list[str]:
-    """NS's messages on a trip, such as works with buses instead of trains."""
+    """NS's messages on a trip, such as works with buses instead of trains, and its labels, such as a shorter train.
+    The label with the supplement is left out, since toeslag_euro has it."""
     primary = ((trip.get("primaryMessage") or {}).get("message") or {}).get("text")
     found = [primary, *(m.get("text") for m in trip.get("messages") or [])]
     found += [m.get("text") for leg in trip.get("legs") or [] for m in leg.get("messages") or []]
+    labels = [item.get("label") for item in trip.get("labelListItems") or []]
+    found += [label for label in labels if label and "toeslag" not in label]
     notes: list[str] = []
     for text in found:
         if text and text.strip() not in notes:
@@ -259,6 +280,59 @@ def _options(trips: list[dict]) -> list[tuple[datetime, datetime, dict, list[dic
         if departure and arrival:
             options.append((departure, arrival, trip, legs))
     return options
+
+
+def _cancelled(option: tuple) -> bool:
+    _, _, trip, legs = option
+    return trip.get("status") == "CANCELLED" or any(leg.get("cancelled") for leg in legs)
+
+
+def _describe(option: tuple) -> str:
+    departure, arrival, _, legs = option
+    via = [(leg.get("destination") or {}).get("name") or "?" for leg in legs[:-1]]
+    return f"vertrek {fmt_time(departure)}, aankomst {fmt_time(arrival)}" + (f", via {', '.join(via)}" if via else "")
+
+
+def _pick(options: list[tuple], aankomst: bool) -> list[tuple]:
+    """The best trip first, then the others worth taking in time order, MAX_TRIPS in all.
+
+    The best arrives first, or for an arrival search leaves last, where each transfer counts as TRANSFER_MINUTES and
+    the other end of the trip as OTHER_END. A trip is not worth taking when another one leaves no earlier (for an
+    arrival search: arrives no later), costs no more and has no more transfers, unless it arrives earlier (leaves
+    later) by more than its extra transfers are worth. So a trip with two changes that arrives a minute before the
+    direct train drops out.
+    """
+    def minutes(moment: datetime) -> float:
+        return moment.timestamp() / 60
+
+    def transfers(option: tuple) -> int:
+        return option[2].get("transfers") or 0
+
+    def price(option: tuple) -> float:
+        return (option[2].get("productFare") or {}).get("priceInCents") or math.inf
+
+    def order(option: tuple) -> tuple:
+        departure, arrival = minutes(option[0]), minutes(option[1])
+        extra = TRANSFER_MINUTES * transfers(option)
+        if aankomst:
+            return extra - departure + OTHER_END * arrival, transfers(option), arrival, price(option)
+        return arrival + extra - OTHER_END * departure, transfers(option), -departure, price(option)
+
+    def beats(a: tuple, b: tuple) -> bool:
+        if transfers(a) > transfers(b) or price(a) > price(b):
+            return False
+        margin = TRANSFER_MINUTES * (transfers(b) - transfers(a))
+        if aankomst:
+            return a[1] <= b[1] and minutes(a[0]) >= minutes(b[0]) - margin
+        return a[0] >= b[0] and minutes(a[1]) <= minutes(b[1]) + margin
+
+    kept: list[tuple] = []
+    for option in sorted(options, key=order):
+        if not any(beats(other, option) for other in kept):
+            kept.append(option)
+    rest = sorted(kept[1:], key=lambda o: o[0])
+    # For an arrival search the trips just before the asked time matter most, otherwise the ones just after it.
+    return [kept[0], *(rest[1 - MAX_TRIPS:] if aankomst else rest[: MAX_TRIPS - 1])]
 
 
 def _leg(leg: dict) -> dict[str, Any]:
