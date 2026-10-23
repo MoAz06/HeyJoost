@@ -1,0 +1,509 @@
+[
+  {
+    "id": "nu-leiden-utrecht",
+    "vraag": "Hoe laat gaat de volgende trein van Leiden naar Utrecht?",
+    "tags": [
+      "vertrek",
+      "nu"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Leiden Centraal"
+        ],
+        "naar": [
+          "Utrecht Centraal"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt nu vanaf Leiden Centraal naar Utrecht Centraal en raadt de beste reis aan."
+  },
+  {
+    "id": "nu-denhaag-schiphol",
+    "vraag": "Ik sta op Den Haag Centraal en moet naar Schiphol. Welke trein neem ik?",
+    "tags": [
+      "vertrek",
+      "nu"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Den Haag Centraal"
+        ],
+        "naar": [
+          "Schiphol"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt nu en raadt de beste reis aan; een directe trein mag als alternatief."
+  },
+  {
+    "id": "nu-breda-amsterdam",
+    "vraag": "Volgende trein van Breda naar Amsterdam?",
+    "tags": [
+      "vertrek",
+      "nu",
+      "toeslag"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Breda"
+        ],
+        "naar": [
+          "Amsterdam Centraal"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Raadt de beste reis aan en noemt de toeslag als die met de Intercity direct gaat."
+  },
+  {
+    "id": "morgen-8-denhaag-eindhoven",
+    "vraag": "Morgen om 8 uur wil ik van Den Haag HS naar Eindhoven. Welke trein?",
+    "tags": [
+      "vertrek",
+      "dag"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Den Haag HS"
+        ],
+        "naar": [
+          "Eindhoven"
+        ],
+        "aankomst": false,
+        "dag": "morgen",
+        "tijd": "08:00"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt morgen vanaf 08:00 en raadt de beste reis aan."
+  },
+  {
+    "id": "maandag-1540-rotterdam-amsterdam",
+    "vraag": "Wat is maandag rond 15:40 de beste trein van Rotterdam naar Amsterdam Centraal?",
+    "tags": [
+      "vertrek",
+      "dag",
+      "toeslag"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Rotterdam Centraal"
+        ],
+        "naar": [
+          "Amsterdam Centraal"
+        ],
+        "aankomst": false,
+        "dag": "maandag",
+        "tijd": "15:40"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Raadt de reis aan die het vroegst aankomt (vaak de Intercity direct), niet de kortste, en noemt de toeslag."
+  },
+  {
+    "id": "maandag-1540-haarlem-denhaag",
+    "vraag": "Maandag om 15:40 van Haarlem naar Den Haag Centraal, welke trein?",
+    "tags": [
+      "vertrek",
+      "dag",
+      "overstap"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Haarlem"
+        ],
+        "naar": [
+          "Den Haag Centraal"
+        ],
+        "aankomst": false,
+        "dag": "maandag",
+        "tijd": "15:40"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Raadt de beste reis aan; noemt bij een overstap de juiste minuten."
+  },
+  {
+    "id": "morgenavond-7-amsterdam-groningen",
+    "vraag": "Ik wil morgenavond om 7 uur met de trein van Amsterdam naar Groningen vertrekken. Welke trein neem ik?",
+    "tags": [
+      "vertrek",
+      "dag",
+      "overstap"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Amsterdam Centraal"
+        ],
+        "naar": [
+          "Groningen"
+        ],
+        "aankomst": false,
+        "dag": "morgen",
+        "tijd": "19:00"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt morgen vanaf 19:00, raadt de beste reis aan en noemt de overstap met de juiste minuten."
+  },
+  {
+    "id": "morgen-half9-leiden-eindhoven",
+    "vraag": "Ik ga morgenochtend om half 9 van Leiden naar Eindhoven. Moet ik overstappen?",
+    "tags": [
+      "vertrek",
+      "dag",
+      "overstap"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Leiden Centraal"
+        ],
+        "naar": [
+          "Eindhoven"
+        ],
+        "aankomst": false,
+        "dag": "morgen",
+        "tijd": "08:30"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt morgen vanaf 08:30 en zegt of en waar je overstapt, met de juiste minuten."
+  },
+  {
+    "id": "nu-voorschoten-delft",
+    "vraag": "Wanneer gaat de volgende trein van Voorschoten naar Delft?",
+    "tags": [
+      "vertrek",
+      "nu",
+      "klein station"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Voorschoten"
+        ],
+        "naar": [
+          "Delft"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Vindt de kleine stations en raadt de beste reis aan."
+  },
+  {
+    "id": "engels-amsterdam-schiphol",
+    "vraag": "When is the next train from Amsterdam Centraal to Schiphol Airport?",
+    "tags": [
+      "vertrek",
+      "nu",
+      "engels"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Amsterdam Centraal"
+        ],
+        "naar": [
+          "Schiphol"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "taal": "en",
+    "goed": "Antwoordt in het Engels en raadt de beste reis aan."
+  },
+  {
+    "id": "laatste-utrecht-zwolle",
+    "vraag": "Wat is vanavond de laatste trein van Utrecht naar Zwolle?",
+    "tags": [
+      "vertrek",
+      "laatste",
+      "moeilijk"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Utrecht Centraal"
+        ],
+        "naar": [
+          "Zwolle"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": {
+          "na": "22:00"
+        }
+      }
+    ],
+    "keuze": "laatste",
+    "goed": "Zoekt laat op de avond en noemt de laatste trein van de avond, niet de eerste die het vindt."
+  },
+  {
+    "id": "eerste-zwolle-groningen",
+    "vraag": "Wat is morgenochtend de eerste trein van Zwolle naar Groningen?",
+    "tags": [
+      "vertrek",
+      "eerste",
+      "dag",
+      "moeilijk"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Zwolle"
+        ],
+        "naar": [
+          "Groningen"
+        ],
+        "aankomst": false,
+        "dag": "morgen",
+        "tijd": {
+          "voor": "06:30"
+        }
+      }
+    ],
+    "keuze": "eerste",
+    "goed": "Zoekt morgen vroeg en noemt de eerste trein van de ochtend."
+  },
+  {
+    "id": "maandag-9-op-station",
+    "vraag": "Ik moet maandag om 9 uur op Amsterdam Centraal zijn, ik kom uit Rotterdam. Welke trein?",
+    "tags": [
+      "aankomst",
+      "dag",
+      "op het station"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Rotterdam Centraal"
+        ],
+        "naar": [
+          "Amsterdam Centraal"
+        ],
+        "aankomst": true,
+        "dag": "maandag",
+        "tijd": "08:55"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt op aankomst 08:55: geen looptijd want het is op het station zelf, wel 5 minuten marge."
+  },
+  {
+    "id": "maandag-9-in-amsterdam",
+    "vraag": "Hoe kom ik maandag om 9 uur in Amsterdam als ik uit Rotterdam kom?",
+    "tags": [
+      "aankomst",
+      "dag"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Rotterdam Centraal"
+        ],
+        "naar": [
+          "Amsterdam Centraal"
+        ],
+        "aankomst": true,
+        "dag": "maandag",
+        "tijd": [
+          "08:40",
+          "08:55"
+        ]
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt op aankomst tussen 08:40 en 08:55: het adres is onbekend, dus wat looptijd mag, plus 5 minuten marge."
+  },
+  {
+    "id": "maandag-10-erasmusmc",
+    "vraag": "Ik heb maandag om 10:00 een afspraak bij het Erasmus MC en ik kom uit Leiden. Welke trein moet ik nemen?",
+    "tags": [
+      "aankomst",
+      "dag",
+      "laatste stuk"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Leiden Centraal"
+        ],
+        "naar": [
+          "Rotterdam Centraal"
+        ],
+        "aankomst": true,
+        "dag": "maandag",
+        "tijd": [
+          "09:20",
+          "09:50"
+        ]
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt op aankomst in Rotterdam tussen 09:20 en 09:50: het laatste stuk (lopen of tram) plus 5 minuten marge."
+  },
+  {
+    "id": "morgen-half9-op-denhaag",
+    "vraag": "Ik moet morgen om half 9 op Den Haag Centraal zijn, ik kom uit Delft.",
+    "tags": [
+      "aankomst",
+      "dag",
+      "op het station"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Delft"
+        ],
+        "naar": [
+          "Den Haag Centraal"
+        ],
+        "aankomst": true,
+        "dag": "morgen",
+        "tijd": "08:25"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt op aankomst morgen 08:25: op het station zelf, dus alleen 5 minuten marge."
+  },
+  {
+    "id": "zaterdag-vlucht-schiphol",
+    "vraag": "Mijn vlucht gaat zaterdag om 10:00 vanaf Schiphol en ik kom uit Den Haag. Welke trein moet ik nemen?",
+    "tags": [
+      "aankomst",
+      "dag",
+      "vlucht",
+      "moeilijk"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Den Haag Centraal",
+          "Den Haag HS"
+        ],
+        "naar": [
+          "Schiphol"
+        ],
+        "aankomst": true,
+        "dag": "zaterdag",
+        "tijd": [
+          "06:30",
+          "08:30"
+        ]
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt op aankomst ruim voor de vlucht (uiterlijk 08:30), niet om 10:00."
+  },
+  {
+    "id": "dinsdag-9-science-park",
+    "vraag": "Ik moet dinsdag om 9 uur op Utrecht Science Park zijn en ik woon in Gouda. Hoe kom ik daar?",
+    "tags": [
+      "aankomst",
+      "dag",
+      "laatste stuk",
+      "moeilijk"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Gouda"
+        ],
+        "naar": [
+          "Utrecht Centraal"
+        ],
+        "aankomst": true,
+        "dag": "dinsdag",
+        "tijd": [
+          "08:15",
+          "08:45"
+        ]
+      }
+    ],
+    "keuze": null,
+    "goed": "Zoekt een trein naar Utrecht Centraal die op tijd is voor de tram of bus naar het Science Park; welke trein mag Joost zelf kiezen, passend bij die aansluiting."
+  },
+  {
+    "id": "typfouten",
+    "vraag": "volgende trein amsterdm naar utreht",
+    "tags": [
+      "robuust",
+      "nu"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Amsterdam Centraal"
+        ],
+        "naar": [
+          "Utrecht Centraal"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "goed": "Snapt de stations ondanks de typfouten en raadt de beste reis aan."
+  },
+  {
+    "id": "zaterdag-heen-en-terug",
+    "vraag": "Ik ga zaterdag van Utrecht naar Zwolle, heen rond 10 uur en terug rond 17 uur. Welke treinen?",
+    "tags": [
+      "robuust",
+      "dag",
+      "twee reizen"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Utrecht Centraal"
+        ],
+        "naar": [
+          "Zwolle"
+        ],
+        "aankomst": false,
+        "dag": "zaterdag",
+        "tijd": "10:00"
+      },
+      {
+        "van": [
+          "Zwolle"
+        ],
+        "naar": [
+          "Utrecht Centraal"
+        ],
+        "aankomst": false,
+        "dag": "zaterdag",
+        "tijd": "17:00"
+      }
+    ],
+    "keuze": null,
+    "goed": "Zoekt twee keer, heen en terug, en noemt voor allebei een trein."
+  }
+]

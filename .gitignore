@@ -14,3 +14,6 @@ wheels/
 
 # Een index die nog wordt opgebouwd
 *.bezig.json
+
+# Meetresultaten van scripts/eval_reis.py
+.claude/hillclimb/

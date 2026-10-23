@@ -111,9 +111,11 @@ EARLIER = (
     "Gelukt: deze zoekactie gaf resultaten, en je antwoord hierna komt daaruit. Ze staan hier niet meer bij, om het "
     "gesprek kort te houden."
 )
-# After long results, as with the travel advice for Egypt, Haiku often answered a Dutch question in English. A note
-# right after the results keeps it Dutch. Whether a question is Dutch, the small words tell.
+# After long results, as with the travel advice for Egypt, Haiku often answered a Dutch question in English, and after
+# the Dutch departure board an English question in Dutch. A note right after the results keeps the language of the
+# question. Which language that is, the small words tell.
 IN_DUTCH = "Schrijf het antwoord in het Nederlands."
+IN_ENGLISH_NOTE = "Write the answer in English."
 DUTCH_WORDS = frozenset(
     "ik je jij jullie u het een de van naar wat hoe wanneer waar welke welk kan kun heb hebt moet mijn niet geen er "
     "om te voor bij op met en ook nog dit deze die dat zijn wordt gaat morgen vandaag nu gisteren hoeveel waarom".split()
@@ -259,8 +261,9 @@ Zo antwoord je:
 - Lukt iets niet of vind je niks, zeg dat dan eerlijk en stel een betere vraag voor.
 - Mis je iets wat echt nodig is, zoals de plaats van een halte, vraag dat dan kort.
 {reisplanner}
-- Reken bij een overstap uit hoeveel minuten je hebt en noem dat getal, zoals "dan heb je 12 minuten om over te stappen". Minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
-- Bij trein_reis staat de beste reis bovenaan, met 'beste'. Die komt zo vroeg mogelijk aan met zo min mogelijk overstappen, of bij aankomst=true vertrekt die zo laat mogelijk en is nog op tijd. Raad die reis aan, ook als een andere korter onderweg is. Noem daarna hooguit één andere reis, als die iets heeft wat de beste mist: geen overstap, geen toeslag of meer tijd over. Zonder overstap betekent niet dat de trein onderweg niet stopt; waar hij stopt, weet je niet. Vertrekt de beste trein binnen een paar minuten, zeg dat dan en noem ook de volgende.
+- Noem bij een overstap hoeveel minuten je hebt en of dat krap, genoeg of ruim is, zoals "in Utrecht heb je 12 minuten om over te stappen, dat is ruim". Bij trein_reis staat dat in 'overstaptijd': neem dat oordeel letterlijk over (5 minuten is dus genoeg, niet krap) en reken het niet zelf uit. Anders reken je zelf: minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
+- Gaat het om een trein van de ene plaats naar de andere, ook bij "de volgende trein", gebruik dan trein_reis en niet trein_vertrek. Noemt iemand bij zo'n reis een tijd, zoals "vrijdag om 17:10 van Delft naar Gouda", dan is dat de vertrektijd. aankomst=true is alleen voor als iemand op een tijd ergens moet zijn. De eerste trein van een dag zoek je vanaf 04:00, want treinen tussen middernacht en 4 uur horen bij de nacht ervoor.
+- Bij trein_reis staat de beste reis bovenaan, met 'beste'. Die komt zo vroeg mogelijk aan met zo min mogelijk overstappen, of bij aankomst=true vertrekt die zo laat mogelijk en is nog op tijd. Raad die reis aan, ook als een andere korter onderweg is. Noem daarna hooguit één andere reis, ook als volgende trein of als extra zekerheid, en alleen als die iets heeft wat de beste mist: geen overstap, geen toeslag of meer tijd over. Hoe vaak een trein onderweg stopt, staat in 'tussenstops'; zeg alleen dat hij nergens stopt als dat 0 is. Hoeft iemand niet over te stappen, zeg dan "zonder overstap". Welke dag de reis is, staat in 'dag', en de tijden gelden voor die dag: noem die dag, en zeg geen "vandaag" als het een andere dag is. Vertrekt de beste trein binnen een paar minuten, zeg dat dan en noem ook de volgende.
 - Heeft een treinreis 'toeslag_euro', zeg dan dat er een toeslag in de prijs zit voor de Intercity direct of de ICE, en hoeveel. Staan er reizen in 'niet_mogelijk', zeg dan kort dat die niet gaan.
 - Gaat het om een later moment, geef dan datum en tijd mee aan de tool.
 - Staat er in een resultaat een 'let_op', zoals een staking, noem dat dan altijd, vóór de tijden. Gaat het bericht over een andere dag dan de vraag, zeg dat er dan kort bij. Staan er bij een treinreis 'meldingen', zoals een bus in plaats van de trein, noem die dan ook.
@@ -305,12 +308,13 @@ NO_PLANNER = (
     "eindbestemming. Noem de halte waar je opstapt en hoe ver die ongeveer is. De afstand is hemelsbreed, lopen "
     "is iets verder.\n"
     "- Moet iemand op een vaste tijd ergens zijn, plan dan terug vanaf die tijd en zoek de stukjes na elkaar in "
-    "plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true. Als tijd neem je de afspraak min "
-    "het laatste stuk (lopen: reken 10 tot 15 minuten als je het niet weet, en niks als iemand op het station "
-    "zelf moet zijn) en 5 minuten marge. Bijvoorbeeld: afspraak om 10:00 en een kwartier lopen, dan zoek je met "
-    "09:40. Neem de reis met 'beste', want die vertrekt zo laat mogelijk en is nog op tijd. Een eerdere trein noem "
-    "je hooguit als extra zekerheid. Zoek daarna de bus of tram naar het station, met als tijd een half uur voor "
-    "die trein, en kies de laatste die minstens 5 minuten voor vertrek bij het station is."
+    "plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true, als tijd de tijd waarop iemand er "
+    "moet zijn, en lopen_min: hoe lang het laatste stuk vanaf het station duurt (reken 10 tot 15 minuten lopen als "
+    "je het niet weet, en 0 als iemand op het station zelf moet zijn). De tool haalt dat en 5 minuten marge van de "
+    "tijd af, dus doe dat niet zelf. Bijvoorbeeld: afspraak om 10:00 en een kwartier lopen, dan zoek je met tijd "
+    "10:00 en lopen_min 15. Neem de reis met 'beste', want die vertrekt zo laat mogelijk en is nog op tijd. Noem "
+    "hooguit één eerdere trein, als extra zekerheid. Zoek daarna de bus of tram naar het station, met als tijd een "
+    "half uur voor die trein, en kies de laatste die minstens 5 minuten voor vertrek bij het station is."
 )
 PLANNER = (
     "- Van deur tot deur met het ov gebruik je reis_plannen, met het adres, de straat, het station of de plaats "
@@ -550,12 +554,15 @@ async def _answer(
         {"type": "text", "text": _now() + (ENGLISH_PAGE if english else "")},
     ]
     question = messages[-1]["content"]
-    note = [{"type": "text", "text": IN_DUTCH}] if _dutch(question) else []
+    nl, en = _counts(question)
+    note = [{"type": "text", "text": IN_DUTCH if nl > en else IN_ENGLISH_NOTE}] if nl != en else []
     lookups: dict[str, int] = {}
     said, used, missed = "", set(), set()
     looked: list[dict[str, Any]] = []
     cost = 0.0
-    for round_ in range(MAX_ROUNDS):
+    again = True
+    # One round more than MAX_ROUNDS, only for an answer that came back empty.
+    for round_ in range(MAX_ROUNDS + 1):
         day.spent += ROUND_RESERVE
         before = len(said)
         try:
@@ -566,7 +573,7 @@ async def _answer(
                 system=system,
                 tools=definitions,
                 # The last round answers with what it found so far.
-                tool_choice={"type": "none" if round_ == MAX_ROUNDS - 1 else "auto"},
+                tool_choice={"type": "none" if round_ >= MAX_ROUNDS - 1 else "auto"},
                 messages=messages,
             ) as stream:
                 async for event in stream:
@@ -595,6 +602,10 @@ async def _answer(
             return
         uses = [block for block in message.content if block.type == "tool_use"]
         if message.stop_reason != "tool_use" or not uses:
+            # Now and then Haiku only thinks and says nothing, also in the last round. Asked once more, it answers.
+            if message.stop_reason == "end_turn" and not said[before:].strip() and again:
+                again = False
+                continue
             break
         missed.update(_missed(use.input) for use in uses if use.name == MISSED_TOOL["name"])
         # Counted after the answer, as asked: then the answer is complete and needs no other round.
@@ -627,11 +638,6 @@ async def _answer(
     )
     # How many questions are left today, so the page can warn before the last one.
     yield {"type": "done", "over": max(0, per_day() - day.asked.get(visitor, 0)), "gezocht": looked}
-
-
-def _dutch(question: str) -> bool:
-    nl, en = _counts(question)
-    return nl > en
 
 
 def _counts(question: str) -> tuple[int, int]:

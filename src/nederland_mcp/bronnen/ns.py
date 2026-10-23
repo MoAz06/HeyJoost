@@ -33,10 +33,21 @@ MAX_DAYS = 31
 MAX_ITEMS = 20
 MAX_TRIPS = 5
 # In comparing trips a transfer counts as this many minutes: it takes effort, and a late train makes you miss the next.
+# A tight one counts twice.
 TRANSFER_MINUTES = 5
 # The other end of a trip counts for a quarter: each minute you leave later, or for an arrival search each minute you
 # arrive earlier. So a much shorter trip beats one that arrives a minute sooner.
 OTHER_END = 0.25
+# A transfer with fewer minutes than this is tight; from AMPLE on there is plenty of time, in between it is enough.
+TIGHT = 5
+AMPLE = 10
+# To be somewhere at a time, the train arrives this much before the last stretch, in case it runs late.
+MARGIN = 5
+WEEKDAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
+MONTHS = (
+    "januari", "februari", "maart", "april", "mei", "juni",
+    "juli", "augustus", "september", "oktober", "november", "december",
+)
 
 
 def _headers() -> dict:
@@ -109,7 +120,11 @@ async def _station(name: str) -> dict:
 
     ranked = sorted((s for s in stations if rank(s) < 3), key=lambda s: (rank(s), s.get("land") != "NL"))
     if not ranked:
-        raise ToolError(f"Geen NS-station gevonden voor '{name}'.")
+        # Such as Utrecht Science Park, a tram stop: Haiku tried three names before it took the station.
+        raise ToolError(
+            f"Geen NS-station gevonden voor '{name}'. Is het een halte van bus, tram of metro, zoek dan de trein naar "
+            "het station in de buurt, en het laatste stuk met ov_vertrek."
+        )
     return ranked[0]
 
 
@@ -181,9 +196,19 @@ async def trein_aankomst(station: str, aantal: int = 10, datum: str | None = Non
     return {"station": _station_name(found), "aankomsttijden": arrivals, "bron": BRON}
 
 
-async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | None = None, aankomst: bool = False) -> dict:
+async def trein_reis(
+    van: str,
+    naar: str,
+    datum: str | None = None,
+    tijd: str | None = None,
+    aankomst: bool = False,
+    lopen_min: int | None = None,
+) -> dict:
     origin, destination = await _station(van), await _station(naar)
-    moment = parse_moment(datum, tijd)
+    asked = parse_moment(datum, tijd)
+    # The last stretch and the margin come off here: Haiku often forgot to do that itself.
+    before = lopen_min + MARGIN if aankomst and lopen_min is not None else 0
+    moment = asked - timedelta(minutes=before)
 
     params = {
         "fromStation": origin.get("code"),
@@ -222,11 +247,14 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
     trips = []
     for departure, arrival, trip, legs in chosen:
         fare = trip.get("productFare") or {}
+        changes = _changes(legs)
         option = {
             "vertrek": fmt_time(departure),
             "aankomst": fmt_time(arrival),
             "reistijd_min": trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes"),
             "overstappen": trip.get("transfers"),
+            # Worked out here, since Haiku called five minutes tight.
+            **({"overstaptijd": [_change_line(station, gap) for station, gap in changes]} if changes else {}),
             "status": STATUS.get(trip.get("status"), trip.get("status")),
             "drukte": CROWD.get(trip.get("crowdForecast"), trip.get("crowdForecast")),
             "prijs_euro": fare["priceInCents"] / 100 if fare.get("priceInCents") else None,
@@ -242,12 +270,16 @@ async def trein_reis(van: str, naar: str, datum: str | None = None, tijd: str | 
         raise ToolError(f"Geen reisadvies gevonden van {_station_name(origin)} naar {_station_name(destination)}.")
     if running:
         trips[0] = {"beste": True, **trips[0]}
-    result = {
+    result: dict[str, Any] = {
         "van": _station_name(origin),
         "naar": _station_name(destination),
         "gezocht_op": f"{'aankomst' if aankomst else 'vertrek'} {moment.strftime('%Y-%m-%d %H:%M')}",
-        "reisadviezen": trips,
+        "dag": _day(moment),
     }
+    if before:
+        walk = f"{lopen_min} minuten lopen en " if lopen_min else ""
+        result["op_tijd_voor"] = f"{fmt_time(asked)}, met {walk}{MARGIN} minuten marge"
+    result["reisadviezen"] = trips
     if running and (gone := [o for o in fitting if _cancelled(o)]):
         # Often the first train runs and a connection does not, so say which trip, not which train.
         result["niet_mogelijk"] = [_describe(o) for o in gone]
@@ -269,15 +301,51 @@ def _notes(trip: dict) -> list[str]:
     return notes
 
 
+def _expected(place: dict | None) -> datetime | None:
+    """When a train leaves or arrives somewhere, as expected now."""
+    place = place or {}
+    return parse_time(place.get("actualDateTime") or place.get("plannedDateTime"))
+
+
+def _day(moment: datetime) -> str:
+    """The day in words, such as 'maandag 26 oktober (over 3 dagen)': Haiku called a Monday three days ahead today."""
+    ahead = (moment.date() - now_local().date()).days
+    when = {-1: "gisteren", 0: "vandaag", 1: "morgen", 2: "overmorgen"}.get(ahead)
+    when = when or (f"over {ahead} dagen" if ahead > 0 else f"{-ahead} dagen geleden")
+    return f"{WEEKDAYS[moment.weekday()]} {moment.day} {MONTHS[moment.month - 1]} ({when})"
+
+
+def _changes(legs: list[dict]) -> list[tuple[str, int]]:
+    """Where you change trains and how many minutes you have there, from the arrival to the next departure as expected
+    now. A walk in between comes off."""
+    changes: list[tuple[str, int]] = []
+    walk, last = 0, None
+    for leg in legs:
+        if leg.get("travelType", "PUBLIC_TRANSIT") != "PUBLIC_TRANSIT":
+            walk += leg.get("plannedDurationInMinutes") or 0
+            continue
+        departure = _expected(leg.get("origin"))
+        if last and last[1] and departure:
+            changes.append((last[0], round((departure - last[1]).total_seconds() / 60) - walk))
+        destination = leg.get("destination") or {}
+        last, walk = (destination.get("name") or "?", _expected(destination)), 0
+    return changes
+
+
+def _change_line(station: str, gap: int) -> str:
+    if gap < 0:
+        return f"{station}: haal je niet, de trein vertrekt voor je aankomt"
+    verdict = "krap" if gap < TIGHT else "genoeg" if gap < AMPLE else "ruim"
+    return f"{station}: {gap} {'minuut' if gap == 1 else 'minuten'}, {verdict}"
+
+
 def _options(trips: list[dict]) -> list[tuple[datetime, datetime, dict, list[dict]]]:
     options = []
     for trip in trips:
         legs = trip.get("legs") or []
         if not legs:
             continue
-        first, last = legs[0].get("origin") or {}, legs[-1].get("destination") or {}
-        departure = parse_time(first.get("actualDateTime") or first.get("plannedDateTime"))
-        arrival = parse_time(last.get("actualDateTime") or last.get("plannedDateTime"))
+        departure, arrival = _expected(legs[0].get("origin")), _expected(legs[-1].get("destination"))
         if departure and arrival:
             options.append((departure, arrival, trip, legs))
     return options
@@ -297,11 +365,11 @@ def _describe(option: tuple) -> str:
 def _pick(options: list[tuple], aankomst: bool) -> list[tuple]:
     """The best trip first, then the others worth taking in time order, MAX_TRIPS in all.
 
-    The best arrives first, or for an arrival search leaves last, where each transfer counts as TRANSFER_MINUTES and
-    the other end of the trip as OTHER_END. A trip is not worth taking when another one leaves no earlier (for an
-    arrival search: arrives no later), costs no more and has no more transfers, unless it arrives earlier (leaves
-    later) by more than its extra transfers are worth. So a trip with two changes that arrives a minute before the
-    direct train drops out.
+    The best arrives first, or for an arrival search leaves last, where each transfer counts as TRANSFER_MINUTES, a
+    tight one twice, and the other end of the trip as OTHER_END. A trip is not worth taking when another one leaves no
+    earlier (for an arrival search: arrives no later), costs no more and has no more transfers, nor more tight ones,
+    unless it arrives earlier (leaves later) by more than its extra transfers are worth. So a trip with two changes
+    that arrives a minute before the direct train drops out.
     """
     def minutes(moment: datetime) -> float:
         return moment.timestamp() / 60
@@ -309,20 +377,25 @@ def _pick(options: list[tuple], aankomst: bool) -> list[tuple]:
     def transfers(option: tuple) -> int:
         return option[2].get("transfers") or 0
 
+    def tight(option: tuple) -> int:
+        return sum(gap < TIGHT for _, gap in _changes(option[3]))
+
+    def weight(option: tuple) -> int:
+        return TRANSFER_MINUTES * (transfers(option) + tight(option))
+
     def price(option: tuple) -> float:
         return (option[2].get("productFare") or {}).get("priceInCents") or math.inf
 
     def order(option: tuple) -> tuple:
         departure, arrival = minutes(option[0]), minutes(option[1])
-        extra = TRANSFER_MINUTES * transfers(option)
         if aankomst:
-            return extra - departure + OTHER_END * arrival, transfers(option), arrival, price(option)
-        return arrival + extra - OTHER_END * departure, transfers(option), -departure, price(option)
+            return weight(option) - departure + OTHER_END * arrival, transfers(option), arrival, price(option)
+        return arrival + weight(option) - OTHER_END * departure, transfers(option), -departure, price(option)
 
     def beats(a: tuple, b: tuple) -> bool:
-        if transfers(a) > transfers(b) or price(a) > price(b):
+        if transfers(a) > transfers(b) or tight(a) > tight(b) or price(a) > price(b):
             return False
-        margin = TRANSFER_MINUTES * (transfers(b) - transfers(a))
+        margin = weight(b) - weight(a)
         if aankomst:
             return a[1] <= b[1] and minutes(a[0]) >= minutes(b[0]) - margin
         return a[0] >= b[0] and minutes(a[1]) <= minutes(b[1]) + margin
@@ -341,6 +414,8 @@ def _leg(leg: dict) -> dict[str, Any]:
     product = leg.get("product") or {}
     planned = parse_time(origin.get("plannedDateTime"))
     actual = parse_time(origin.get("actualDateTime"))
+    # With where you get on and off. Without the count Haiku said a train without transfers makes no stops.
+    stops = [stop for stop in leg.get("stops") or [] if not stop.get("passing") and not stop.get("cancelled")]
     return {
         "trein": product.get("displayName") or product.get("shortCategoryName") or leg.get("name"),
         "richting": leg.get("direction"),
@@ -349,7 +424,8 @@ def _leg(leg: dict) -> dict[str, Any]:
         "vertraging_min": _delay_minutes(planned, actual),
         "spoor": origin.get("actualTrack") or origin.get("plannedTrack"),
         "naar": destination.get("name"),
-        "aankomst": fmt_time(parse_time(destination.get("actualDateTime") or destination.get("plannedDateTime"))),
+        "aankomst": fmt_time(_expected(destination)),
+        **({"tussenstops": len(stops) - 2} if len(stops) >= 2 else {}),
         "geannuleerd": bool(leg.get("cancelled")),
     }
 

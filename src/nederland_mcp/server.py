@@ -365,12 +365,16 @@ async def trein_aankomst(
     description=(
         "Reisadvies met de trein tussen twee stations: vertrek, aankomst, overstappen, vertraging, drukte en "
         "prijs. Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
-        "komt zo vroeg mogelijk aan met zo min mogelijk overstappen (een overstap telt als 5 minuten). Met "
-        "aankomst=true komen alleen reizen die op tijd aankomen, en vertrekt de beste zo laat mogelijk. Daarna "
-        "volgen de andere reizen op tijd; een reis die in alles slechter is dan een andere valt weg. Bij de "
-        "Intercity direct en de ICE staat de toeslag in 'toeslag_euro', en die zit al in de prijs. Reizen die niet "
-        "gaan, omdat een trein uitvalt of een overstap niet meer lukt, staan in 'niet_mogelijk'. Rijdt er door "
-        "werkzaamheden of een storing een bus in plaats van de trein, dan staat het bericht van NS in 'meldingen'."
+        "komt zo vroeg mogelijk aan met zo min mogelijk overstappen (een overstap telt als 5 minuten, een krappe "
+        "als 10). Met aankomst=true komen alleen reizen die op tijd aankomen, en vertrekt de beste zo laat "
+        "mogelijk; met lopen_min gaat daar eerst het laatste stuk en 5 minuten marge af. Daarna volgen de andere "
+        "reizen op tijd; een reis die in alles slechter is dan een andere valt weg. 'overstaptijd' zegt per "
+        "overstap hoeveel minuten je hebt en of dat krap (minder dan 5), genoeg of ruim (vanaf 10) is, en "
+        "'tussenstops' per deel hoe vaak de trein onderweg stopt. 'dag' is de dag in woorden, zoals 'maandag 26 "
+        "oktober (over 3 dagen)'. Bij de Intercity direct en de ICE staat de toeslag in 'toeslag_euro', en die zit "
+        "al in de prijs. Reizen die niet gaan, omdat een trein uitvalt of een overstap niet meer lukt, staan in "
+        "'niet_mogelijk'. Rijdt er door werkzaamheden of een storing een bus in plaats van de trein, dan staat het "
+        "bericht van NS in 'meldingen'."
     ),
     annotations=READ_ONLY,
 )
@@ -380,8 +384,9 @@ async def trein_reis(
     datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
     tijd: Annotated[str | None, Field(description="Tijd als UU:MM. Leeg = nu")] = None,
     aankomst: Annotated[bool, Field(description="True als de tijd de gewenste aankomsttijd is")] = False,
+    lopen_min: Annotated[int | None, Field(ge=0, le=120, description="Alleen met aankomst=true: hoeveel minuten je na de trein nog onderweg bent naar waar je op tijd moet zijn, zoals lopen of de tram, en 0 als dat het station zelf is. De tool haalt dat en 5 minuten marge van de tijd af. Leeg = precies op de tijd aankomen")] = None,
 ) -> dict[str, Any]:
-    return await ns.trein_reis(van, naar, datum, tijd, aankomst)
+    return await ns.trein_reis(van, naar, datum, tijd, aankomst, lopen_min)
 
 
 @server.tool(
