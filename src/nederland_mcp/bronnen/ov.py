@@ -43,11 +43,21 @@ SAME_STOP_RADIUS = 400
 PLACE_RADIUS = 400
 # A walk between such stops, or on to the place: a third longer than as the crow flies, at 80 metres a minute.
 DETOUR, WALK_SPEED = 1.3, 80
+# A place that no stop is named after, like Rotterdam Ahoy, is found by the place search, and is bigger than a
+# stop: the stops within this walk of it serve it.
+SPOT_RADIUS = 600
+# Words a place's name can have or leave out: De Uithof is the Uithof.
+ARTICLES = {"de", "het", "t"}
+# The place search also finds what is only named after a place, like its car parks, which are not where it is,
+# and what is only part of it, like an LUMC office a kilometre from the hospital.
+BESIDE = ("parking", "charging_station", "fuel")
+MINOR = ("office", "shop", "restaurant", "cafe", "pub", "bar", "fast_food", "hotel")
 STATION_NAME = re.compile(r"^(station|cs)\b|\b(station|centraal|cs)$|hoofdstation$", re.IGNORECASE)
 STATION_WORDS = {"station", "centraal", "hoofdstation"}
 # Stop names that count as the town's main station when 'naar' asks only for "station".
 MAIN_STOP_WORDS = {"centraal", "hoofdstation", "stationsplein"}
-WORD_ALIASES = {"cs": ("centraal", "station"), "hs": ("hollands", "spoor")}
+# Short forms in stop names, as Arnhem's "Centraal Stat.(Sonsbeek)".
+WORD_ALIASES = {"cs": ("centraal", "station"), "hs": ("hollands", "spoor"), "stat": ("station",)}
 # A town's stops lie in its municipality, or this close to its centre (for districts like Scheveningen).
 TOWN_RADIUS = 3000
 # Further away than this from the town asked for, a stop is not the one meant.
@@ -93,6 +103,15 @@ def _coverage(wanted: list[str], name: str, strict: bool = False) -> float:
 
     found = sum(1 for w in wanted if w in words or any(close(w, word) for word in words))
     return found / len(wanted)
+
+
+def _lookalike(wanted: list[str], name: str) -> bool:
+    """An asked word is not in the name but only looks like one of its words, as Hofplein and P.C. Hooftplein."""
+    words = set(_words(name))
+    return any(
+        w not in words and any(SequenceMatcher(None, w, word).ratio() >= 0.8 for word in words)
+        for w in set(wanted) - STATION_WORDS
+    )
 
 
 def _towns(hit: dict) -> set[str]:
@@ -184,8 +203,17 @@ async def _find(halte: str, plaats: str | None, wide: bool = True) -> tuple[dict
         """Every word of the stop's own name was asked for."""
         return _coverage(wanted, hit["name"]) >= 0.5 and own_words(hit) <= asked
 
+    # A town in the name asked counts as well: Utrecht Science Park is not Amsterdam Science Park. The hits
+    # tell which of the asked words are towns.
+    towns_named: set[str] = set()
+
+    def named_town(hit: dict) -> bool:
+        return not towns_named or bool(towns_named & _town_words(hit))
+
     def rank(hit: dict) -> tuple:
-        return (in_town(hit), main(hit), exact(hit), _coverage(wanted, hit["name"]), station and _is_station(hit))
+        return (
+            in_town(hit), named_town(hit), main(hit), exact(hit), _coverage(wanted, hit["name"]), station and _is_station(hit)
+        )
 
     def good(hit: dict) -> bool:
         # For a street, half the words (Prinses Margrietplantsoen for Prinses Beatrixlaan) is not enough.
@@ -213,6 +241,7 @@ async def _find(halte: str, plaats: str | None, wide: bool = True) -> tuple[dict
     for text, area in rounds:
         for hit in await _geocode(text, "STOP", area):
             found.setdefault(hit["id"], hit)
+        towns_named = asked & {word for hit in found.values() for word in _town_words(hit)}
         # max() keeps the first of equal hits, so Transitous' own order breaks ties.
         best = max(found.values(), key=rank, default=None)
         if best and in_town(best) and (main(best) or (exact(best) and not (station and plain(best)))):
@@ -224,7 +253,9 @@ async def _find(halte: str, plaats: str | None, wide: bool = True) -> tuple[dict
     for pool in ([h for h in hits if in_town(h)], near):
         matches = [h for h in pool if good(h)]
         if matches:
-            return matches[0], hits, main(matches[0]) or exact(matches[0])
+            # Other stops only from the town asked for: no Amsterdam Centraal for Rotterdam Centraal.
+            others = [h for h in hits if in_town(h) and named_town(h)]
+            return matches[0], others, main(matches[0]) or exact(matches[0])
     names = "; ".join(list(dict.fromkeys(h["name"] for h in (near or hits) if alike(h)))[:5])
     where = f" in {plaats}" if plaats else ""
     # Only the names look alike, so these stops can be anywhere in town.
@@ -312,13 +343,66 @@ async def _near(point: dict) -> list[dict]:
     return sorted((h for h in stops if _distance(point, h) <= ADDRESS_RADIUS), key=lambda h: _distance(point, h))
 
 
+async def _spots(text: str, plaats: str | None = None, box: tuple[float, ...] | None = None) -> list[dict]:
+    """Places with exactly this name that no stop is named after, like the LUMC, Rotterdam Ahoy or the Johan
+    Cruijff ArenA, from the same search as the stops. A main entrance comes first (LUMC Hoofdingang), then the
+    place itself, then an office or a shop with just its name."""
+    plaats_words = set(_words(plaats)) if plaats else set()
+    wanted = set(_words(text)) - ARTICLES - plaats_words
+    center = await _place(plaats) if plaats else None
+    if center:
+        box = (center["lat"] - BOX_LAT, center["lon"] - BOX_LON, center["lat"] + BOX_LAT, center["lon"] + BOX_LON)
+
+    def in_town(hit: dict) -> bool:
+        return not plaats or place_key(plaats) in _towns(hit) or bool(center and _distance(center, hit) <= TOWN_RADIUS)
+
+    # As for stops, first with the town in the text, then the name alone around the town: the first finds
+    # Rotterdam Ahoy among its car parks, the second the LUMC.
+    rounds = [(f"{text} {plaats}", None), (text, box)] if plaats else [(text, box)]
+    for query, area in rounds:
+        try:
+            hits = await _geocode(query, "PLACE", area)
+        except ToolError:
+            return []
+        tiers: dict[int, list[dict]] = {}
+        for hit in hits:
+            category, town = hit.get("category") or "", _town_words(hit)
+            asked = wanted - town
+            words = set(_words(hit["name"])) - ARTICLES - town - plaats_words
+            if not asked or category.startswith(BESIDE) or not in_town(hit):
+                continue
+            if category.startswith("entrance") and asked <= words:
+                tiers.setdefault(0, []).append(hit)
+            elif words == asked:
+                tiers.setdefault(2 if category.startswith(MINOR) else 1, []).append(hit)
+        if tiers:
+            # The name alone before the name with its town: Hofplein before Rotterdam Hofplein.
+            return sorted(tiers[min(tiers)], key=lambda hit: normalize(hit["name"]) != normalize(text))
+    return []
+
+
+async def _spot(text: str, plaats: str | None) -> dict | None:
+    """A place that no stop is named after, as a point like an address: the main entrance of the LUMC, or the
+    Johan Cruijff ArenA itself. None when no place has exactly this name."""
+    spots = await _spots(text, plaats)
+    towns = list(dict.fromkeys(town for town in map(_town, spots) if town))
+    if len(towns) > 1:
+        raise ToolError(f"'{text}' bestaat in meer dan één plaats, bijvoorbeeld: {', '.join(towns[:5])}. Geef de plaats mee.")
+    if not spots:
+        return None
+    spot = spots[0]
+    name = spot["name"] if not towns or normalize(towns[0]) in normalize(spot["name"]) else f"{spot['name']}, {towns[0]}"
+    return {"lat": spot["lat"], "lon": spot["lon"], "naam": name}
+
+
 async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | None, list[dict], bool]:
     """Where to leave from: an address or street as (point, None, [], True), or a stop as (None, stop,
     candidates, sure), where sure says that the stop's own name was asked in full.
 
     A stop can be named after its street (Spui), so for a street the stop search still runs. With a town,
     the street is looked up first and then only the first round of the stop search runs: that keeps the
-    lookups at Transitous within the one to three per question they were told.
+    lookups at Transitous within the one to three per question they were told. A place that no stop is
+    named after, like the LUMC or Rotterdam Ahoy, counts as an address too.
     """
     if _is_address(halte):
         point = await _address(halte, plaats)
@@ -331,13 +415,22 @@ async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | N
         best, candidates, sure = await _find(halte, plaats, wide=street is None)
     except ToolError:
         street = street or (None if plaats else await _address(halte, None, fuzzy=False))
+        street = street or await _spot(halte, plaats)
         if street is None:
             raise
         return street, None, [], True
     # Without a town, a street can look like a stop elsewhere, as Rotterdam's Van Noortwijckstraat for the
-    # Paets van Troostwijkstraat in Den Haag. A street with exactly the name asked wins then.
+    # Paets van Troostwijkstraat in Den Haag. A street with exactly the name asked wins then, but only in the
+    # town that name has in it: Utrecht Science Park is not the street Science Park in Amsterdam.
+    town = plaats or (_town(best) if set(_words(halte)) & _town_words(best) else None)
     if not sure and not plaats:
-        street = await _address(halte, None, fuzzy=False)
+        street = await _address(halte, town, fuzzy=False)
+        if street:
+            return street, None, [], True
+    # A stop that only looks like the name asked, as P.C. Hooftplein for Hofplein, gives way to a street or a
+    # place with exactly that name.
+    if _lookalike(_words(halte), best["name"]):
+        street = await _address(halte, town, fuzzy=False) or await _spot(halte, town)
         if street:
             return street, None, [], True
     return None, best, candidates, sure
@@ -379,10 +472,17 @@ def _is_target(wanted: list[str], name: str) -> bool:
     # Only station words asked, as in "station Leiden" or "Leiden Centraal": the town's main station.
     # "Centraal" has to be in the name then, so Hoofddorp's plain "Station" is no Centraal Station.
     if set(rest) <= STATION_WORDS:
+        # Besides those the name may only repeat the town, give a side of the station (CS Centrumzijde, Leiden
+        # Centraal Westzijde) or add something in brackets ("(uitstaphalte)"): Centraal Museum is no station.
+        words = _words(re.sub(r"\(.*?\)", " ", own))
+        without = _without_town(words, town) if town else None
+        name_words = set(words if without is None else without)
+        if any(w not in STATION_WORDS | MAIN_STOP_WORDS and not w.endswith("zijde") for w in name_words):
+            return False
         main = set(rest) - {"station"}
         if main:
-            return bool(own_words & {"centraal", "hoofdstation"})
-        return bool(own_words & MAIN_STOP_WORDS) or own_words == {"station"}
+            return bool(name_words & {"centraal", "hoofdstation"})
+        return bool(name_words & MAIN_STOP_WORDS) or name_words == {"station"}
     if _coverage([w for w in rest if w != "station"], own, strict=True) == 1.0:
         return True
     # "Kurhaus Scheveningen" still means the stop Kurhaus: every word of its own name was asked.
@@ -396,8 +496,9 @@ def _is_target(wanted: list[str], name: str) -> bool:
 
 async def _places(wanted: list[str], naar: str, origin: dict) -> list[dict]:
     """The stops around the origin that 'naar' lends its name to when it is a place rather than a stop, like
-    Erasmus MC Hoofdingang for the Erasmus MC. Empty when 'naar' is the name of a stop itself, or a town or
-    its station, because then the name says which stops are meant."""
+    Erasmus MC Hoofdingang for the Erasmus MC, or the place itself when no stop has its name, like Rotterdam
+    Ahoy. Empty when 'naar' is the name of a stop itself, or a town or its station, because then the name says
+    which stops are meant."""
     if not set(wanted) - STATION_WORDS:
         return []
     box = (origin["lat"] - BOX_LAT, origin["lon"] - BOX_LON, origin["lat"] + BOX_LAT, origin["lon"] + BOX_LON)
@@ -406,32 +507,62 @@ async def _places(wanted: list[str], naar: str, origin: dict) -> list[dict]:
     except ToolError:
         # The stop names still count without it.
         return []
-    named = [h for h in hits if _is_target(wanted, h["name"])]
+    # A stop that only looks like the name, as P.C. Hooftplein for Hofplein, is not named after it.
+    named = [h for h in hits if _is_target(wanted, h["name"]) and not _lookalike(wanted, h["name"])]
     for hit in named:
         town = _town_words(hit)
         if set(_words(hit["name"])) - town <= set(wanted) or set(wanted) - town <= STATION_WORDS:
             return []
-    return named
+    if named:
+        return named
+    spots = await _spots(naar, box=box)
+    if not spots:
+        return []
+    # One place can have more than one point (Rotterdam Ahoy has two), but another place with that name, like
+    # De Binnenhof in Leidschendam for the Binnenhof in Den Haag, lies further from the origin.
+    nearest = min(spots, key=lambda spot: _distance(origin, spot))
+    return [spot for spot in spots if _distance(nearest, spot) <= 2 * SPOT_RADIUS]
+
+
+def _reach(place: dict) -> int:
+    """How far a stop may be from what 'naar' stands for: from a place like Rotterdam Ahoy further than from
+    the stop that a place lends its name to."""
+    return SPOT_RADIUS if place.get("type") == "PLACE" else PLACE_RADIUS
+
+
+def _within(places: list[dict], stop: dict) -> bool:
+    return any(_distance(place, stop) <= _reach(place) for place in places)
 
 
 def _from(places: list[dict], point: dict) -> float:
     return min(_distance(place, point) for place in places)
 
 
-def _target_stop(st: dict, wanted: list[str], memo: dict[str, bool], places: list[dict]) -> dict | None:
+def _target_stop(
+    st: dict, wanted: list[str], memo: dict[str, bool], places: list[dict], origin: dict | None = None
+) -> dict | None:
     """The first later stop of this trip that answers 'naar'. A place like Scheveningen is in no stop
     name but can be in the headsign (Scheveningen Noord), and then the last stop counts. Around a place
-    that lends its name to a stop, the stop nearest to it within a short walk counts too."""
+    that lends its name to a stop, or that no stop is named after, the stop nearest to it within a short walk
+    counts too, when it is nearer than where you start and where you get on."""
     stops = st.get("nextStops") or []
+    # When a place has the very name asked, a stop whose name only looks like it is somewhere else.
+    strict = any(place.get("type") == "PLACE" for place in places)
     for stop in stops:
         name = stop.get("name") or ""
         if name not in memo:
-            memo[name] = _is_target(wanted, name)
+            memo[name] = _is_target(wanted, name) and not (strict and _lookalike(wanted, name))
         if memo[name]:
             return stop
     if stops and _coverage(wanted, st.get("headsign") or "", strict=True) == 1.0:
         return stops[-1]
-    close = [stop for stop in stops if places and "lat" in stop and _from(places, stop) <= PLACE_RADIUS]
+    if not places:
+        return None
+    # From Rotterdam Centraal, tram 3 to Kruisplein only takes you further from the Hofplein, and from Dijkzigt,
+    # tram 14 round the corner to 's-Gravendijkwal further from the Erasmus MC.
+    here = [point for point in (origin, st.get("place")) if point and "lat" in point]
+    limit = min((_from(places, point) for point in here), default=math.inf)
+    close = [stop for stop in stops if "lat" in stop and _within(places, stop) and _from(places, stop) < limit]
     return min(close, key=lambda stop: _from(places, stop), default=None)
 
 
@@ -565,6 +696,8 @@ async def ov_vertrek(
     wanted = normalize(line or "") or None
     target = (_words(naar) or None) if naar else None
     places = await _places(target, naar, point or best) if target and naar else []
+    # A place within a walk of where you are, as the Hofplein from Rotterdam Centraal: how long that walk is.
+    on_foot = _walk(_from(places, point or best)) if places and _within(places, point or best) else None
     lines_seen: set[tuple[str, str]] = set()
     headsigns: list[str] = []
     memo: dict[str, bool] = {}
@@ -597,7 +730,7 @@ async def ov_vertrek(
             return True
         if st.get("headsign") and st["headsign"] not in headsigns:
             headsigns.append(st["headsign"])
-        return _target_stop(st, target, memo, places) is not None
+        return _target_stop(st, target, memo, places, point or best) is not None
 
     if point:
         # The three nearest stops, a station with the stops around it.
@@ -646,6 +779,8 @@ async def ov_vertrek(
             hint = f" Wel richtingen: {', '.join(headsigns[:8])}." if headsigns else ""
             if STATION_WORDS & set(target):
                 hint += " Verder met de trein? Zoek dan de bus of tram naar een station in de buurt, en de trein met trein_reis."
+            if on_foot:
+                hint += f" Lopen kan wel: dat is ongeveer {on_foot} {'minuut' if on_foot == 1 else 'minuten'}."
             reach = " of op loopafstand ervan" if places else ""
             raise ToolError(f"Er vertrekt{period} niks van {where} dat bij '{naar}'{reach} stopt.{hint}{warning}")
         if wanted or kind:
@@ -661,12 +796,11 @@ async def ov_vertrek(
     day = start.date()
     rows = []
     for st in merged:
-        stop = _target_stop(st, target, memo, places) if target else None
+        stop = _target_stop(st, target, memo, places, point or best) if target else None
         walk = None
         # Found by the walk rather than the name, so how long that walk takes.
         if stop is not None and places and "lat" in stop and not memo.get(stop.get("name") or ""):
-            metres = _from(places, stop)
-            walk = _walk(metres) if metres <= PLACE_RADIUS else None
+            walk = _walk(_from(places, stop)) if _within(places, stop) else None
         row = _row(st, day, stop, walk)
         # How far a stop is that was not asked for by name: one round the corner, or any around a place.
         if point:
@@ -682,6 +816,8 @@ async def ov_vertrek(
             f"Naar {naar} stap je uit bij de halte in 'stopt_bij'. Staat er 'lopen_min' bij, dan loop je daarna "
             "nog zoveel minuten en ben je er om 'op_bestemming'."
         )
+    if on_foot:
+        first["lopen"] = f"Lopen naar {naar} kan ook: dat is ongeveer {on_foot} {'minuut' if on_foot == 1 else 'minuten'}."
     bron = f"{BRON} De berichten in let_op komen van NS Reisinformatie." if notices else BRON
     if point:
         nearby = [{"halte": s["name"], "afstand_m": _meters(point, s), "soort": _kinds(s)} for s in stops]
