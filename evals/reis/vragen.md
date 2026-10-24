@@ -1,6 +1,6 @@
 # Testvragen over reizen
 
-20 vragen voor de chat. Elke vraag gaat 3 keer, want Haiku antwoordt niet elke keer hetzelfde.
+22 vragen voor de chat. Elke vraag gaat 3 keer, want Haiku antwoordt niet elke keer hetzelfde. Bij de laatste twee staat de klok vast, precies op of een minuut voor het vertrek van een trein over een uur: zo is er altijd een trein die nu vertrekt.
 
 | # | Vraag | Wat goed is | Soort |
 |---|---|---|---|
@@ -24,6 +24,8 @@
 | 18 | Ik moet dinsdag om 9 uur op Utrecht Science Park zijn en ik woon in Gouda. Hoe kom ik daar? | Zoekt een trein naar Utrecht Centraal die op tijd is voor de tram of bus naar het Science Park; welke trein mag Joost zelf kiezen, passend bij die aansluiting. | aankomst, dag, laatste stuk, moeilijk |
 | 19 | volgende trein amsterdm naar utreht | Snapt de stations ondanks de typfouten en raadt de beste reis aan. | robuust, nu |
 | 20 | Ik ga zaterdag van Utrecht naar Zwolle, heen rond 10 uur en terug rond 17 uur. Welke treinen? | Zoekt twee keer, heen en terug, en noemt voor allebei een trein. | robuust, dag, twee reizen |
+| 21 | Wanneer gaat de volgende trein van Utrecht Centraal naar Amsterdam Centraal? | De klok staat precies op het vertrek van een trein. Joost noemt die trein en zegt dat hij nu vertrekt, maar raadt de beste reis daarna aan. | vertrek, nu, vertrekt nu |
+| 22 | What's the next train from Leiden Centraal to Den Haag Centraal? | De klok staat een minuut voor het vertrek van een trein. Joost noemt die trein in het Engels en zegt dat hij nu vertrekt, maar raadt de beste reis daarna aan. | vertrek, nu, engels, vertrekt nu |
 
 ## Wat we bij elk antwoord nakijken
 
@@ -39,5 +41,6 @@ Alles automatisch, tegen de NS-gegevens die de chat bij dat antwoord kreeg:
 8. **Dag klopt**: geen 'morgen' of 'een week van tevoren' als dat niet zo is.
 9. **Geen bekende fouten**, zoals 'stopt niet onderweg' (behalve als NS 0 tussenstops geeft).
 10. **Taal**: een Engelse vraag krijgt een Engels antwoord.
+11. **Trein van nu**: heeft een trein 'vertrekt_nu', dan noemt het antwoord die trein en zegt het dat hij nu vertrekt. Aanraden doet het de beste (punt 2), en die trein telt niet als andere reis (punt 7).
 
 Een antwoord is **goed** als alle punten die erop van toepassing zijn kloppen.

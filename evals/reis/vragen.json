@@ -505,5 +505,57 @@
     ],
     "keuze": null,
     "goed": "Zoekt twee keer, heen en terug, en noemt voor allebei een trein."
+  },
+  {
+    "id": "vertrekt-nu-utrecht-amsterdam",
+    "vraag": "Wanneer gaat de volgende trein van Utrecht Centraal naar Amsterdam Centraal?",
+    "tags": [
+      "vertrek",
+      "nu",
+      "vertrekt nu"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Utrecht Centraal"
+        ],
+        "naar": [
+          "Amsterdam Centraal"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "trein_over_min": 0,
+    "goed": "De klok staat precies op het vertrek van een trein. Joost noemt die trein en zegt dat hij nu vertrekt, maar raadt de beste reis daarna aan."
+  },
+  {
+    "id": "vertrekt-nu-engels-leiden-denhaag",
+    "vraag": "What's the next train from Leiden Centraal to Den Haag Centraal?",
+    "tags": [
+      "vertrek",
+      "nu",
+      "engels",
+      "vertrekt nu"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Leiden Centraal"
+        ],
+        "naar": [
+          "Den Haag Centraal"
+        ],
+        "aankomst": false,
+        "dag": "vandaag",
+        "tijd": "nu"
+      }
+    ],
+    "keuze": "beste",
+    "taal": "en",
+    "trein_over_min": 1,
+    "goed": "De klok staat een minuut voor het vertrek van een trein. Joost noemt die trein in het Engels en zegt dat hij nu vertrekt, maar raadt de beste reis daarna aan."
   }
 ]

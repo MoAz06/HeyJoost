@@ -43,6 +43,8 @@ TIGHT = 5
 AMPLE = 10
 # To be somewhere at a time, the train arrives this much before the last stretch, in case it runs late.
 MARGIN = 5
+# A train that leaves in fewer minutes than this you only catch when you are at it already, so it is not the best trip.
+LEAVING = 2
 WEEKDAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
 MONTHS = (
     "januari", "februari", "maart", "april", "mei", "juni",
@@ -237,9 +239,14 @@ async def trein_reis(
         options = _options(earlier.get("trips") or []) + options
     # NS also returns options just outside the asked time, such as a train that already left.
     fitting = [o for o in options if fits(o)]
+    now = now_local()
+    # Searching from about now, a train that left more than a minute ago is no use, as long as there is another.
+    near = moment >= now - timedelta(minutes=5)
+    if near:
+        fitting = [o for o in fitting if o[0] >= now - timedelta(minutes=1)] or fitting
     running = [o for o in fitting if not _cancelled(o)]
     if running:
-        chosen = _pick(running, aankomst)
+        chosen = _pick(running, aankomst, now if near else None)
     else:
         # Nothing on time runs: show what NS has, so the answer can say so.
         chosen = (fitting[-MAX_TRIPS:][::-1] if aankomst else fitting[:MAX_TRIPS]) or options[:MAX_TRIPS]
@@ -250,6 +257,8 @@ async def trein_reis(
         changes = _changes(legs)
         option = {
             "vertrek": fmt_time(departure),
+            # Named, but not the best: Haiku once said a train that left two minutes late had gone.
+            **({"vertrekt_nu": True} if near and _leaving(departure, now) else {}),
             "aankomst": fmt_time(arrival),
             "reistijd_min": trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes"),
             "overstappen": trip.get("transfers"),
@@ -299,6 +308,11 @@ def _notes(trip: dict) -> list[str]:
         if text and text.strip() not in notes:
             notes.append(text.strip())
     return notes
+
+
+def _leaving(departure: datetime, now: datetime) -> bool:
+    """Whether a train leaves right now: within LEAVING minutes, or less than a minute ago."""
+    return now - timedelta(minutes=1) <= departure < now + timedelta(minutes=LEAVING)
 
 
 def _expected(place: dict | None) -> datetime | None:
@@ -362,7 +376,7 @@ def _describe(option: tuple) -> str:
     return f"vertrek {fmt_time(departure)}, aankomst {fmt_time(arrival)}" + (f", via {', '.join(via)}" if via else "")
 
 
-def _pick(options: list[tuple], aankomst: bool) -> list[tuple]:
+def _pick(options: list[tuple], aankomst: bool, now: datetime | None = None) -> list[tuple]:
     """The best trip first, then the others worth taking in time order, MAX_TRIPS in all.
 
     The best arrives first, or for an arrival search leaves last, where each transfer counts as TRANSFER_MINUTES, a
@@ -370,6 +384,9 @@ def _pick(options: list[tuple], aankomst: bool) -> list[tuple]:
     earlier (for an arrival search: arrives no later), costs no more and has no more transfers, nor more tight ones,
     unless it arrives earlier (leaves later) by more than its extra transfers are worth. So a trip with two changes
     that arrives a minute before the direct train drops out.
+
+    With `now`, a train that leaves within LEAVING minutes is only the best when no other is, and it does not push out
+    a trip you can still catch.
     """
     def minutes(moment: datetime) -> float:
         return moment.timestamp() / 60
@@ -400,13 +417,17 @@ def _pick(options: list[tuple], aankomst: bool) -> list[tuple]:
             return a[1] <= b[1] and minutes(a[0]) >= minutes(b[0]) - margin
         return a[0] >= b[0] and minutes(a[1]) <= minutes(b[1]) + margin
 
+    def catchable(option: tuple) -> bool:
+        return now is None or option[0] >= now + timedelta(minutes=LEAVING)
+
     kept: list[tuple] = []
     for option in sorted(options, key=order):
-        if not any(beats(other, option) for other in kept):
+        if not any(beats(other, option) for other in kept if catchable(other) or not catchable(option)):
             kept.append(option)
-    rest = sorted(kept[1:], key=lambda o: o[0])
+    best = next((option for option in kept if catchable(option)), kept[0])
+    rest = sorted((option for option in kept if option is not best), key=lambda o: o[0])
     # For an arrival search the trips just before the asked time matter most, otherwise the ones just after it.
-    return [kept[0], *(rest[1 - MAX_TRIPS:] if aankomst else rest[: MAX_TRIPS - 1])]
+    return [best, *(rest[1 - MAX_TRIPS:] if aankomst else rest[: MAX_TRIPS - 1])]
 
 
 def _leg(leg: dict) -> dict[str, Any]:

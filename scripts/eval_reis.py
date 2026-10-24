@@ -7,6 +7,9 @@ Run from the project folder:
 Options: --reps 3, --alleen id,id (only these questions), --tegelijk 4, --opnieuw-nakijken (grade the saved answers
 again, after a change to the checks), --zelftest (feed the checks a right, an empty and a wrong answer).
 
+A question with trein_over_min is asked at a set time: that many minutes before a train that leaves an hour from now,
+so the chat sees a train that leaves right then.
+
 It uses the Anthropic key in .env: one answer is about a third of a cent, so 20 questions 3 times is about $0.20.
 Results go to .claude/hillclimb/reis/<variant>/: results.jsonl (a row per answer), raw/ (the answer and what the tools
 gave, for grading again), traces/ (the conversation, for the report) and errors.jsonl (answers that never came).
@@ -30,8 +33,8 @@ from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv(usecwd=True))
 
-from nederland_mcp import vraag  # noqa: E402
-from nederland_mcp.common import now_local  # noqa: E402
+from nederland_mcp import common, vraag  # noqa: E402
+from nederland_mcp.bronnen import ns  # noqa: E402
 from nederland_mcp.server import server  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,6 +57,7 @@ METRICS = [
     ("overstap", "Overstap"),
     ("toeslag", "Toeslag"),
     ("anders", "Max 1 extra"),
+    ("nu", "Trein van nu"),
     ("rekenen", "Dag en minuten"),
     ("fouten", "Bekende fouten"),
     ("taal", "Taal"),
@@ -88,7 +92,7 @@ NOT_CHANGE_BEFORE = re.compile(
 )
 NOT_CHANGE_AFTER = re.compile(
     r"^\s*(?:lopen|loop|te lopen|marge|later|eerder|vertraging|te laat|onderweg|reistijd|reizen|rijden|in de trein|"
-    r"walk|walking|margin|late|earlier|delay|of travel|travel)",
+    r"walk|walking|margin|late|earlier|delay|of travel|travel|voor\s+\d|before\s+\d)",
     re.I,
 )
 # But "overstappen kan in 5 minuten" is about the transfer again. Not past a comma, and not after "zonder overstap".
@@ -102,6 +106,12 @@ LABELS = (
     ("krap", re.compile(r"(?<!niet )(?<!not )\b(?:krap|tight)\b", re.I), lambda gap: gap < 5),
     ("genoeg", re.compile(r"(?<!niet )(?<!not )\b(?:genoeg|enough)\b", re.I), lambda gap: gap >= 5),
     ("ruim", re.compile(r"(?<!liever )\b(?:ruim|plenty)\b(?!\s+(?:\d|op tijd|voor))", re.I), lambda gap: gap >= 10),
+)
+# Words that say a train leaves right now, or that you only catch it when you are there already.
+LEAVING_NOW = re.compile(
+    r"\b(?:nu|now|meteen|net|haal\w*|halen|catch|make it|rennen|hurry|opschieten|right away)\b|"
+    r"\b(?:over|in) (?:een|1|0|one|a) minu",
+    re.I,
 )
 NL_WORDS = set("de het een en je jij is van naar om met die dat niet ook maar dan bij er tot aan nog stap stapt "
                "over vertrekt komt trein".split())
@@ -117,6 +127,8 @@ class _Failed(Exception):
 
 # What the chat looked up and what Haiku sent back, per answer: each answer runs in its own task.
 _seen: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar("seen")
+# The time of an answer that is asked at a set time.
+_clock: contextvars.ContextVar[datetime | None] = contextvars.ContextVar("clock", default=None)
 _real_lookup = vraag._lookup
 
 
@@ -155,18 +167,40 @@ def _record() -> None:
     client = vraag._anthropic()
     stream = client.messages.stream
     client.messages.stream = lambda *args, **kwargs: _Round(stream(*args, **kwargs))
+    # Every part of the chat reads the clock of the answer, when it has one.
+    real = common.now_local
+
+    def now_local() -> datetime:
+        return _clock.get() or real()
+
+    for module in list(sys.modules.values()):
+        if getattr(module, "__name__", "").startswith("nederland_mcp") and getattr(module, "now_local", None) is real:
+            module.now_local = now_local
+
+
+async def _set_clock(case: dict[str, Any]) -> None:
+    """For a question about a train that leaves right now: an hour from now NS knows the trains, and the clock goes to
+    trein_over_min minutes before the first one."""
+    spec = case["zoek"][0]
+    later = common.now_local().replace(second=0, microsecond=0) + timedelta(hours=1)
+    found = await ns.trein_reis(spec["van"][0], spec["naar"][0], f"{later:%Y-%m-%d}", f"{later:%H:%M}")
+    start = later.hour * 60 + later.minute
+    ahead = min((_minutes(trip["vertrek"]) - start) % 1440 for trip in found["reisadviezen"])
+    _clock.set(later + timedelta(minutes=ahead - case["trein_over_min"]))
 
 
 async def _ask(case: dict[str, Any], rep: int) -> dict[str, Any]:
     """One answer, the way the page gets it: the chat's own messages, prompt, tools and loop."""
     seen: dict[str, Any] = {"lookups": [], "rounds": []}
     _seen.set(seen)
+    if "trein_over_min" in case:
+        await _set_clock(case)
     known = {tool.name for tool in await server.list_tools()}
     if vraag.schiphol.available():
         known.add(vraag.FLIGHT_TOOL["name"])
     messages = vraag._messages({"messages": [{"role": "user", "text": case["vraag"]}]}, known)
     english = case.get("taal") == "en"
-    started = now_local()
+    started = common.now_local()
     clock = time.monotonic()
     text = ""
     async for event in vraag._answer(server, messages, f"eval-{case['id']}-{rep}", english):
@@ -349,14 +383,22 @@ def _check_keuze(
         # The last train without a transfer is a fine answer too, such as the last Intercity before a night train.
         direct = [trip for trip in pool if not trip.get("overstappen") and (trip["vertrek"] >= "20:00" or trip["vertrek"] < "03:00")]
         targets += [max(direct, key=lambda trip: _minutes(trip["vertrek"]) + 1440 * (trip["vertrek"] < "03:00"))] if direct else []
-    departures = {trip["vertrek"] for trip in pool}
-    named = [clock for clock in _times(answer) if clock in departures]
+    by_clock: dict[str, dict[str, Any]] = {}
+    for trip in pool:
+        by_clock.setdefault(trip["vertrek"], trip)
+    # A late train goes by the time it was meant to leave as well.
+    for trip in pool:
+        for clock in _departures(trip):
+            by_clock.setdefault(clock, trip)
+    # A train that leaves right now may come first, as long as the answer says so: _check_nu looks at that.
+    named = [clock for clock in _times(answer) if clock in by_clock
+             and not (by_clock[clock].get("vertrekt_nu") and by_clock[clock]["vertrek"] != target["vertrek"])]
     if not named:
         return 0, f"noemt geen vertrektijd van een reis, verwacht {target['vertrek']}", target
-    hit = next((trip for trip in targets if trip["vertrek"] == named[0]), None)
+    first = by_clock[named[0]]
+    hit = next((trip for trip in targets if trip["vertrek"] == first["vertrek"]), None)
     if hit is None:
-        chosen = next(trip for trip in pool if trip["vertrek"] == named[0])
-        return 0, f"raadt eerst de {named[0]} aan, verwacht de {target['vertrek']}", chosen
+        return 0, f"raadt eerst de {first['vertrek']} aan, verwacht de {target['vertrek']}", first
     return 1, "", hit
 
 
@@ -372,8 +414,12 @@ def _check_anders(case: dict[str, Any], calls: list[dict[str, Any]], answer: str
             found |= {part.get("vertrek"), part.get("aankomst")}
         return found
 
-    # A time that belongs to a trip already named, such as its arrival, is not another trip.
+    # A time that belongs to a trip already named, such as its arrival, is not another trip. Nor is the train that
+    # leaves right now, which the answer should name.
     explained, others = clocks(chosen), []
+    for trip in pool:
+        if trip.get("vertrekt_nu"):
+            explained |= clocks(trip)
     for clock in _times(answer):
         if clock in explained:
             continue
@@ -382,6 +428,22 @@ def _check_anders(case: dict[str, Any], calls: list[dict[str, Any]], answer: str
             others.append(clock)
             explained |= clocks(trip)
     return (1, "") if len(others) <= 1 else (0, f"noemt {len(others)} andere reizen: {', '.join(others)}")
+
+
+def _departures(trip: dict[str, Any]) -> set[str]:
+    """The times a trip goes by: when it leaves, and when it was meant to."""
+    return {trip["vertrek"], *(part["vertrek"] for part in (trip.get("delen") or [])[:1])}
+
+
+def _check_nu(answer: str, trips: list[dict[str, Any]]) -> tuple[int | None, str]:
+    """A train that leaves right now is named, and with it that it leaves now."""
+    leaving = [trip for trip in trips if trip.get("vertrekt_nu")]
+    if not leaving:
+        return None, ""
+    clocks = set().union(*map(_departures, leaving))
+    if any(clocks & set(_times(sentence)) and LEAVING_NOW.search(sentence) for sentence in _sentences(answer)):
+        return 1, ""
+    return 0, f"zegt niet dat de {leaving[0]['vertrek']} nu vertrekt"
 
 
 def _check_tijden(case: dict[str, Any], answer: str, lookups: list[dict[str, Any]], started: datetime) -> tuple[int | None, str]:
@@ -427,6 +489,10 @@ def _check_prijzen(answer: str, lookups: list[dict[str, Any]]) -> tuple[int | No
     return (0, "prijs niet in de gegevens: " + ", ".join(f"€{price:.2f}" for price in wrong)) if wrong else (1, "")
 
 
+def _sentences(answer: str) -> list[str]:
+    return re.split(r"(?<=[.!?])\s+|\n+", answer.replace("**", ""))
+
+
 def _gaps(trip: dict[str, Any]) -> list[int]:
     parts = trip.get("delen") or []
     return [(_minutes(b["vertrek"]) - _minutes(a["aankomst"])) % 1440 for a, b in zip(parts, parts[1:])]
@@ -445,7 +511,7 @@ def _check_overstap(answer: str, chosen: dict[str, Any] | None, pool: list[dict[
     # The answer may also name the minutes of another trip it mentions.
     allowed = own.union(*(_allowed_gaps(trip) for trip in pool))
     problems, stated, follow = [], [], False
-    for sentence in re.split(r"(?<=[.!?])\s+|\n+", answer.replace("**", "")):
+    for sentence in _sentences(answer):
         about = bool(TRANSFER.search(sentence) or HAVE.search(sentence))
         if not (about or follow):
             continue
@@ -494,8 +560,14 @@ def _check_rekenen(
     searched = {call["dag"] for call in calls} or {today}
     day = min(searched)
     ahead = (day - today).days
-    # "Vluchten kan ik alleen voor gisteren, vandaag of morgen opzoeken" is not about the day of the trip.
-    low = re.sub(r"gisteren,? vandaag (?:of|en) morgen|yesterday,? today,? (?:or|and) tomorrow", " ", answer.lower())
+    # "Vluchten kan ik alleen voor gisteren, vandaag of morgen opzoeken", "want vandaag is het al zaterdag" or "de
+    # zaterdag na vandaag" is not about the day of the trip.
+    low = re.sub(
+        r"gisteren,? vandaag (?:of|en) morgen|yesterday,? today,? (?:or|and) tomorrow|"
+        r"\bvandaag (?:is het|al)\b|\b(?:het is|is het|na|vanaf) vandaag\b|\btoday is\b|\b\w+day today\b|\bafter today\b",
+        " ",
+        answer.lower(),
+    )
     problems, found = [], False
     words = [
         (r"\b(vandaag|vanavond|vanmiddag|vanochtend|vanmorgen|today|tonight)\b", {0}),
@@ -569,7 +641,7 @@ def grade(case: dict[str, Any], raw: dict[str, Any]) -> tuple[dict[str, float], 
     started = datetime.fromisoformat(raw["started"])
     calls = _calls(lookups)
     keuze, keuze_why, chosen = _check_keuze(case, calls, answer)
-    _, pool = _pool(case, calls)
+    trips, pool = _pool(case, calls)
     checks = {
         "zoek": _check_zoek(case, calls, started),
         "keuze": (keuze, keuze_why),
@@ -579,6 +651,7 @@ def grade(case: dict[str, Any], raw: dict[str, Any]) -> tuple[dict[str, float], 
         "overstap": _check_overstap(answer, chosen, pool),
         "toeslag": _check_toeslag(answer, chosen),
         "anders": _check_anders(case, calls, answer, chosen),
+        "nu": _check_nu(answer, trips),
         "rekenen": _check_rekenen(answer, calls, started, pool, lookups),
         "fouten": _check_fouten(answer, chosen),
         "taal": _check_taal(case, answer),
@@ -760,6 +833,11 @@ def _selftest(variant: str, cases: dict[str, dict[str, Any]]) -> None:
         if target.get("toeslag_euro"):
             right += (f" The price includes a supplement of €{target['toeslag_euro']:.2f}." if english
                       else f" Er zit €{target['toeslag_euro']:.2f} toeslag in de prijs.".replace(".", ",", 1))
+        for trip in trips:
+            if trip.get("vertrekt_nu") and trip is not target:
+                right += (f" The {trip['vertrek']} leaves now, you only catch it if you are at the train already."
+                          if english else f" De trein van {trip['vertrek']} vertrekt nu, die haal je alleen als je al "
+                          "bij de trein staat.")
         other = next((trip for trip in pool if trip["vertrek"] != target["vertrek"]), None)
         wrong = f"Neem de **{other['vertrek'] if other else '12:34'}**, of die van **12:34**, van spoor 99. Die stopt niet onderweg."
         for label, answer in (("goed antwoord", right), ("leeg antwoord", "Dat weet ik niet."), ("fout antwoord", wrong)):
