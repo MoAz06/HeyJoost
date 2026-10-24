@@ -56,6 +56,9 @@ TRIPS = [
     ("ma-1703", "SUBWAY", "A", "Binnenhof", [("dijkzigt", "17:03"), ("beurs", "17:06")]),
     ("b40-0833", "BUS", "40", "Kralingen", [("cs", "08:33"), ("museumpad", "08:38")]),
     ("t8-0900", "TRAM", "8", "Spangen", [("euromast", "09:00"), ("kievit", "09:02"), ("eendracht", "09:05")]),
+    # From Breitnerstraat bus 39 goes the long way round to the Erasmus MC, bus 32 straight there.
+    ("b39-0846", "BUS", "39", "Station Zuid", [("breitner", "08:46"), ("euromast", "08:49"), ("emc", "08:56")]),
+    ("b32-0848", "BUS", "32", "Station Zuid", [("breitner", "08:48"), ("emc", "08:49")]),
 ]
 # Answers to particular searches, by kind and text: places that no stop is named after, and stops elsewhere.
 SEARCHES: dict[tuple[str, str], list[dict]] = {}
@@ -254,11 +257,16 @@ async def main() -> None:
           rides(result, "lijn", "stopt_bij") == [("32", "Rotterdam, Erasmus MC Hoofdingang")]
           and result.get("lopen") == "Lopen naar Erasmus MC kan ook: dat is ongeveer 5 minuten.",
           (rides(result, "lijn", "stopt_bij"), result.get("lopen")))
-    result = await vertrek("Dijkzigt", "Rotterdam", naar="Erasmus MC", tijd="08:55")
-    check("naar een plek vlakbij: geen tram 8 om de hoek naar een halte verder van de plek dan waar je bent",
-          rides(result, "lijn", "halte", "stopt_bij") == [("32", "Breitnerstraat", "Rotterdam, Erasmus MC Hoofdingang")]
-          and result.get("lopen") == "Lopen naar Erasmus MC kan ook: dat is ongeveer 3 minuten.",
-          (rides(result, "lijn", "halte", "stopt_bij"), result.get("lopen")))
+    result = await vertrek("Breitnerstraat", "Rotterdam", naar="Erasmus MC", tijd="08:45")
+    check("naar een plek op loopafstand: geen bus 39 die omrijdt en er later is dan lopend, wel bus 32",
+          rides(result, "lijn", "vertrek") == [("32", "08:48"), ("32", "17:00")], rides(result, "lijn", "vertrek"))
+    try:
+        error = str(await vertrek("Dijkzigt", "Rotterdam", naar="Erasmus MC", tijd="08:55"))
+    except ToolError as exc:
+        error = str(exc)
+    check("naar een plek vlakbij: geen tram 8 naar een halte verder van de plek, en geen bus 32 om de hoek die er later "
+          "is dan lopend: dan zegt de fout dat lopen sneller is",
+          error.startswith("Lopen naar Erasmus MC is sneller") and "ongeveer 3 minuten" in error, error)
     point, best, _, _ = await ov._origin("Kunsthal", "Rotterdam")
     check("een plek zonder halte en zonder straat: de plek zelf", bool(point) and point["naam"] == "Kunsthal, Rotterdam", point)
     point, best, _, _ = await ov._origin("Hofplein", "Rotterdam")

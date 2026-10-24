@@ -698,10 +698,11 @@ async def ov_vertrek(
     places = await _places(target, naar, point or best) if target and naar else []
     # A place within a walk of where you are, as the Hofplein from Rotterdam Centraal: how long that walk is.
     on_foot = _walk(_from(places, point or best)) if places and _within(places, point or best) else None
+    walking = f"ongeveer {on_foot} {'minuut' if on_foot == 1 else 'minuten'}" if on_foot else ""
     lines_seen: set[tuple[str, str]] = set()
     headsigns: list[str] = []
     memo: dict[str, bool] = {}
-    passed = 0
+    passed = slow = 0
     start = moment or now_local()
     own_name = normalize(_short(best["name"]))
 
@@ -712,8 +713,14 @@ async def ov_vertrek(
             return 0
         return _walk(_distance(best, place))
 
+    def last_walk(stop: dict) -> int | None:
+        """Minutes on foot from a stop found by the walk rather than the name on to the place."""
+        if places and "lat" in stop and not memo.get(stop.get("name") or "") and _within(places, stop):
+            return _walk(_from(places, stop))
+        return None
+
     def keep(st: dict) -> bool:
-        nonlocal passed
+        nonlocal passed, slow
         place = st.get("place") or {}
         if not place.get("departure"):
             return False
@@ -730,7 +737,18 @@ async def ov_vertrek(
             return True
         if st.get("headsign") and st["headsign"] not in headsigns:
             headsigns.append(st["headsign"])
-        return _target_stop(st, target, memo, places, point or best) is not None
+        stop = _target_stop(st, target, memo, places, point or best)
+        if stop is None:
+            return False
+        # Within a walk, a ride that gets you there later than walking straight there is no use: from Rotterdam
+        # Centraal, bus 38 to Noordsingel is at the Hofplein at 10:19, the walk takes 6 minutes.
+        arrival = parse_time(stop.get("arrival")) or parse_time(stop.get("scheduledArrival"))
+        if on_foot and leaves and arrival:
+            there = arrival + timedelta(minutes=last_walk(stop) or 0)
+            if there > leaves + timedelta(minutes=on_foot - walk):
+                slow += 1
+                return False
+        return True
 
     if point:
         # The three nearest stops, a station with the stops around it.
@@ -776,11 +794,13 @@ async def ov_vertrek(
         # A strike can be why nothing runs.
         warning = "".join(f" Let op: {text}" for text in notices)
         if target and passed:
+            if slow:
+                raise ToolError(f"Lopen naar {naar} is sneller dan wat er{period} van {where} heen gaat: dat is {walking}.{warning}")
             hint = f" Wel richtingen: {', '.join(headsigns[:8])}." if headsigns else ""
             if STATION_WORDS & set(target):
                 hint += " Verder met de trein? Zoek dan de bus of tram naar een station in de buurt, en de trein met trein_reis."
             if on_foot:
-                hint += f" Lopen kan wel: dat is ongeveer {on_foot} {'minuut' if on_foot == 1 else 'minuten'}."
+                hint += f" Lopen kan wel: dat is {walking}."
             reach = " of op loopafstand ervan" if places else ""
             raise ToolError(f"Er vertrekt{period} niks van {where} dat bij '{naar}'{reach} stopt.{hint}{warning}")
         if wanted or kind:
@@ -797,11 +817,7 @@ async def ov_vertrek(
     rows = []
     for st in merged:
         stop = _target_stop(st, target, memo, places, point or best) if target else None
-        walk = None
-        # Found by the walk rather than the name, so how long that walk takes.
-        if stop is not None and places and "lat" in stop and not memo.get(stop.get("name") or ""):
-            walk = _walk(_from(places, stop)) if _within(places, stop) else None
-        row = _row(st, day, stop, walk)
+        row = _row(st, day, stop, last_walk(stop) if stop is not None else None)
         # How far a stop is that was not asked for by name: one round the corner, or any around a place.
         if point:
             row["afstand_m"] = _meters(point, st["place"])
@@ -817,7 +833,7 @@ async def ov_vertrek(
             "nog zoveel minuten en ben je er om 'op_bestemming'."
         )
     if on_foot:
-        first["lopen"] = f"Lopen naar {naar} kan ook: dat is ongeveer {on_foot} {'minuut' if on_foot == 1 else 'minuten'}."
+        first["lopen"] = f"Lopen naar {naar} kan ook: dat is {walking}."
     bron = f"{BRON} De berichten in let_op komen van NS Reisinformatie." if notices else BRON
     if point:
         nearby = [{"halte": s["name"], "afstand_m": _meters(point, s), "soort": _kinds(s)} for s in stops]
