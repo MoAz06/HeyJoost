@@ -557,5 +557,50 @@
     "taal": "en",
     "trein_over_min": 1,
     "goed": "De klok staat een minuut voor het vertrek van een trein. Joost noemt die trein in het Engels en zegt dat hij nu vertrekt, maar raadt de beste reis daarna aan."
+  },
+  {
+    "id": "moeilijk-erasmusmc-heen-en-terug",
+    "vraag": "Ik moet volgende week dinsdag om 9:15 bij het Erasmus MC zijn en ik kom uit Amsterdam. Ik wil niet met de Intercity direct, want die toeslag betaal ik liever niet. 's Avonds wil ik zo laat mogelijk terug. Welke treinen neem ik?",
+    "tags": [
+      "aankomst",
+      "dag",
+      "laatste stuk",
+      "toeslag",
+      "laatste",
+      "twee reizen",
+      "moeilijk"
+    ],
+    "zoek": [
+      {
+        "van": [
+          "Amsterdam"
+        ],
+        "naar": [
+          "Rotterdam Centraal"
+        ],
+        "aankomst": true,
+        "dag": "volgende week dinsdag",
+        "tijd": [
+          "08:35",
+          "09:05"
+        ]
+      },
+      {
+        "van": [
+          "Rotterdam Centraal"
+        ],
+        "naar": [
+          "Amsterdam"
+        ],
+        "aankomst": false,
+        "dag": "volgende week dinsdag",
+        "tijd": {
+          "na": "22:00"
+        }
+      }
+    ],
+    "keuze": null,
+    "zonder_toeslag": true,
+    "goed": "Neemt de dinsdag van volgende week, zoekt op aankomst in Rotterdam met het laatste stuk en marge, zoekt terug laat op de avond, en raadt heen en terug een reis zonder toeslag aan."
   }
 ]

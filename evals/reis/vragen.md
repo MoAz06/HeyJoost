@@ -1,6 +1,6 @@
 # Testvragen over reizen
 
-22 vragen voor de chat. Elke vraag gaat 3 keer, want Haiku antwoordt niet elke keer hetzelfde. Bij de laatste twee staat de klok vast, precies op of een minuut voor het vertrek van een trein over een uur: zo is er altijd een trein die nu vertrekt.
+23 vragen voor de chat. Elke vraag gaat 3 keer, want Haiku antwoordt niet elke keer hetzelfde. Bij vraag 21 en 22 staat de klok vast, precies op of een minuut voor het vertrek van een trein over een uur: zo is er altijd een trein die nu vertrekt. Vraag 23 is de moeilijkste: een dag volgende week, het laatste stuk, geen toeslag en zo laat mogelijk terug.
 
 | # | Vraag | Wat goed is | Soort |
 |---|---|---|---|
@@ -26,12 +26,13 @@
 | 20 | Ik ga zaterdag van Utrecht naar Zwolle, heen rond 10 uur en terug rond 17 uur. Welke treinen? | Zoekt twee keer, heen en terug, en noemt voor allebei een trein. | robuust, dag, twee reizen |
 | 21 | Wanneer gaat de volgende trein van Utrecht Centraal naar Amsterdam Centraal? | De klok staat precies op het vertrek van een trein. Joost noemt die trein en zegt dat hij nu vertrekt, maar raadt de beste reis daarna aan. | vertrek, nu, vertrekt nu |
 | 22 | What's the next train from Leiden Centraal to Den Haag Centraal? | De klok staat een minuut voor het vertrek van een trein. Joost noemt die trein in het Engels en zegt dat hij nu vertrekt, maar raadt de beste reis daarna aan. | vertrek, nu, engels, vertrekt nu |
+| 23 | Ik moet volgende week dinsdag om 9:15 bij het Erasmus MC zijn en ik kom uit Amsterdam. Ik wil niet met de Intercity direct, want die toeslag betaal ik liever niet. 's Avonds wil ik zo laat mogelijk terug. Welke treinen neem ik? | Neemt de dinsdag van volgende week, zoekt op aankomst in Rotterdam met het laatste stuk en marge, zoekt terug laat op de avond, en raadt heen en terug een reis zonder toeslag aan. | aankomst, dag, laatste stuk, toeslag, laatste, twee reizen, moeilijk |
 
 ## Wat we bij elk antwoord nakijken
 
 Alles automatisch, tegen de NS-gegevens die de chat bij dat antwoord kreeg:
 
-1. **Zoekactie**: de juiste stations, vertrek of aankomst, de juiste dag en tijd.
+1. **Zoekactie**: de juiste stations, vertrek of aankomst, de juiste dag en tijd. Een zoekactie naar de laatste trein (laatste=true) telt als vertrek laat op de avond.
 2. **Beste reis eerst**: de reis die het eerst wordt aangeraden is de reis met 'beste' (bij 'laatste' en 'eerste' de laatste of eerste trein).
 3. **Geen verzonnen tijden**: elke tijd in het antwoord staat in de NS-gegevens of in de vraag.
 4. **Geen verzonnen sporen en prijzen**: elk spoor en elke prijs staat in de NS-gegevens.
@@ -42,5 +43,6 @@ Alles automatisch, tegen de NS-gegevens die de chat bij dat antwoord kreeg:
 9. **Geen bekende fouten**, zoals 'stopt niet onderweg' (behalve als NS 0 tussenstops geeft).
 10. **Taal**: een Engelse vraag krijgt een Engels antwoord.
 11. **Trein van nu**: heeft een trein 'vertrekt_nu', dan noemt het antwoord die trein en zegt het dat hij nu vertrekt. Aanraden doet het de beste (punt 2), en die trein telt niet als andere reis (punt 7).
+12. **Geen toeslag**: wil iemand geen toeslag, dan heeft de eerste reis die het antwoord per traject noemt geen toeslag.
 
 Een antwoord is **goed** als alle punten die erop van toepassing zijn kloppen.

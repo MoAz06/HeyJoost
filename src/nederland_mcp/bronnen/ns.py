@@ -6,7 +6,7 @@ Needs NS_API_KEY (a subscription key from apiportal.ns.nl).
 import asyncio
 import math
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
@@ -45,6 +45,11 @@ AMPLE = 10
 MARGIN = 5
 # A train that leaves in fewer minutes than this you only catch when you are at it already, so it is not the best trip.
 LEAVING = 2
+# Until this hour a train still belongs to the evening before, and from NIGHT on it is a night train.
+NIGHT_ENDS = 4
+NIGHT = 1
+# For the last train, NS is asked page by page back from the end of the night until this many trips of the evening.
+LAST_EVENING = 3
 WEEKDAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
 MONTHS = (
     "januari", "februari", "maart", "april", "mei", "juni",
@@ -205,8 +210,11 @@ async def trein_reis(
     tijd: str | None = None,
     aankomst: bool = False,
     lopen_min: int | None = None,
+    laatste: bool = False,
 ) -> dict:
     origin, destination = await _station(van), await _station(naar)
+    if laatste:
+        return await _last(origin, destination, datum)
     asked = parse_moment(datum, tijd)
     # The last stretch and the margin come off here: Haiku often forgot to do that itself.
     before = lopen_min + MARGIN if aankomst and lopen_min is not None else 0
@@ -218,25 +226,24 @@ async def trein_reis(
         "dateTime": moment.isoformat(timespec="seconds"),
         "searchForArrival": str(aankomst).lower(),
     }
-    async def search(extra: dict | None = None) -> dict:
-        query = {**params, **(extra or {})}
-        return await cached(
-            ("ns-reis", tuple(query.items())),
-            60,
-            lambda: get_json(f"{BASE}/v3/trips", params=query, headers=_headers(), source=SOURCE),
-        )
 
     def fits(option: tuple) -> bool:
         return option[1] <= moment if aankomst else option[0] >= moment
 
-    data = await search()
+    data = await _trips(params)
     options = _options(data.get("trips") or [])
     backward = data.get("scrollRequestBackwardContext")
     # NS starts an arrival search at the first trip arriving after the asked time; earlier ones are on the previous
     # page. Fetch that too when fewer than three trips are on time, so there is something to choose from.
     if aankomst and backward and sum(map(fits, options)) < 3:
-        earlier = await search({"context": backward})
-        options = _options(earlier.get("trips") or []) + options
+        earlier = await _trips({**params, "context": backward})
+        options = _unique(_options(earlier.get("trips") or []) + options)
+    # A departure search starts a few minutes early: after a row of trains that just left, at 20:59 in Breda all five
+    # trips on the page had gone. The next page has the ones still to come.
+    forward = data.get("scrollRequestForwardContext")
+    if not aankomst and forward and sum(map(fits, options)) < 3:
+        later = await _trips({**params, "context": forward})
+        options = _unique(options + _options(later.get("trips") or []))
     # NS also returns options just outside the asked time, such as a train that already left.
     fitting = [o for o in options if fits(o)]
     now = now_local()
@@ -251,30 +258,7 @@ async def trein_reis(
         # Nothing on time runs: show what NS has, so the answer can say so.
         chosen = (fitting[-MAX_TRIPS:][::-1] if aankomst else fitting[:MAX_TRIPS]) or options[:MAX_TRIPS]
 
-    trips = []
-    for departure, arrival, trip, legs in chosen:
-        fare = trip.get("productFare") or {}
-        changes = _changes(legs)
-        option = {
-            "vertrek": fmt_time(departure),
-            # Named, but not the best: Haiku once said a train that left two minutes late had gone.
-            **({"vertrekt_nu": True} if near and _leaving(departure, now) else {}),
-            "aankomst": fmt_time(arrival),
-            "reistijd_min": trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes"),
-            "overstappen": trip.get("transfers"),
-            # Worked out here, since Haiku called five minutes tight.
-            **({"overstaptijd": [_change_line(station, gap) for station, gap in changes]} if changes else {}),
-            "status": STATUS.get(trip.get("status"), trip.get("status")),
-            "drukte": CROWD.get(trip.get("crowdForecast"), trip.get("crowdForecast")),
-            "prijs_euro": fare["priceInCents"] / 100 if fare.get("priceInCents") else None,
-            # Intercity direct and ICE cost extra on part of the way; the price above includes it.
-            **({"toeslag_euro": fare["supplementInCents"] / 100} if fare.get("supplementInCents") else {}),
-            "delen": [_leg(leg) for leg in legs],
-            "link": (trip.get("shareUrl") or {}).get("uri"),
-        }
-        if notes := _notes(trip):
-            option["meldingen"] = notes
-        trips.append(option)
+    trips = [_advice(option, near and _leaving(option[0], now), lopen_min if aankomst else None) for option in chosen]
     if not trips:
         raise ToolError(f"Geen reisadvies gevonden van {_station_name(origin)} naar {_station_name(destination)}.")
     if running:
@@ -293,6 +277,135 @@ async def trein_reis(
         # Often the first train runs and a connection does not, so say which trip, not which train.
         result["niet_mogelijk"] = [_describe(o) for o in gone]
     return {**result, "bron": BRON}
+
+
+async def _last(origin: dict, destination: dict, datum: str | None) -> dict:
+    """The last trains of an evening, the very last first, and the night trains after them.
+
+    NS searches forward from a time, so this starts at the end of the night and goes back page by page. Without a
+    date, just after midnight it is still the night before.
+    """
+    now = now_local()
+    day = parse_moment(datum, None).date()
+    if datum is None and now.hour < NIGHT_ENDS:
+        day -= timedelta(days=1)
+    end = datetime.combine(day + timedelta(days=1), time(NIGHT_ENDS), tzinfo=AMSTERDAM)
+    night = end.replace(hour=NIGHT)
+    params = {
+        "fromStation": origin.get("code"),
+        "toStation": destination.get("code"),
+        "dateTime": end.isoformat(timespec="seconds"),
+        "searchForArrival": "false",
+    }
+    data = await _trips(params)
+    after = _options(data.get("trips") or [])
+    options = [option for option in after if option[0] < end]
+    context = data.get("scrollRequestBackwardContext")
+    for _ in range(3):
+        if not context or sum(option[0] < night for option in options) >= LAST_EVENING:
+            break
+        page = await _trips({**params, "context": context})
+        options = [option for option in _options(page.get("trips") or []) if option[0] < end] + options
+        context = page.get("scrollRequestBackwardContext")
+    options = sorted(_unique(options), key=lambda option: option[0])
+    if now < end:
+        options = [option for option in options if option[0] >= now - timedelta(minutes=1)]
+    running = [option for option in options if not _cancelled(option)]
+    evening = [option for option in running if option[0] < night]
+    late = [option for option in running if option[0] >= night]
+    chosen = _latest(evening or late)
+    if not chosen:
+        first = next((option for option in after if option[0] >= end and not _cancelled(option)), None)
+        then = f" De eerste gaat {_day(first[0])} om {fmt_time(first[0])}." if first else ""
+        raise ToolError(
+            f"Er gaat geen trein meer van {_station_name(origin)} naar {_station_name(destination)} op de avond van "
+            f"{WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]}.{then}"
+        )
+
+    trips = [_advice(option, _leaving(option[0], now)) for option in chosen]
+    trips[0] = {"laatste": True, **trips[0]}
+    result: dict[str, Any] = {
+        "van": _station_name(origin),
+        "naar": _station_name(destination),
+        "gezocht_op": f"laatste trein {day.isoformat()}",
+        # Just after midnight "gisteren" would read as if the trains had gone.
+        "dag": f"{WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]} (vannacht)"
+        if end.replace(hour=0) <= now < end else _day(end - timedelta(days=1)),
+        # A sentence, before the trips: as a list Haiku left the night trains out, or said they leave earlier.
+        **({"nachttreinen": _night_trains(late)} if evening and late else {}),
+        "reisadviezen": trips,
+    }
+    if gone := [option for option in options if _cancelled(option)]:
+        result["niet_mogelijk"] = [_describe(option) for option in gone]
+    return {**result, "bron": BRON}
+
+
+def _latest(options: list[tuple]) -> list[tuple]:
+    """The trip that leaves last first, then the ones before it in time order, MAX_TRIPS in all. A trip drops out
+    when another leaves no earlier, arrives no later, and has no more transfers and no higher price."""
+    def transfers(option: tuple) -> int:
+        return option[2].get("transfers") or 0
+
+    def price(option: tuple) -> float:
+        return (option[2].get("productFare") or {}).get("priceInCents") or math.inf
+
+    def beats(a: tuple, b: tuple) -> bool:
+        return a[1] <= b[1] and transfers(a) <= transfers(b) and price(a) <= price(b)
+
+    kept: list[tuple] = []
+    for option in sorted(options, key=lambda o: (-o[0].timestamp(), o[1], transfers(o))):
+        if not any(beats(other, option) for other in kept):
+            kept.append(option)
+    return kept[:1] + sorted(kept[1:MAX_TRIPS], key=lambda option: option[0])
+
+
+def _night_trains(options: list[tuple]) -> str:
+    """The trains after the last one of the evening, in a sentence."""
+    parts = []
+    for departure, arrival, trip, _ in options:
+        transfers = trip.get("transfers") or 0
+        change = f", {transfers} {'overstap' if transfers == 1 else 'overstappen'}" if transfers else ""
+        parts.append(f"om {fmt_time(departure)} (aankomst {fmt_time(arrival)}{change})")
+    listed = f"{', '.join(parts[:-1])} en {parts[-1]}" if len(parts) > 1 else parts[0]
+    return f"Daarna gaan er 's nachts nog treinen: {listed}."
+
+
+async def _trips(params: dict) -> dict:
+    """A page of trips from NS, kept for a minute."""
+    return await cached(
+        ("ns-reis", tuple(params.items())),
+        60,
+        lambda: get_json(f"{BASE}/v3/trips", params=params, headers=_headers(), source=SOURCE),
+    )
+
+
+def _advice(option: tuple, leaving: bool, last_stretch: int | None = None) -> dict[str, Any]:
+    """A trip as trein_reis gives it; with the minutes of the last stretch also when you are there."""
+    departure, arrival, trip, legs = option
+    fare = trip.get("productFare") or {}
+    changes = _changes(legs)
+    advice = {
+        "vertrek": fmt_time(departure),
+        # Named, but not the best: Haiku once said a train that left two minutes late had gone.
+        **({"vertrekt_nu": True} if leaving else {}),
+        "aankomst": fmt_time(arrival),
+        # Haiku added the last stretch itself and rounded: 08:48 and a quarter of an hour became "rond 09:05".
+        **({"op_bestemming": fmt_time(arrival + timedelta(minutes=last_stretch))} if last_stretch else {}),
+        "reistijd_min": trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes"),
+        "overstappen": trip.get("transfers"),
+        # Worked out here, since Haiku called five minutes tight.
+        **({"overstaptijd": [_change_line(station, gap) for station, gap in changes]} if changes else {}),
+        "status": STATUS.get(trip.get("status"), trip.get("status")),
+        "drukte": CROWD.get(trip.get("crowdForecast"), trip.get("crowdForecast")),
+        "prijs_euro": fare["priceInCents"] / 100 if fare.get("priceInCents") else None,
+        # Intercity direct and ICE cost extra on part of the way; the price above includes it.
+        **({"toeslag_euro": fare["supplementInCents"] / 100} if fare.get("supplementInCents") else {}),
+        "delen": [_leg(leg) for leg in legs],
+        "link": (trip.get("shareUrl") or {}).get("uri"),
+    }
+    if notes := _notes(trip):
+        advice["meldingen"] = notes
+    return advice
 
 
 def _notes(trip: dict) -> list[str]:
@@ -363,6 +476,11 @@ def _options(trips: list[dict]) -> list[tuple[datetime, datetime, dict, list[dic
         if departure and arrival:
             options.append((departure, arrival, trip, legs))
     return options
+
+
+def _unique(options: list[tuple]) -> list[tuple]:
+    """The options without a trip that is on two pages of NS, in the same order."""
+    return list({option[2].get("uid") or _describe(option): option for option in options}.values())
 
 
 def _cancelled(option: tuple) -> bool:

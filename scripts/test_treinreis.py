@@ -9,6 +9,8 @@ import sys
 from datetime import datetime, timedelta
 from typing import Any
 
+from mcp.server.mcpserver.exceptions import ToolError
+
 from nederland_mcp import common
 from nederland_mcp.bronnen import ns
 from nederland_mcp.common import AMSTERDAM
@@ -16,6 +18,7 @@ from nederland_mcp.common import AMSTERDAM
 MONDAY = datetime(2026, 10, 26, tzinfo=AMSTERDAM)
 FRIDAY_NOON = datetime(2026, 10, 23, 12, 0, tzinfo=AMSTERDAM)
 failed: list[str] = []
+asked: list[dict] = []
 
 
 def check(name: str, ok: bool, got: Any = None) -> None:
@@ -25,8 +28,9 @@ def check(name: str, ok: bool, got: Any = None) -> None:
 
 
 def at(clock: str, seconds: int = 0) -> datetime:
+    """Monday at this time; from 24:00 on it is the night after, as in a timetable."""
     hour, minute = map(int, clock.split(":"))
-    return MONDAY.replace(hour=hour, minute=minute, second=seconds)
+    return MONDAY + timedelta(hours=hour, minutes=minute, seconds=seconds)
 
 
 def leg(van: str, naar: str, vertrek: str, aankomst: str, late: int = 0) -> dict:
@@ -74,10 +78,25 @@ def at_now(now: datetime) -> None:
     ns.now_local = common.now_local = lambda: now
 
 
-async def reis(trips: list[dict], now: datetime, **kwargs: Any) -> dict:
-    """trein_reis from Leiden to Den Haag when NS has these trips, at this moment."""
-    async def get_json(*args: Any, **kwargs: Any) -> dict:
-        return {"trips": trips}
+async def reis(
+    trips: list[dict], now: datetime, earlier: tuple[list[dict], ...] = (), later: tuple[list[dict], ...] = (),
+    **kwargs: Any,
+) -> dict:
+    """trein_reis from Leiden to Den Haag when NS has these trips, at this moment. Going back, NS gives the pages in
+    `earlier`, each before the one before it, and going on the ones in `later`. What NS was asked ends up in `asked`."""
+    asked.clear()
+
+    async def get_json(url: str, params: dict, **kwargs: Any) -> dict:
+        asked.append(params)
+        way, _, number = params.get("context", "").partition(" ")
+        number = int(number or 0)
+        links = {}
+        if way in ("", "terug") and number < len(earlier):
+            links["scrollRequestBackwardContext"] = f"terug {number + 1}"
+        if way in ("", "verder") and number < len(later):
+            links["scrollRequestForwardContext"] = f"verder {number + 1}"
+        page = (earlier if way == "terug" else later)[number - 1] if way else trips
+        return {"trips": page, **links}
 
     async def station(name: str) -> dict:
         return {"code": name[:3].upper(), "namen": {"lang": name}}
@@ -147,6 +166,10 @@ async def main() -> None:
           times(result) == ["10:00", "10:06"] and not any("vertrekt_nu" in o for o in result["reisadviezen"]))
     result = await reis([direct("09:30", "09:50"), direct("09:45", "10:05")], now, tijd="10:20", aankomst=True)
     check("trein_reis: zijn alle treinen al weg, dan staan ze er toch", times(result) == ["09:45", "09:30"])
+    result = await reis([direct("20:50", "21:30"), direct("20:53", "21:35"), direct("20:54", "21:40")], at("20:59", 10),
+                        later=([direct("21:04", "21:44"), direct("21:10", "21:50")],))
+    check("trein_reis: na een rij treinen die net weg zijn, komt de volgende pagina van NS erbij",
+          times(result) == ["21:04", "21:10"] and len(asked) == 2, result["reisadviezen"])
 
     # What trein_reis says about a trip.
     result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="09:00", aankomst=True,
@@ -154,11 +177,14 @@ async def main() -> None:
     check("lopen_min: het laatste stuk en de marge gaan eraf",
           result["gezocht_op"] == "aankomst 2026-10-26 08:40"
           and result["op_tijd_voor"] == "09:00, met 15 minuten lopen en 5 minuten marge", result)
+    check("lopen_min: hoe laat je er bent", result["reisadviezen"][0].get("op_bestemming") == "08:50",
+          result["reisadviezen"][0])
     check("dag in woorden", result["dag"] == "maandag 26 oktober (over 3 dagen)", result["dag"])
     result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="09:00", aankomst=True,
                         lopen_min=0)
     check("lopen_min 0: alleen de marge", result["gezocht_op"] == "aankomst 2026-10-26 08:55"
-          and result["op_tijd_voor"] == "09:00, met 5 minuten marge", result)
+          and result["op_tijd_voor"] == "09:00, met 5 minuten marge"
+          and "op_bestemming" not in result["reisadviezen"][0], result)
     result = await reis([via("08:00", "08:20", "08:22", "08:50")], FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
     option = result["reisadviezen"][0]
     check("overstaptijd met oordeel", option["overstaptijd"] == ["Utrecht Centraal: 2 minuten, krap"], option)
@@ -184,6 +210,41 @@ async def main() -> None:
     many = [direct(f"08:{minute:02d}", f"08:{minute + 30:02d}") for minute in range(0, 29, 4)]
     result = await reis(many, FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
     check("hooguit 5 reizen", len(result["reisadviezen"]) == ns.MAX_TRIPS, times(result))
+
+    # The last train.
+    morning = [direct("29:51", "30:20"), direct("30:21", "30:50")]
+    result = await reis(morning, FRIDAY_NOON, (
+        [direct("23:21", "23:50"), direct("23:51", "24:20"), direct("24:21", "24:50")],
+        [direct("22:21", "22:50"), direct("22:51", "23:20")],
+    ), datum="2026-10-26", laatste=True)
+    check("laatste: terugzoeken vanaf 4 uur 's nachts, tot er 3 reizen van de avond zijn",
+          [params["dateTime"] for params in asked] == ["2026-10-27T04:00:00+01:00"] * 2, asked)
+    check("laatste: de laatste bovenaan, dan de andere op tijd, zonder de ochtend",
+          times(result) == ["00:21", "23:21", "23:51"] and result["reisadviezen"][0].get("laatste")
+          and "nachttreinen" not in result, result["reisadviezen"])
+    check("laatste: gezocht_op en dag", result["gezocht_op"] == "laatste trein 2026-10-26"
+          and result["dag"] == "maandag 26 oktober (over 3 dagen)", result)
+    result = await reis([direct("28:02", "28:30"), *morning], FRIDAY_NOON, (
+        [direct("25:04", "25:30"), direct("26:02", "26:30"), direct("27:02", "27:30")],
+        [direct("23:54", "24:40"), direct("24:11", "24:45"), via("24:20", "24:40", "24:46", "25:10")],
+    ), datum="2026-10-26", laatste=True)
+    check("laatste met nachttreinen: de laatste van de avond bovenaan, de nacht in een zin, 4 uur hoort bij de ochtend",
+          times(result) == ["00:20", "23:54", "00:11"] and result.get("nachttreinen") == "Daarna gaan er 's nachts "
+          "nog treinen: om 01:04 (aankomst 01:30), om 02:02 (aankomst 02:30) en om 03:02 (aankomst 03:30).", result)
+    trips = [direct("23:41", "24:45"), via("23:41", "24:00", "24:10", "24:50"), direct("23:30", "24:30"),
+             direct("23:30", "24:20", price=1320, supplement=320)]
+    chosen = [f"{ns.fmt_time(o[0])}-{ns.fmt_time(o[1])}" for o in ns._latest(ns._options(trips))]
+    check("laatste: een reis die in alles slechter is valt weg, een duurdere die eerder aankomt niet",
+          chosen == ["23:41-00:45", "23:30-00:20", "23:30-00:30"], chosen)
+    result = await reis(morning, at("24:30"), ([direct("23:51", "24:20"), direct("24:40", "25:10")],), laatste=True)
+    check("laatste na middernacht zonder datum: nog dezelfde nacht, en wat al weg is valt weg",
+          times(result) == ["00:40"] and result["dag"] == "maandag 26 oktober (vannacht)", result)
+    try:
+        await reis(morning, at("24:30"), ([direct("23:51", "24:20"), direct("24:21", "24:50")],), laatste=True)
+        check("laatste als alles al weg is: zeg het, met de eerste van de ochtend", False, "geen fout")
+    except ToolError as error:
+        check("laatste als alles al weg is: zeg het, met de eerste van de ochtend",
+              "geen trein meer" in str(error) and "05:51" in str(error), error)
 
     print(f"\n{len(failed)} fout" if failed else "\nalles goed")
     sys.exit(1 if failed else 0)

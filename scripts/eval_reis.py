@@ -56,6 +56,7 @@ METRICS = [
     ("prijzen", "Prijzen"),
     ("overstap", "Overstap"),
     ("toeslag", "Toeslag"),
+    ("geen_toeslag", "Geen toeslag"),
     ("anders", "Max 1 extra"),
     ("nu", "Trein van nu"),
     ("rekenen", "Dag en minuten"),
@@ -69,7 +70,7 @@ MONTHS_EN = ["january", "february", "march", "april", "may", "june", "july", "au
              "november", "december"]
 
 TIME = re.compile(r"(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])")
-SEARCHED = re.compile(r"(vertrek|aankomst) (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})")
+SEARCHED = re.compile(r"(vertrek|aankomst|laatste trein) (\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?")
 PLATFORM = re.compile(r"\b(?:spoor|platform|track)\s+(\d+[a-z]?)\b", re.I)
 PRICE = re.compile(r"€\s?(\d+)(?:[,.](\d{1,2}))?")
 # Things Joost said that NS never told him.
@@ -92,7 +93,9 @@ NOT_CHANGE_BEFORE = re.compile(
 )
 NOT_CHANGE_AFTER = re.compile(
     r"^\s*(?:lopen|loop|te lopen|marge|later|eerder|vertraging|te laat|onderweg|reistijd|reizen|rijden|in de trein|"
-    r"walk|walking|margin|late|earlier|delay|of travel|travel|voor\s+\d|before\s+\d)",
+    r"walk|walking|margin|late|earlier|delay|of travel|travel|voor\s+\d|before\s+\d|"
+    # "Je hebt maar 5 minuten over" is the time left before the appointment.
+    r"over\b(?!\s+te\s+stappen)|to spare)",
     re.I,
 )
 # But "overstappen kan in 5 minuten" is about the transfer again. Not past a comma, and not after "zonder overstap".
@@ -103,7 +106,9 @@ CHANGE_JUST_BEFORE = re.compile(
 )
 # What a word says about the minutes to change. "Ruim 2 uur", "ruim op tijd" or "liever ruim" is not about a transfer.
 LABELS = (
-    ("krap", re.compile(r"(?<!niet )(?<!not )\b(?:krap|tight)\b", re.I), lambda gap: gap < 5),
+    # "Dus krap is het niet" says the opposite.
+    ("krap", re.compile(r"(?<!niet )(?<!not )\b(?:krap|tight)\b(?!,?\s+(?:is|was)\s+(?:het|dat)\s+niet)", re.I),
+     lambda gap: gap < 5),
     ("genoeg", re.compile(r"(?<!niet )(?<!not )\b(?:genoeg|enough)\b", re.I), lambda gap: gap >= 5),
     ("ruim", re.compile(r"(?<!liever )\b(?:ruim|plenty)\b(?!\s+(?:\d|op tijd|voor))", re.I), lambda gap: gap >= 10),
 )
@@ -113,6 +118,8 @@ LEAVING_NOW = re.compile(
     r"\b(?:over|in) (?:een|1|0|one|a) minu",
     re.I,
 )
+# The same in a sentence after the one with the train, such as "Die vertrekt nu": only words about leaving now.
+NOW_AFTER = re.compile(r"\b(?:nu|now|meteen|right away)\b|\b(?:over|in) (?:about |ongeveer )?(?:een|[0-2]|one|two|a) minu", re.I)
 NL_WORDS = set("de het een en je jij is van naar om met die dat niet ook maar dan bij er tot aan nog stap stapt "
                "over vertrekt komt trein".split())
 EN_WORDS = set("the a an and you is from to at with that not also but then by there until take arrives departs "
@@ -291,7 +298,8 @@ def _calls(lookups: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not found:
             continue
         kind, day, clock = found.groups()
-        calls.append({"result": result, "aankomst": kind == "aankomst", "dag": date.fromisoformat(day), "tijd": clock})
+        # The last train has no time: the tool looks from late in the evening into the night.
+        calls.append({"result": result, "aankomst": kind == "aankomst", "dag": date.fromisoformat(day), "tijd": clock or "23:59"})
     return calls
 
 
@@ -305,6 +313,9 @@ def _dates(day: str, today: date) -> set[date]:
         return {today}
     if day == "morgen":
         return {today + timedelta(days=1)}
+    if day.startswith("volgende week "):
+        # The weeks start on Monday: on a Saturday, next week's Tuesday is three days away.
+        return {today + timedelta(days=7 - today.weekday() + WEEKDAYS.index(day.split()[-1]))}
     ahead = (WEEKDAYS.index(day) - today.weekday()) % 7
     return {today + timedelta(days=ahead)} if ahead else {today, today + timedelta(days=7)}
 
@@ -440,9 +451,21 @@ def _check_nu(answer: str, trips: list[dict[str, Any]]) -> tuple[int | None, str
     leaving = [trip for trip in trips if trip.get("vertrekt_nu")]
     if not leaving:
         return None, ""
-    clocks = set().union(*map(_departures, leaving))
-    if any(clocks & set(_times(sentence)) and LEAVING_NOW.search(sentence) for sentence in _sentences(answer)):
-        return 1, ""
+    sentences = _sentences(answer)
+    for trip in leaving:
+        own = _departures(trip) | {trip.get("aankomst")} | {part.get(key) for part in trip.get("delen") or []
+                                                            for key in ("vertrek", "aankomst")}
+        for start, sentence in enumerate(sentences):
+            if not _departures(trip) & set(_times(sentence)):
+                continue
+            if LEAVING_NOW.search(sentence):
+                return 1, ""
+            # "Er is ook een trein om 21:59. Die vertrekt nu.": the sentences after it, until another train comes up.
+            for following in sentences[start + 1:]:
+                if not set(_times(following)) <= own:
+                    break
+                if NOW_AFTER.search(following):
+                    return 1, ""
     return 0, f"zegt niet dat de {leaving[0]['vertrek']} nu vertrekt"
 
 
@@ -515,13 +538,15 @@ def _check_overstap(answer: str, chosen: dict[str, Any] | None, pool: list[dict[
         about = bool(TRANSFER.search(sentence) or HAVE.search(sentence))
         if not (about or follow):
             continue
-        numbers = []
+        numbers, others = [], []
         for match in MINUTES.finditer(sentence):
             before, after, n = sentence[:match.start()], sentence[match.end():], int(match.group(1))
             if NOT_CHANGE_AFTER.search(after) or (NOT_CHANGE_BEFORE.search(before) and not CHANGE_JUST_BEFORE.search(before)):
+                others.append((match.start(), n))
                 continue
             # More than half an hour, and no trip has that to change: that is how long the trip takes.
             if n > 30 and n not in allowed:
+                others.append((match.start(), n))
                 continue
             numbers.append((match.start(), n))
         # "Je stapt in Almere over. Dat duurt 5 minuten": the minutes can follow in the next sentence.
@@ -532,14 +557,36 @@ def _check_overstap(answer: str, chosen: dict[str, Any] | None, pool: list[dict[
         problems += [f"{n} minuten overstappen, NS geeft {'/'.join(map(str, gaps))}" for _, n in numbers if n not in allowed]
         for name, label, fits in LABELS:
             for found in label.finditer(sentence):
-                # The word goes with the nearest number, or without one with the only transfer of the trip.
-                near = min(numbers, key=lambda item: abs(item[0] - found.start()), default=None)
+                # The word goes with the nearest number, or without one with the only transfer of the trip. Nearest
+                # to minutes that are not for changing, as in "dat is krap, je hebt maar 5 minuten over", it goes
+                # with those.
+                near = min(numbers + others, key=lambda item: abs(item[0] - found.start()), default=None)
+                if near in others:
+                    continue
                 check = [near[1]] if near else gaps if len(gaps) == 1 else []
                 if any(not fits(gap) for gap in check):
                     problems.append(f"'{name}' bij {'/'.join(map(str, check))} minuten")
     if not own & set(stated):
         problems.append(f"noemt de overstaptijd niet ({'/'.join(map(str, gaps))} minuten)")
     return (0, "; ".join(dict.fromkeys(problems))) if problems else (1, "")
+
+
+def _check_geen_toeslag(case: dict[str, Any], calls: list[dict[str, Any]], answer: str) -> tuple[int | None, str]:
+    """When someone does not want to pay a supplement: on each route, the first trip the answer names has none."""
+    if not case.get("zonder_toeslag"):
+        return None, ""
+    problems = []
+    for spec in case["zoek"]:
+        by_clock: dict[str, dict[str, Any]] = {}
+        for call in calls:
+            if _route(spec, call):
+                for trip in call["result"].get("reisadviezen") or []:
+                    for clock in _departures(trip):
+                        by_clock.setdefault(clock, trip)
+        first = next((by_clock[clock] for clock in _times(answer) if clock in by_clock), None)
+        if first and first.get("toeslag_euro"):
+            problems.append(f"raadt de {first['vertrek']} met toeslag aan")
+    return (0, "; ".join(problems)) if problems else (1, "")
 
 
 def _check_toeslag(answer: str, chosen: dict[str, Any] | None) -> tuple[int | None, str]:
@@ -650,6 +697,7 @@ def grade(case: dict[str, Any], raw: dict[str, Any]) -> tuple[dict[str, float], 
         "prijzen": _check_prijzen(answer, lookups),
         "overstap": _check_overstap(answer, chosen, pool),
         "toeslag": _check_toeslag(answer, chosen),
+        "geen_toeslag": _check_geen_toeslag(case, calls, answer),
         "anders": _check_anders(case, calls, answer, chosen),
         "nu": _check_nu(answer, trips),
         "rekenen": _check_rekenen(answer, calls, started, pool, lookups),
@@ -833,8 +881,9 @@ def _selftest(variant: str, cases: dict[str, dict[str, Any]]) -> None:
         if target.get("toeslag_euro"):
             right += (f" The price includes a supplement of €{target['toeslag_euro']:.2f}." if english
                       else f" Er zit €{target['toeslag_euro']:.2f} toeslag in de prijs.".replace(".", ",", 1))
+        # Also when the best itself leaves now: then that is the one to say it of.
         for trip in trips:
-            if trip.get("vertrekt_nu") and trip is not target:
+            if trip.get("vertrekt_nu"):
                 right += (f" The {trip['vertrek']} leaves now, you only catch it if you are at the train already."
                           if english else f" De trein van {trip['vertrek']} vertrekt nu, die haal je alleen als je al "
                           "bij de trein staat.")

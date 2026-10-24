@@ -13,7 +13,7 @@ import re
 import secrets
 import time
 from collections.abc import AsyncIterator
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 import anthropic
@@ -35,8 +35,9 @@ MODEL = "claude-haiku-5-5"
 PRICE_INPUT, PRICE_OUTPUT, PRICE_CACHE_WRITE, PRICE_CACHE_READ = 0.10, 0.50, 0.125, 0.01
 # Booked before each call and settled after it, so a visitor who leaves halfway still counts.
 ROUND_RESERVE = 0.002
-# Haiku thinks before it answers, and that counts as output too: 1024 cut off some answers halfway.
-MAX_TOKENS = 2048
+# Haiku thinks before it answers, and that counts as output too: 1024 cut off some answers halfway, and 2048 one in
+# three answers for a train there and back with the night trains.
+MAX_TOKENS = 3072
 # Low was not faster in tests, and high not better.
 EFFORT = "medium"
 MAX_ROUNDS = 5
@@ -262,10 +263,10 @@ Zo antwoord je:
 - Mis je iets wat echt nodig is, zoals de plaats van een halte, vraag dat dan kort.
 {reisplanner}
 - Noem bij een overstap hoeveel minuten je hebt en of dat krap, genoeg of ruim is, zoals "in Utrecht heb je 12 minuten om over te stappen, dat is ruim". Bij trein_reis staat dat in 'overstaptijd': neem dat oordeel letterlijk over (5 minuten is dus genoeg, niet krap) en reken het niet zelf uit. Anders reken je zelf: minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
-- Gaat het om een trein van de ene plaats naar de andere, ook bij "de volgende trein", gebruik dan trein_reis en niet trein_vertrek. Noemt iemand bij zo'n reis een tijd, zoals "vrijdag om 17:10 van Delft naar Gouda", dan is dat de vertrektijd. aankomst=true is alleen voor als iemand op een tijd ergens moet zijn. De eerste trein van een dag zoek je vanaf 04:00, want treinen tussen middernacht en 4 uur horen bij de nacht ervoor.
+- Gaat het om een trein van de ene plaats naar de andere, ook bij "de volgende trein", gebruik dan trein_reis en niet trein_vertrek. Noemt iemand bij zo'n reis een tijd, zoals "vrijdag om 17:10 van Delft naar Gouda", dan is dat de vertrektijd. aankomst=true is alleen voor als iemand op een tijd ergens moet zijn. De eerste trein van een dag zoek je vanaf 04:00, want treinen tussen middernacht en 4 uur horen bij de nacht ervoor. Wil iemand de laatste trein, of zo laat mogelijk terug, gebruik dan laatste=true met alleen de datum: dan zoekt de tool zelf tot in de nacht. Raad de reis met 'laatste' aan, of de laatste die past bij wat iemand wil, zoals zonder toeslag. Vertrekt die na middernacht, zeg dan dat het 's nachts is. Staat er 'nachttreinen', neem die zin dan altijd over, want daarmee kan iemand nog later terug.
 - Bij trein_reis staat de beste reis bovenaan, met 'beste'. Die komt zo vroeg mogelijk aan met zo min mogelijk overstappen, of bij aankomst=true vertrekt die zo laat mogelijk en is nog op tijd. Raad die reis aan, ook als een andere korter onderweg is. Noem daarna hooguit één andere reis, ook als volgende trein of als extra zekerheid, en alleen als die iets heeft wat de beste mist: geen overstap, geen toeslag of meer tijd over. Hoe vaak een trein onderweg stopt, staat in 'tussenstops'; zeg alleen dat hij nergens stopt als dat 0 is. Hoeft iemand niet over te stappen, zeg dan "zonder overstap". Welke dag de reis is, staat in 'dag', en de tijden gelden voor die dag: noem die dag, en zeg geen "vandaag" als het een andere dag is. Vertrekt de beste trein binnen een paar minuten, zeg dat dan en noem ook de volgende. Een reis met 'vertrekt_nu' vertrekt nu of binnen 2 minuten en is daarom niet de beste, want die haal je alleen als je al bij de trein staat. Noem die er kort bij, zoals "de trein van 17:15 vertrekt nu, die haal je alleen als je al op het perron staat"; die telt niet als die ene andere reis. Heeft de beste zelf 'vertrekt_nu', zeg dan dat die nu vertrekt.
 - Heeft een treinreis 'toeslag_euro', zeg dan dat er een toeslag in de prijs zit voor de Intercity direct of de ICE, en hoeveel. Staan er reizen in 'niet_mogelijk', zeg dan kort dat die niet gaan.
-- Gaat het om een later moment, geef dan datum en tijd mee aan de tool.
+- Gaat het om een later moment, geef dan datum en tijd mee aan de tool. "Volgende week dinsdag" is de dinsdag in volgende week, en welke dagen dat zijn, staat bij de tijd van nu.
 - Staat er in een resultaat een 'let_op', zoals een staking, noem dat dan altijd, vóór de tijden. Gaat het bericht over een andere dag dan de vraag, zeg dat er dan kort bij. Staan er bij een treinreis 'meldingen', zoals een bus in plaats van de trein, noem die dan ook.
 - Vraagt iemand of de treinen rijden, of naar storingen of werkzaamheden, gebruik dan trein_storingen, met het station en de dagen als die genoemd worden. Noem wat er rijdt (bussen of minder treinen), waar, tot wanneer, en het advies van NS.
 - Bij eb en vloed noem je de tijden van hoog- en laagwater en de hoogte in cm boven of onder NAP, en het meetpunt als dat verderop ligt. Staat er 'volgens': 'verwachting', gebruik dan die tijden en hoogtes; de getijtabel noem je alleen als iemand daarom vraagt of als de wind het water flink hoger of lager zet.
@@ -312,9 +313,10 @@ NO_PLANNER = (
     "moet zijn, en lopen_min: hoe lang het laatste stuk vanaf het station duurt (reken 10 tot 15 minuten lopen als "
     "je het niet weet, en 0 als iemand op het station zelf moet zijn). De tool haalt dat en 5 minuten marge van de "
     "tijd af, dus doe dat niet zelf. Bijvoorbeeld: afspraak om 10:00 en een kwartier lopen, dan zoek je met tijd "
-    "10:00 en lopen_min 15. Neem de reis met 'beste', want die vertrekt zo laat mogelijk en is nog op tijd. Noem "
-    "hooguit één eerdere trein, als extra zekerheid. Zoek daarna de bus of tram naar het station, met als tijd een "
-    "half uur voor die trein, en kies de laatste die minstens 5 minuten voor vertrek bij het station is."
+    "10:00 en lopen_min 15. Hoe laat iemand er dan is, staat in 'op_bestemming'. Neem de reis met 'beste', want "
+    "die vertrekt zo laat mogelijk en is nog op tijd. Noem hooguit één eerdere trein, als extra zekerheid. Zoek "
+    "daarna de bus of tram naar het station, met als tijd een half uur voor die trein, en kies de laatste die "
+    "minstens 5 minuten voor vertrek bij het station is."
 )
 PLANNER = (
     "- Van deur tot deur met het ov gebruik je reis_plannen, met het adres, de straat, het station of de plaats "
@@ -745,7 +747,11 @@ def _system(with_flights: bool) -> str:
 
 def _now() -> str:
     now = now_local()
+    # On a Saturday Haiku took "volgende week dinsdag" for 3 november instead of 27 oktober.
+    monday = now.date() + timedelta(days=7 - now.weekday())
+    sunday = monday + timedelta(days=6)
     return (
         f"Nu is het {DAYS[now.weekday()]} {now.day} {MONTHS[now.month - 1]} {now.year} "
-        f"({now:%Y-%m-%d}), {now:%H:%M} uur Nederlandse tijd."
+        f"({now:%Y-%m-%d}), {now:%H:%M} uur Nederlandse tijd. Volgende week loopt van maandag {monday.day} "
+        f"{MONTHS[monday.month - 1]} tot en met zondag {sunday.day} {MONTHS[sunday.month - 1]}."
     )

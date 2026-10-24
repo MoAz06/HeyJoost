@@ -367,14 +367,17 @@ async def trein_aankomst(
         "prijs. Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
         "komt zo vroeg mogelijk aan met zo min mogelijk overstappen (een overstap telt als 5 minuten, een krappe "
         "als 10). Met aankomst=true komen alleen reizen die op tijd aankomen, en vertrekt de beste zo laat "
-        "mogelijk; met lopen_min gaat daar eerst het laatste stuk en 5 minuten marge af. Daarna volgen de andere "
+        "mogelijk; met lopen_min gaat daar eerst het laatste stuk en 5 minuten marge af, en staat bij elke reis in "
+        "'op_bestemming' hoe laat je er dan bent. Daarna volgen de andere "
         "reizen op tijd; een reis die in alles slechter is dan een andere valt weg. 'overstaptijd' zegt per "
         "overstap hoeveel minuten je hebt en of dat krap (minder dan 5), genoeg of ruim (vanaf 10) is, en "
         "'tussenstops' per deel hoe vaak de trein onderweg stopt. 'dag' is de dag in woorden, zoals 'maandag 26 "
         "oktober (over 3 dagen)'. Een trein die nu of binnen 2 minuten vertrekt, heeft 'vertrekt_nu': die haal je "
         "alleen als je er al bent, dus die is niet de beste zolang er een andere is. Treinen die al weg zijn, vallen "
-        "weg. Bij de Intercity direct en de ICE staat de toeslag in 'toeslag_euro', en die zit "
-        "al in de prijs. Reizen die niet gaan, omdat een trein uitvalt of een overstap niet meer lukt, staan in "
+        "weg. Met laatste=true komen de laatste treinen van die dag en telt alleen de datum; een trein tot 4 uur 's "
+        "nachts hoort nog bij die avond. De laatste staat dan bovenaan met laatste=true, en treinen die na 1 uur 's "
+        "nachts vertrekken, staan in een zin in 'nachttreinen'. Bij de Intercity direct en de ICE staat de toeslag "
+        "in 'toeslag_euro', en die zit al in de prijs. Reizen die niet gaan, omdat een trein uitvalt of een overstap niet meer lukt, staan in "
         "'niet_mogelijk'. Rijdt er door werkzaamheden of een storing een bus in plaats van de trein, dan staat het "
         "bericht van NS in 'meldingen'."
     ),
@@ -387,8 +390,9 @@ async def trein_reis(
     tijd: Annotated[str | None, Field(description="Tijd als UU:MM. Leeg = nu")] = None,
     aankomst: Annotated[bool, Field(description="True als de tijd de gewenste aankomsttijd is")] = False,
     lopen_min: Annotated[int | None, Field(ge=0, le=120, description="Alleen met aankomst=true: hoeveel minuten je na de trein nog onderweg bent naar waar je op tijd moet zijn, zoals lopen of de tram, en 0 als dat het station zelf is. De tool haalt dat en 5 minuten marge van de tijd af. Leeg = precies op de tijd aankomen")] = None,
+    laatste: Annotated[bool, Field(description="True voor de laatste trein van die dag, of om zo laat mogelijk te vertrekken. Dan telt alleen de datum, niet tijd, aankomst of lopen_min")] = False,
 ) -> dict[str, Any]:
-    return await ns.trein_reis(van, naar, datum, tijd, aankomst, lopen_min)
+    return await ns.trein_reis(van, naar, datum, tijd, aankomst, lopen_min, laatste)
 
 
 @server.tool(
