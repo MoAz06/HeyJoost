@@ -10,7 +10,7 @@ import asyncio
 import math
 import re
 from collections.abc import Callable
-from datetime import UTC, date
+from datetime import UTC, date, timedelta
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -38,6 +38,11 @@ STATION_RADIUS = 250
 # Elsewhere the two directions of one stop can carry different town names ("Den Haag, Spui" and
 # "'s-Gravenhage, Spui"), which Transitous does not join by itself.
 SAME_STOP_RADIUS = 400
+# A place that only lends its name to one stop, like the Erasmus MC to Erasmus MC Hoofdingang, is also served
+# by the stops within this walk of it (Dijkzigt, Kievitslaan), both to leave from and to go to.
+PLACE_RADIUS = 400
+# A walk between such stops, or on to the place: a third longer than as the crow flies, at 80 metres a minute.
+DETOUR, WALK_SPEED = 1.3, 80
 STATION_NAME = re.compile(r"^(station|cs)\b|\b(station|centraal|cs)$|hoofdstation$", re.IGNORECASE)
 STATION_WORDS = {"station", "centraal", "hoofdstation"}
 # Stop names that count as the town's main station when 'naar' asks only for "station".
@@ -307,8 +312,9 @@ async def _near(point: dict) -> list[dict]:
     return sorted((h for h in stops if _distance(point, h) <= ADDRESS_RADIUS), key=lambda h: _distance(point, h))
 
 
-async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | None, list[dict]]:
-    """Where to leave from: an address or street as (point, None, []), or a stop as (None, stop, candidates).
+async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | None, list[dict], bool]:
+    """Where to leave from: an address or street as (point, None, [], True), or a stop as (None, stop,
+    candidates, sure), where sure says that the stop's own name was asked in full.
 
     A stop can be named after its street (Spui), so for a street the stop search still runs. With a town,
     the street is looked up first and then only the first round of the stop search runs: that keeps the
@@ -317,9 +323,9 @@ async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | N
     if _is_address(halte):
         point = await _address(halte, plaats)
         if point:
-            return point, None, []
-        best, candidates, _ = await _find(halte, plaats)
-        return None, best, candidates
+            return point, None, [], True
+        best, candidates, sure = await _find(halte, plaats)
+        return None, best, candidates, sure
     street = await _address(halte, plaats) if plaats else None
     try:
         best, candidates, sure = await _find(halte, plaats, wide=street is None)
@@ -327,18 +333,23 @@ async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | N
         street = street or (None if plaats else await _address(halte, None, fuzzy=False))
         if street is None:
             raise
-        return street, None, []
+        return street, None, [], True
     # Without a town, a street can look like a stop elsewhere, as Rotterdam's Van Noortwijckstraat for the
     # Paets van Troostwijkstraat in Den Haag. A street with exactly the name asked wins then.
     if not sure and not plaats:
         street = await _address(halte, None, fuzzy=False)
         if street:
-            return street, None, []
-    return None, best, candidates
+            return street, None, [], True
+    return None, best, candidates, sure
 
 
 def _meters(a: dict, b: dict) -> int:
     return round(_distance(a, b) / 10) * 10
+
+
+def _walk(metres: float) -> int:
+    """Minutes on foot, at least one."""
+    return max(1, math.ceil(metres * DETOUR / WALK_SPEED))
 
 
 def _kinds(stop: dict) -> list[str]:
@@ -383,9 +394,34 @@ def _is_target(wanted: list[str], name: str) -> bool:
     )
 
 
-def _target_stop(st: dict, wanted: list[str], memo: dict[str, bool]) -> dict | None:
+async def _places(wanted: list[str], naar: str, origin: dict) -> list[dict]:
+    """The stops around the origin that 'naar' lends its name to when it is a place rather than a stop, like
+    Erasmus MC Hoofdingang for the Erasmus MC. Empty when 'naar' is the name of a stop itself, or a town or
+    its station, because then the name says which stops are meant."""
+    if not set(wanted) - STATION_WORDS:
+        return []
+    box = (origin["lat"] - BOX_LAT, origin["lon"] - BOX_LON, origin["lat"] + BOX_LAT, origin["lon"] + BOX_LON)
+    try:
+        hits = await _geocode(naar, "STOP", box)
+    except ToolError:
+        # The stop names still count without it.
+        return []
+    named = [h for h in hits if _is_target(wanted, h["name"])]
+    for hit in named:
+        town = _town_words(hit)
+        if set(_words(hit["name"])) - town <= set(wanted) or set(wanted) - town <= STATION_WORDS:
+            return []
+    return named
+
+
+def _from(places: list[dict], point: dict) -> float:
+    return min(_distance(place, point) for place in places)
+
+
+def _target_stop(st: dict, wanted: list[str], memo: dict[str, bool], places: list[dict]) -> dict | None:
     """The first later stop of this trip that answers 'naar'. A place like Scheveningen is in no stop
-    name but can be in the headsign (Scheveningen Noord), and then the last stop counts."""
+    name but can be in the headsign (Scheveningen Noord), and then the last stop counts. Around a place
+    that lends its name to a stop, the stop nearest to it within a short walk counts too."""
     stops = st.get("nextStops") or []
     for stop in stops:
         name = stop.get("name") or ""
@@ -395,7 +431,8 @@ def _target_stop(st: dict, wanted: list[str], memo: dict[str, bool]) -> dict | N
             return stop
     if stops and _coverage(wanted, st.get("headsign") or "", strict=True) == 1.0:
         return stops[-1]
-    return None
+    close = [stop for stop in stops if places and "lat" in stop and _from(places, stop) <= PLACE_RADIUS]
+    return min(close, key=lambda stop: _from(places, stop), default=None)
 
 
 async def _stop_times(
@@ -427,13 +464,19 @@ async def _stop_times(
         )
         found += [st for st in data.get("stopTimes") or [] if keep(st)]
         cursor = data.get("nextPageCursor")
-        if len(found) >= enough or not cursor:
+        # Around a station or a place one trip can call at several of the stops, so it counts once.
+        if len({_trip(st) for st in found}) >= enough or not cursor:
             break
         params["pageCursor"] = cursor
     return found
 
 
-def _row(st: dict, day: date, target: dict | None = None) -> dict[str, Any]:
+def _trip(st: dict) -> tuple | str:
+    """Trip ids start with the date and time, so a trip on another day is another id."""
+    return st.get("tripId") or (st.get("routeShortName"), (st.get("place") or {}).get("scheduledDeparture"))
+
+
+def _row(st: dict, day: date, target: dict | None = None, walk: int | None = None) -> dict[str, Any]:
     place = st.get("place") or {}
     planned, actual = parse_time(place.get("scheduledDeparture")), parse_time(place.get("departure"))
     live = bool(st.get("realTime"))
@@ -455,6 +498,11 @@ def _row(st: dict, day: date, target: dict | None = None) -> dict[str, Any]:
         row["stopt_bij"] = target.get("name")
         row["aankomst"] = fmt_time(arrival)
         row["aankomst_verwacht"] = fmt_time(expected) if live else None
+        # The last stretch on foot, worked out here rather than by the reader.
+        there = expected if live and expected else arrival
+        if walk is not None and there:
+            row["lopen_min"] = walk
+            row["op_bestemming"] = fmt_time(there + timedelta(minutes=walk))
     if planned and planned.date() != day:
         row["datum"] = planned.date().isoformat()
     return row
@@ -498,12 +546,17 @@ async def ov_vertrek(
     plaats = plaats.strip() if plaats and plaats.strip() else None
     naar = naar.strip() if naar and naar.strip() else None
     # Around an address or a street, the stops nearby count.
-    point, best, candidates = await _origin(halte, plaats)
+    point, best, candidates, sure = await _origin(halte, plaats)
     if point:
         candidates = await _near(point)
         if not candidates:
             raise ToolError(f"Geen halte voor bus, tram of metro gevonden binnen 2 km van {point['naam']}.")
         best = candidates[0]
+    # A stop whose own name was not asked in full stands for a place, like Erasmus MC Hoofdingang for the
+    # Erasmus MC, so the stops around it count too. They also do on the way to somewhere, because what goes
+    # there can leave from around the corner: bus 44 to Rotterdam Centraal stops at Dijkzigt, not at the
+    # Hoofdingang.
+    around = not point and not _is_station(best) and (not sure or bool(naar))
 
     aantal = max(1, min(aantal, 25))
     moment = parse_moment(datum, tijd) if datum or tijd else None
@@ -511,14 +564,29 @@ async def ov_vertrek(
     kind, line = _line_filter(lijn)
     wanted = normalize(line or "") or None
     target = (_words(naar) or None) if naar else None
+    places = await _places(target, naar, point or best) if target and naar else []
     lines_seen: set[tuple[str, str]] = set()
     headsigns: list[str] = []
     memo: dict[str, bool] = {}
     passed = 0
+    start = moment or now_local()
+    own_name = normalize(_short(best["name"]))
+
+    def walk_to(place: dict) -> int:
+        """Minutes on foot from the stop asked to the one round the corner that a ride leaves from; none to
+        the stop itself or its namesake across the road."""
+        if not around or "lat" not in place or normalize(_short(place.get("name") or "")) == own_name:
+            return 0
+        return _walk(_distance(best, place))
 
     def keep(st: dict) -> bool:
         nonlocal passed
-        if not (st.get("place") or {}).get("departure"):
+        place = st.get("place") or {}
+        if not place.get("departure"):
+            return False
+        # From a stop round the corner, only what still leaves once you have walked there.
+        walk, leaves = walk_to(place), parse_time(place["departure"])
+        if walk and not (leaves and leaves >= start + timedelta(minutes=walk)):
             return False
         soort, name = SOORT.get(st.get("mode"), ""), st.get("routeShortName") or ""
         lines_seen.add((soort, name))
@@ -529,7 +597,7 @@ async def ov_vertrek(
             return True
         if st.get("headsign") and st["headsign"] not in headsigns:
             headsigns.append(st["headsign"])
-        return _target_stop(st, target, memo) is not None
+        return _target_stop(st, target, memo, places) is not None
 
     if point:
         # The three nearest stops, a station with the stops around it.
@@ -537,6 +605,8 @@ async def ov_vertrek(
         radii = [STATION_RADIUS if _is_station(s) else None for s in stops]
     elif _is_station(best):
         stops, radii = [best], [STATION_RADIUS]
+    elif around:
+        stops, radii = [best], [PLACE_RADIUS]
     else:
         stops = _same_stop(best, candidates)
         radii = [None] * len(stops)
@@ -552,26 +622,32 @@ async def ov_vertrek(
     )
 
     # One trip can call at two stops around a station (Leiden Centraal and its Westzijde); the first counts.
-    # Trip ids start with the date and time, so a trip on another day is another id.
+    # Around a place the nearest counts, as Erasmus MC Hoofdingang rather than Breitnerstraat for bus 32.
+    departures = sorted((st for batch in batches for st in batch), key=lambda st: st["place"]["departure"])
+    if around:
+        departures.sort(key=lambda st: _distance(best, st["place"]))
     seen, merged = set(), []
-    for st in sorted((st for batch in batches for st in batch), key=lambda st: st["place"]["departure"]):
-        key = st.get("tripId") or (st.get("routeShortName"), st["place"].get("scheduledDeparture"))
-        if key not in seen:
-            seen.add(key)
+    for st in departures:
+        if _trip(st) not in seen:
+            seen.add(_trip(st))
             merged.append(st)
-    merged = merged[:aantal]
+    merged = sorted(merged, key=lambda st: st["place"]["departure"])[:aantal]
 
     if not merged:
         at = f" vanaf {moment.strftime('%Y-%m-%d %H:%M')}" if moment else ""
         period = at or " de komende tijd"
-        where = f"de haltes bij {point['naam']} ({', '.join(_short(s['name']) for s in stops)})" if point else best["name"]
+        if point:
+            where = f"de haltes bij {point['naam']} ({', '.join(_short(s['name']) for s in stops)})"
+        else:
+            where = f"de haltes rond {best['name']}" if around else best["name"]
         # A strike can be why nothing runs.
         warning = "".join(f" Let op: {text}" for text in notices)
         if target and passed:
             hint = f" Wel richtingen: {', '.join(headsigns[:8])}." if headsigns else ""
             if STATION_WORDS & set(target):
                 hint += " Verder met de trein? Zoek dan de bus of tram naar een station in de buurt, en de trein met trein_reis."
-            raise ToolError(f"Er vertrekt{period} niks van {where} dat bij '{naar}' stopt.{hint}{warning}")
+            reach = " of op loopafstand ervan" if places else ""
+            raise ToolError(f"Er vertrekt{period} niks van {where} dat bij '{naar}'{reach} stopt.{hint}{warning}")
         if wanted or kind:
             running = sorted(((s, name) for s, name in lines_seen if name), key=lambda x: (x[0], len(x[1]), x[1]))
             names = ", ".join(f"{s} {name}" for s, name in running[:15])
@@ -582,17 +658,35 @@ async def ov_vertrek(
             raise ToolError(f"Er vertrekt{period} geen {kind} bij {where}.{hint}{warning}")
         raise ToolError(f"Geen vertrekken gevonden bij {where}{at}.{warning}")
 
-    day = (moment or now_local()).date()
-    rows = [_row(st, day, _target_stop(st, target, memo) if target else None) for st in merged]
-    # First in the result, so it is read before the times.
-    warning = {"let_op": notices} if notices else {}
+    day = start.date()
+    rows = []
+    for st in merged:
+        stop = _target_stop(st, target, memo, places) if target else None
+        walk = None
+        # Found by the walk rather than the name, so how long that walk takes.
+        if stop is not None and places and "lat" in stop and not memo.get(stop.get("name") or ""):
+            metres = _from(places, stop)
+            walk = _walk(metres) if metres <= PLACE_RADIUS else None
+        row = _row(st, day, stop, walk)
+        # How far a stop is that was not asked for by name: one round the corner, or any around a place.
+        if point:
+            row["afstand_m"] = _meters(point, st["place"])
+        elif around and (walk_to(st["place"]) or not sure):
+            row["afstand_m"] = _meters(best, st["place"])
+        rows.append(row)
+    # First in the result, so they are read before the times.
+    first = {"let_op": notices} if notices else {}
+    # No stop on the way carries the name asked, which reads as if nothing goes there, so say how it does.
+    if any("lopen_min" in row for row in rows):
+        first["uitstappen"] = (
+            f"Naar {naar} stap je uit bij de halte in 'stopt_bij'. Staat er 'lopen_min' bij, dan loop je daarna "
+            "nog zoveel minuten en ben je er om 'op_bestemming'."
+        )
     bron = f"{BRON} De berichten in let_op komen van NS Reisinformatie." if notices else BRON
     if point:
-        for row, st in zip(rows, merged):
-            row["afstand_m"] = _meters(point, st["place"])
         nearby = [{"halte": s["name"], "afstand_m": _meters(point, s), "soort": _kinds(s)} for s in stops]
         return {
-            **warning,
+            **first,
             "adres": point["naam"],
             "haltes_in_de_buurt": nearby,
             "vertrektijden": rows,
@@ -606,7 +700,7 @@ async def ov_vertrek(
         if normalize(_short(h["name"])) not in shown and not (radii[0] and _distance(best, h) <= radii[0])
     ]
     return {
-        **warning,
+        **first,
         "halte": best["name"],
         "plaats": _town(best),
         "vertrektijden": rows,

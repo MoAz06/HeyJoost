@@ -422,12 +422,16 @@ async def trein_storingen(
         "uitval als de vervoerder die doorgeeft. Werkt met de naam van de halte en de plaats, bijvoorbeeld Spui "
         "in Den Haag of Leidseplein in Amsterdam, en ook met een adres, straat of postcode: dan komen de drie "
         "dichtstbijzijnde haltes mee in 'haltes_in_de_buurt', met de afstand hemelsbreed in meters ('afstand_m'). "
-        "Bij een treinstation komen alle bus- en tramhaltes rond het station mee, elk met halte en perron. Zonder "
-        "tijd krijg je de vertrekken vanaf nu; met datum en tijd ook later, volgens de dienstregeling. Met naar "
-        "krijg je alleen de bussen en trams die daarna bij die halte stoppen, met de aankomsttijd daar "
-        "('stopt_bij' en 'aankomst'), ook vanaf een adres, bijvoorbeeld naar het station. Een negatieve vertraging "
-        "betekent te vroeg. 'andere_haltes' noemt haltes met een andere naam die ook gevonden zijn. Bij een staking "
-        "of een andere grote verstoring van bus, tram of metro staat er een bericht van NS in 'let_op', want de "
+        "Bij een treinstation komen alle bus- en tramhaltes rond het station mee, elk met halte en perron. Bij een "
+        "plek die zijn naam aan één halte geeft, zoals het Erasmus MC, komen ook de haltes eromheen mee, elk met "
+        "'afstand_m'. Zonder tijd krijg je de vertrekken vanaf nu; met datum en tijd ook later, volgens de "
+        "dienstregeling. Met naar krijg je alleen de bussen en trams die daarna bij die halte stoppen, met de "
+        "aankomsttijd daar ('stopt_bij' en 'aankomst'), ook vanaf een adres, bijvoorbeeld naar het station. Vanaf "
+        "een gewone halte tellen dan ook de haltes om de hoek mee, met 'afstand_m' en alleen wat je lopend nog "
+        "haalt. Is naar zo'n plek, dan tellen ook de haltes op loopafstand ervan: dan staat er hoe lang je daarna "
+        "nog loopt ('lopen_min') en hoe laat je er bent ('op_bestemming'). Een negatieve vertraging betekent te "
+        "vroeg. 'andere_haltes' noemt haltes met een andere naam die ook gevonden zijn. Bij een staking of een "
+        "andere grote verstoring van bus, tram of metro staat er een bericht van NS in 'let_op', want de "
         "dienstregeling toont dan nog alle ritten. Treinen staan in Treinvertrek."
     ),
     annotations=READ_ONLY,
@@ -437,7 +441,7 @@ async def ov_vertrek(
     plaats: Annotated[str | None, Field(description="Plaats of wijk van de halte of het adres, bijvoorbeeld Den Haag of Scheveningen")] = None,
     aantal: Annotated[int, Field(ge=1, le=25, description="Aantal vertrekken")] = 10,
     lijn: Annotated[str | None, Field(description="Alleen deze lijn of soort, bijvoorbeeld 2, tram 2, 400, E of metro")] = None,
-    naar: Annotated[str | None, Field(description="Alleen vertrekken die daarna bij deze halte stoppen, bijvoorbeeld Leiden Centraal of Kurhaus")] = None,
+    naar: Annotated[str | None, Field(description="Alleen vertrekken die daarna bij deze halte of plek stoppen, bijvoorbeeld Leiden Centraal, Kurhaus of Erasmus MC")] = None,
     datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
     tijd: Annotated[str | None, Field(description="Vanaf welke tijd, als UU:MM. Leeg = nu")] = None,
 ) -> dict[str, Any]:

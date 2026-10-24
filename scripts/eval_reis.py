@@ -93,6 +93,8 @@ NOT_CHANGE_BEFORE = re.compile(
 )
 NOT_CHANGE_AFTER = re.compile(
     r"^\s*(?:lopen|loop|te lopen|marge|later|eerder|vertraging|te laat|onderweg|reistijd|reizen|rijden|in de trein|"
+    # "Die duurt 22 minuten langer": how much longer another trip takes.
+    r"langer|korter|longer|shorter|"
     r"walk|walking|margin|late|earlier|delay|of travel|travel|voor\s+\d|before\s+\d|"
     # "Je hebt maar 5 minuten over" is the time left before the appointment.
     r"over\b(?!\s+te\s+stappen)|to spare)",
