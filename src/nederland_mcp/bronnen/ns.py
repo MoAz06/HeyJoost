@@ -6,6 +6,7 @@ Needs NS_API_KEY (a subscription key from apiportal.ns.nl).
 import asyncio
 import math
 import os
+import re
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
@@ -50,6 +51,20 @@ NIGHT_ENDS = 4
 NIGHT = 1
 # For the last train, NS is asked page by page back from the end of the night until this many trips of the evening.
 LAST_EVENING = 3
+# NS's kinds of station, from the biggest down: a town with more stations finds its biggest, and a place without a
+# station hears the biggest one near it.
+SIZES = (
+    "MEGA_STATION", "KNOOPPUNT_INTERCITY_STATION", "INTERCITY_STATION", "KNOOPPUNT_SNELTREIN_STATION",
+    "SNELTREIN_STATION", "KNOOPPUNT_STOPTREIN_STATION", "STOPTREIN_STATION", "FACULTATIEF_STATION",
+)
+# Words Haiku puts around a town's station that NS does not use: Gouda Centraal and Station Hilversum are Gouda and
+# Hilversum, and in English Utrecht Central is Utrecht Centraal.
+EXTRA_WORDS = {"station", "centraal", "central", "cs", "ns"}
+# A place this close to a station, some 13 minutes on foot, is a walk from it. Further away, the biggest station may
+# be up to FURTHER times as far as the nearest, but no more than NEAR: Utrecht Centraal for the Science Park.
+WALK = 800
+FURTHER = 2
+NEAR = 15_000
 WEEKDAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
 MONTHS = (
     "januari", "februari", "maart", "april", "mei", "juni",
@@ -107,16 +122,27 @@ async def _stations() -> list[dict]:
     return data.get("payload", []) if isinstance(data, dict) else []
 
 
-async def _station(name: str) -> dict:
-    stations = await _stations()
+def _names(station: dict) -> list[str]:
+    namen = station.get("namen") or {}
+    return [n for n in (station.get("code", ""), *namen.values(), *(station.get("synoniemen") or [])) if n]
+
+
+def _words(text: str) -> list[str]:
+    """The words of a name, written as normalize writes them."""
+    return re.findall(r"[a-z0-9]+", text.lower().replace("'s-", "s").replace("ij", "y"))
+
+
+def _size(station: dict) -> int:
+    kind = station.get("stationType")
+    return SIZES.index(kind) if kind in SIZES else len(SIZES)
+
+
+def _match(name: str, stations: list[dict]) -> dict | None:
+    """The station with this name, or None. Of several, the one in the Netherlands and then the biggest."""
     q = normalize(name)
 
-    def names(station: dict) -> list[str]:
-        namen = station.get("namen") or {}
-        return [station.get("code", ""), *namen.values(), *(station.get("synoniemen") or [])]
-
     def rank(station: dict) -> int:
-        normalized = [normalize(n) for n in names(station) if n]
+        normalized = [normalize(n) for n in _names(station)]
         if q in normalized:
             return 0
         if any(n.startswith(q) for n in normalized):
@@ -125,14 +151,117 @@ async def _station(name: str) -> dict:
             return 2
         return 3
 
-    ranked = sorted((s for s in stations if rank(s) < 3), key=lambda s: (rank(s), s.get("land") != "NL"))
-    if not ranked:
-        # Such as Utrecht Science Park, a tram stop: Haiku tried three names before it took the station.
-        raise ToolError(
+    def order(station: dict) -> tuple:
+        return station.get("land") != "NL", _size(station)
+
+    ranked = sorted((s for s in stations if rank(s) < 3), key=lambda s: (rank(s), *order(s)))
+    if ranked:
+        return ranked[0]
+    # Such as Gouda Centraal or Station Hilversum: the town's own station, or with more stations its biggest, as
+    # Almere Centrum for Almere Centraal. Only whole words, so Station Zuid is no Zuidhorn, and only in the
+    # Netherlands: Brussels Central is not Brussels Airport.
+    asked = _words(name)
+    town = [word for word in asked if word not in EXTRA_WORDS]
+    if not town or len(town) == len(asked):
+        return None
+
+    def town_rank(station: dict) -> int:
+        words = [_words(n) for n in _names(station)]
+        if town in words:
+            return 0
+        if any(len(w) > len(town) and w[: len(town)] == town for w in words):
+            return 1
+        return 2
+
+    dutch = (s for s in stations if s.get("land") == "NL" and town_rank(s) < 2)
+    ranked = sorted(dutch, key=lambda s: (town_rank(s), _size(s)))
+    return ranked[0] if ranked else None
+
+
+async def _station(name: str) -> dict:
+    stations = await _stations()
+    found = _match(name, stations)
+    if found is None:
+        raise ToolError(await _no_station(name, stations))
+    return found
+
+
+async def _no_station(name: str, stations: list[dict]) -> str:
+    """Why there is no train for this name, with the stations near the place it names. Without them Haiku guessed:
+    for Utrecht Science Park it tried 'Utrecht Science Park Galgenwaard' and 'Bèta' before it took Utrecht Centraal."""
+    # ov finds stops and places at Transitous, and uses this module itself for the stations.
+    from . import ov
+
+    try:
+        point, stop, _, sure = await ov._origin(name, None)
+    except ToolError:
+        point, stop, sure = None, None, True
+    # A stop found on the town alone, as Rotterdam Beurs for Rotterdam Ahoy, says little: the place itself first,
+    # and the stop only when it shares a word of its own with the name.
+    if stop and not sure:
+        try:
+            point = await ov._spot(name, None)
+        except ToolError:
+            point = None
+        town = ov._town_words(stop)
+        if not (set(ov._words(ov._short(stop["name"]))) - town) & (set(ov._words(name)) - town):
+            stop = None
+    place = point or stop
+    nearby = _nearby(place, name, stations) if place else None
+    if nearby is None:
+        return (
             f"Geen NS-station gevonden voor '{name}'. Is het een halte van bus, tram of metro, zoek dan de trein naar "
             "het station in de buurt, en het laatste stuk met ov_vertrek."
         )
-    return ranked[0]
+    return f"'{name}' is geen NS-station. {nearby}"
+
+
+def _nearby(place: dict, name: str, stations: list[dict]) -> str | None:
+    """The stations near a place and how to go on from there, or None without stations."""
+    from . import ov
+
+    # Without departures, as Utrecht Maliebaan for the railway museum, a station is no way to get there.
+    nl = [s for s in stations if s.get("land") == "NL" and s.get("lat") and s.get("heeftVertrektijden")]
+    if not nl:
+        return None
+
+    def far(station: dict) -> float:
+        return ov._distance(place, {"lat": station["lat"], "lon": station["lng"]})
+
+    nearest = min(nl, key=far)
+    if far(nearest) <= WALK:
+        walk = ov._walk(far(nearest))
+        return (
+            f"{_station_name(nearest)} ligt op {max(10, round(far(nearest), -1)):.0f} meter, ongeveer {walk} "
+            f"{'minuut' if walk == 1 else 'minuten'} lopen: zoek de trein van of naar dat station."
+        )
+    reach = min(NEAR, FURTHER * far(nearest))
+    biggest = min((s for s in nl if far(s) <= reach), key=lambda s: (_size(s), far(s)))
+    text = f"Het dichtstbijzijnde station is {_station_name(nearest)}, op {_km(far(nearest))}"
+    if biggest is not nearest and _size(biggest) < _size(nearest):
+        text += (
+            f", en het grootste in de buurt {_station_name(biggest)}, op {_km(far(biggest))}, met vaak de meeste "
+            "bussen en trams"
+        )
+        which = "een van die stations"
+    else:
+        which = "dat station"
+    return f"{text}. Zoek de trein van of naar {which}, en het stuk tussen het station en '{name}' met ov_vertrek."
+
+
+async def _seldom(ends: list[tuple[dict, str]]) -> str:
+    """For a station where a train only stops now and then, as Utrecht Maliebaan at the railway museum: the stations
+    near it where trains do stop. Each end comes with the name that was asked for it."""
+    for station, asked in ends:
+        if not station.get("heeftVertrektijden") and station.get("lat"):
+            nearby = _nearby({"lat": station["lat"], "lon": station["lng"]}, asked, await _stations())
+            if nearby:
+                return f" Bij {_station_name(station)} stopt maar af en toe een trein. {nearby}"
+    return ""
+
+
+def _km(metres: float) -> str:
+    return f"{metres / 1000:.1f} km".replace(".", ",")
 
 
 def _station_name(station: dict) -> str:
@@ -260,7 +389,10 @@ async def trein_reis(
 
     trips = [_advice(option, near and _leaving(option[0], now), lopen_min if aankomst else None) for option in chosen]
     if not trips:
-        raise ToolError(f"Geen reisadvies gevonden van {_station_name(origin)} naar {_station_name(destination)}.")
+        raise ToolError(
+            f"Geen reisadvies gevonden van {_station_name(origin)} naar {_station_name(destination)}."
+            + await _seldom([(origin, van), (destination, naar)])
+        )
     if running:
         trips[0] = {"beste": True, **trips[0]}
     result: dict[str, Any] = {
@@ -550,6 +682,15 @@ def _pick(options: list[tuple], aankomst: bool, now: datetime | None = None) -> 
 
 def _leg(leg: dict) -> dict[str, Any]:
     origin, destination = leg.get("origin") or {}, leg.get("destination") or {}
+    if leg.get("travelType") == "WALK":
+        # NS walks the last bit to a station where trains seldom stop, as from Rotterdam Zuid to Rotterdam Stadion.
+        return {
+            "lopen_min": leg.get("plannedDurationInMinutes"),
+            "van": origin.get("name"),
+            "vertrek": fmt_time(_expected(origin)),
+            "naar": destination.get("name"),
+            "aankomst": fmt_time(_expected(destination)),
+        }
     product = leg.get("product") or {}
     planned = parse_time(origin.get("plannedDateTime"))
     actual = parse_time(origin.get("actualDateTime"))

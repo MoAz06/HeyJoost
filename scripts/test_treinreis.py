@@ -193,6 +193,12 @@ async def main() -> None:
                {"travelType": "WALK", "plannedDurationInMinutes": 3},
                leg("Utrecht Centraal", "Den Haag Centraal", "10:28", "10:50")]
     check("lopen tussen twee treinen gaat van de overstaptijd af", ns._changes(walking) == [("Utrecht Centraal", 5)])
+    walk = {"travelType": "WALK", "plannedDurationInMinutes": 20,
+            "origin": {"name": "Rotterdam Zuid", "plannedDateTime": at("19:02").isoformat()},
+            "destination": {"name": "Rotterdam Stadion", "plannedDateTime": at("19:22").isoformat()}}
+    check("een stuk lopen is een deel met lopen_min, niet een trein zonder naam", ns._leg(walk) == {
+        "lopen_min": 20, "van": "Rotterdam Zuid", "vertrek": "19:02", "naar": "Rotterdam Stadion", "aankomst": "19:22",
+    }, ns._leg(walk))
     lines = [ns._change_line("Leiden Centraal", gap) for gap in (1, 5, 10, -1)]
     check("oordeel per overstap", lines == [
         "Leiden Centraal: 1 minuut, krap",

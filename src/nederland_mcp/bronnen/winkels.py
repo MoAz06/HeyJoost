@@ -229,11 +229,12 @@ async def _station(waar: str) -> tuple[float, float, str] | None:
     if not re.search(r"\b(station|centraal|cs)\b", waar, re.IGNORECASE):
         return None
     wanted = re.sub(r"\b(station|ns)\b", "", waar, flags=re.IGNORECASE).strip()
+    # Matched without ns._station, which looks a name that is no station up at Transitous to say where to go.
     try:
-        station = await ns._station(re.sub(r"\bcs$", "Centraal", wanted, flags=re.IGNORECASE))
+        station = ns._match(re.sub(r"\bcs$", "Centraal", wanted, flags=re.IGNORECASE), await ns._stations())
     except (ToolError, httpx.HTTPError):
         return None
-    if station.get("land") != "NL" or station.get("lat") is None:
+    if station is None or station.get("land") != "NL" or station.get("lat") is None:
         return None
     return station["lat"], station["lng"], f"station {ns._station_name(station)}"
 
