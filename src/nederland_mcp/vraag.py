@@ -109,17 +109,22 @@ FLIGHTS_FULL = (
     "luchtvaartmaatschappij."
 )
 FAILED = "Dit lukte even niet bij de bron. Probeer het later nog eens."
-# For Claude: now and then Haiku only thinks and writes nothing. All six times seen it was the first round that can no
-# longer look anything up, after four rounds of lookups, and Haiku still wanted to look up the bus. Asked the same 12
-# times, such a round stayed empty 12 times; told to write its answer, 7 times; told this, 0 times.
-NUDGE = (
-    "Je vorige antwoord bleef leeg: je dacht na, maar schreef niets voor de bezoeker. Opzoeken kan nu niet meer. "
-    "Schrijf dus nu je antwoord met wat je hebt gevonden, en zeg eerlijk wat je niet hebt kunnen opzoeken."
+# For Claude, with the results before the round that can no longer look anything up. All six empty answers seen came
+# in that round, after four rounds of lookups: Haiku still wanted to look up the bus and did not know it could not.
+# Such a round asked again stayed empty 36 times out of 36, and with this line 0 times out of 24. A round that had
+# everything answered as well with it as without.
+NO_MORE = (
+    "Opzoeken kan nu niet meer. Schrijf dus nu je antwoord met wat je hebt gevonden. Kon je iets niet opzoeken, zeg dat "
+    "dan eerlijk."
 )
-NUDGE_EN = (
-    "Your previous answer came back empty: you thought, but wrote nothing for the visitor. You can't look anything up "
-    "anymore. So write your answer now with what you found, and say honestly what you couldn't look up."
+NO_MORE_EN = (
+    "You can't look anything up anymore. So write your answer now with what you found. If you couldn't look something "
+    "up, say so honestly."
 )
+# And with the second try, when an answer still came back empty. Told only to write its answer, such a round stayed
+# empty 7 times out of 12; told that looking up is over too, 0 times out of 48.
+NUDGE = f"Je vorige antwoord bleef leeg: je dacht na, maar schreef niets voor de bezoeker. {NO_MORE}"
+NUDGE_EN = f"Your previous answer came back empty: you thought, but wrote nothing for the visitor. {NO_MORE_EN}"
 # For Claude: the page keeps what Joost looked up for an earlier answer, but not what came back. "Not kept" alone
 # read as "found nothing", and Joost then confessed to making up the answer he had in fact looked up.
 EARLIER = (
@@ -641,7 +646,11 @@ async def _answer(
             {"tool": use.name, "input": use.input}
             for use, result in zip(uses, results) if not result["is_error"] and use.name != MISSED_TOOL["name"]
         ]
-        messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": [*results, *note]}]
+        content = [*results, *note]
+        if round_ + 1 >= MAX_ROUNDS - 1:
+            # The next round can no longer look anything up, and Haiku hears it with these results (see NO_MORE).
+            content.append({"type": "text", "text": NO_MORE_EN if _in_english(question, english) else NO_MORE})
+        messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": content}]
     for topic in sorted(missed):
         tellers.tel(f"chat mist {topic}")
     if not said.strip():

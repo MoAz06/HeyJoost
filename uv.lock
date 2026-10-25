@@ -491,7 +491,7 @@ wheels = [
 
 [[package]]
 name = "nederland-mcp"
-version = "0.35.6"
+version = "0.35.7"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },

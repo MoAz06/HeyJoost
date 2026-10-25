@@ -137,6 +137,14 @@ async def main() -> None:
           tellers._counts["chat duwtje"] == nudges + 2 and tellers._counts["chat leeg"] == empties + 1,
           dict(tellers._counts))
 
+    haiku = Haiku(*[looks_up("weer", plaats=f"Utrecht {n}") for n in range(4)], says("Het is 12 graden."))
+    events = await chat(haiku, question)
+    check("na vier rondes zoeken hoort Joost met de resultaten dat opzoeken niet meer kan, eerder niet",
+          [last(request) for request in haiku.asked[1:]] == [vraag.IN_DUTCH] * 3 + [vraag.NO_MORE]
+          and [request["tool_choice"]["type"] for request in haiku.asked] == ["auto"] * 4 + ["none"]
+          and text(events).startswith("Het is 12 graden."),
+          [(request["tool_choice"]["type"], last(request)) for request in haiku.asked])
+
     haiku = Haiku(SILENT, SILENT)
     events = await chat(haiku, "What's the weather in Utrecht today?", english=True)
     check("in het Engels: het duwtje en de melding ook",
