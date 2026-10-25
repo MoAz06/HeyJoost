@@ -72,6 +72,8 @@ CONFUSED = "Dat snapte Joost niet. Ververs de pagina en probeer het nog eens."
 ELSEWHERE = "Vraag het Joost werkt op heyjoost.nl."
 UNREACHABLE = "Joost is even niet bereikbaar. Probeer het zo nog eens."
 REFUSED = "Daar kan Joost niet mee helpen."
+# When the answer stays empty, even after the nudge (see NUDGE).
+EMPTY = "Joost kwam er even niet uit. Probeer het nog eens, of stel je vraag wat anders."
 # The same messages for the English chat, which a browser without Dutch gets.
 MIDNIGHT_EN = "You can ask again from midnight, Dutch time. Or add Joost to your own AI to use it any time."
 IN_ENGLISH = {
@@ -84,6 +86,7 @@ IN_ENGLISH = {
     ELSEWHERE: "Ask Joost works on heyjoost.nl.",
     UNREACHABLE: "Joost can’t be reached right now. Try again in a moment.",
     REFUSED: "Joost can’t help with that.",
+    EMPTY: "Joost got stuck for a moment. Try again, or ask your question a little differently.",
 }
 # For Claude: in the English chat a question without a clear language, like just a place or a flight number, gets an
 # English answer.
@@ -106,6 +109,17 @@ FLIGHTS_FULL = (
     "luchtvaartmaatschappij."
 )
 FAILED = "Dit lukte even niet bij de bron. Probeer het later nog eens."
+# For Claude: now and then Haiku only thinks and writes nothing. All six times seen it was the first round that can no
+# longer look anything up, after four rounds of lookups, and Haiku still wanted to look up the bus. Asked the same 12
+# times, such a round stayed empty 12 times; told to write its answer, 7 times; told this, 0 times.
+NUDGE = (
+    "Je vorige antwoord bleef leeg: je dacht na, maar schreef niets voor de bezoeker. Opzoeken kan nu niet meer. "
+    "Schrijf dus nu je antwoord met wat je hebt gevonden, en zeg eerlijk wat je niet hebt kunnen opzoeken."
+)
+NUDGE_EN = (
+    "Your previous answer came back empty: you thought, but wrote nothing for the visitor. You can't look anything up "
+    "anymore. So write your answer now with what you found, and say honestly what you couldn't look up."
+)
 # For Claude: the page keeps what Joost looked up for an earlier answer, but not what came back. "Not kept" alone
 # read as "found nothing", and Joost then confessed to making up the answer he had in fact looked up.
 EARLIER = (
@@ -566,7 +580,7 @@ async def _answer(
     said, used, missed = "", set(), set()
     looked: list[dict[str, Any]] = []
     cost = 0.0
-    again = True
+    nudged = False
     # One round more than MAX_ROUNDS, only for an answer that came back empty.
     for round_ in range(MAX_ROUNDS + 1):
         day.spent += ROUND_RESERVE
@@ -578,8 +592,8 @@ async def _answer(
                 output_config={"effort": EFFORT},
                 system=system,
                 tools=definitions,
-                # The last round answers with what it found so far.
-                tool_choice={"type": "none" if round_ >= MAX_ROUNDS - 1 else "auto"},
+                # The last round answers with what it found so far, and so does the round after an empty answer.
+                tool_choice={"type": "none" if round_ >= MAX_ROUNDS - 1 or nudged else "auto"},
                 messages=messages,
             ) as stream:
                 async for event in stream:
@@ -608,9 +622,11 @@ async def _answer(
             return
         uses = [block for block in message.content if block.type == "tool_use"]
         if message.stop_reason != "tool_use" or not uses:
-            # Now and then Haiku only thinks and says nothing, also in the last round. Asked once more, it answers.
-            if message.stop_reason == "end_turn" and not said[before:].strip() and again:
-                again = False
+            # Now and then Haiku only thinks and says nothing (see NUDGE). Asked once more and told why, it answers.
+            if message.stop_reason == "end_turn" and not said[before:].strip() and not nudged:
+                nudged = True
+                tellers.tel("chat duwtje")
+                messages = _nudged(messages, NUDGE_EN if _in_english(question, english) else NUDGE)
                 continue
             break
         missed.update(_missed(use.input) for use in uses if use.name == MISSED_TOOL["name"])
@@ -626,18 +642,22 @@ async def _answer(
             for use, result in zip(uses, results) if not result["is_error"] and use.name != MISSED_TOOL["name"]
         ]
         messages = [*messages, {"role": "assistant", "content": blocks}, {"role": "user", "content": [*results, *note]}]
+    for topic in sorted(missed):
+        tellers.tel(f"chat mist {topic}")
+    if not said.strip():
+        # Still nothing after the nudge. Without this the page only had its own line, with no button to try again,
+        # and with a source to name the answer was just "Bron: KNMI".
+        tellers.tel("chat leeg")
+        log.info("Vraag het Joost: leeg na %d rondes, %d opzoekingen, $%.4f", round_ + 1, sum(lookups.values()), cost)
+        yield {"type": "error", "text": _say(EMPTY, english), "opnieuw": True}
+        return
     if message.stop_reason == "max_tokens":
         yield {"type": "text", "text": " …"}
     missing = [credit for name, (word, credit) in CREDITS.items() if name in used and word not in said.lower()]
     if missing:
-        # Even if Claude forgets, the answer names these sources.
-        # In the language of the answer: English for an English question, and in the English chat for any question
-        # that is not Dutch.
-        nl, en = _counts(question)
-        label = "Source" if en > nl or (english and nl <= en) else "Bron"
+        # Even if Claude forgets, the answer names these sources, in the language of the answer.
+        label = "Source" if _in_english(question, english) else "Bron"
         yield {"type": "text", "text": f"\n\n{label}: " + ", ".join(missing)}
-    for topic in sorted(missed):
-        tellers.tel(f"chat mist {topic}")
     log.info(
         "Vraag het Joost: %d rondes, %d opzoekingen, $%.4f, vandaag $%.3f van $%.2f",
         round_ + 1, sum(lookups.values()), cost, day.spent, _budget(),
@@ -650,6 +670,20 @@ def _counts(question: str) -> tuple[int, int]:
     """How many small Dutch and English words a question has."""
     words = re.findall(r"[a-z']+", question.lower())
     return sum(word in DUTCH_WORDS for word in words), sum(word in ENGLISH_WORDS for word in words)
+
+
+def _in_english(question: str, english: bool) -> bool:
+    """Whether the answer is in English: for an English question, and in the English chat for any question that is
+    not Dutch."""
+    nl, en = _counts(question)
+    return en > nl or (english and nl <= en)
+
+
+def _nudged(messages: list[dict[str, Any]], nudge: str) -> list[dict[str, Any]]:
+    """The same conversation with a line for Claude after the question or the results it ends with."""
+    content = messages[-1]["content"]
+    blocks = [{"type": "text", "text": content}] if isinstance(content, str) else content
+    return [*messages[:-1], {"role": "user", "content": [*blocks, {"type": "text", "text": nudge}]}]
 
 
 def _param(block: Any) -> dict[str, Any]:

@@ -215,7 +215,8 @@ async def _ask(case: dict[str, Any], rep: int) -> dict[str, Any]:
     async for event in vraag._answer(server, messages, f"eval-{case['id']}-{rep}", english):
         if event["type"] == "text":
             text += event["text"]
-        elif event["type"] == "error":
+        # An answer that stays empty is an answer too, and graded as an empty one.
+        elif event["type"] == "error" and event["text"] != vraag._say(vraag.EMPTY, english):
             raise _Failed("api", event["text"])
     latency = time.monotonic() - clock
     rounds = seen["rounds"]
@@ -225,8 +226,14 @@ async def _ask(case: dict[str, Any], rep: int) -> dict[str, Any]:
         if not message.model.startswith(vraag.MODEL):
             raise _Failed("model", f"{message.model} in plaats van {vraag.MODEL}")
     usage = {key: sum(getattr(m.usage, key) or 0 for m in rounds) for key in PRICES}
+    # Rounds in which Haiku only thought; after the first one the chat nudges it.
+    empty = sum(
+        message.stop_reason == "end_turn" and not any(b.type == "text" and b.text.strip() for b in message.content)
+        for message in rounds
+    )
     return {
         "answer": text,
+        "empty_rounds": empty,
         "lookups": seen["lookups"],
         "started": started.isoformat(),
         "english": english,
@@ -741,6 +748,8 @@ def _row(case: dict[str, Any], rep: int, raw: dict[str, Any]) -> dict[str, Any]:
         "usage": raw["usage"],
         "latency_s": raw["latency_s"],
         "tool_calls": len(raw["lookups"]),
+        # Kept since 0.35.6; before that the chat asked again without a nudge.
+        "empty_rounds": raw.get("empty_rounds"),
         "harness": HARNESS,
         "meta": {"antwoord": raw["answer"], "gezocht": [{"tool": l["name"], "input": l["input"]} for l in raw["lookups"]]},
     }
@@ -812,8 +821,10 @@ def _summary(variant: str) -> None:
         if scored:
             print(f"  {label:<15} {passed:>3}/{scored:<3} {passed / scored:>5.0%}")
     truncated = sum(row["status"] != "ok" for row in rows)
+    empty = sum(not row["meta"]["antwoord"].strip() for row in rows)
+    nudged = sum(bool(row.get("empty_rounds")) for row in rows)
     print(f"  kosten ${cost:.3f}, gemiddeld {sum(r['latency_s'] for r in rows) / max(1, len(rows)):.0f} s per antwoord, "
-          f"{len(errors)} mislukte pogingen, {truncated} afgekapt")
+          f"{len(errors)} mislukte pogingen, {truncated} afgekapt, {empty} leeg, {nudged} met een duwtje")
 
 
 def _compare(base: str, variant: str) -> None:
