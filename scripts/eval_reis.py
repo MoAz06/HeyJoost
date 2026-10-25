@@ -79,6 +79,7 @@ KNOWN = re.compile(
     r"doesn'?t stop|without stopping",
     re.I,
 )
+LOCAL = re.compile(r"\b(bus|tram|metro)\b", re.I)
 TRANSFER = re.compile(r"overst|over te stappen|\bstap\w*\b[^.]*\bover\b|\bover in\b|transfer|chang", re.I)
 # "Op Schiphol stap je over. Je hebt 11 minuten": the minutes can be in a sentence of their own.
 HAVE = re.compile(r"\b(?:je hebt|heb je|hebt|you have|you've got|you get)\b[^.]*?\d+\s*min", re.I)
@@ -676,12 +677,29 @@ def _check_rekenen(
     return (0, "; ".join(dict.fromkeys(problems))) if problems else (1, "")
 
 
-def _check_fouten(answer: str, chosen: dict[str, Any] | None) -> tuple[int, str]:
-    found = KNOWN.search(answer)
-    # Unless NS says the train really stops nowhere on the way.
-    if found and chosen and all(part.get("tussenstops") == 0 for part in chosen.get("delen") or [{}]):
-        return 1, ""
-    return (0, f"zegt '{found.group(0)}'") if found else (1, "")
+def _named(sentences: list[str], number: int, pool: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The trips a sentence names by one of their times, or else the sentence before it: "It arrives at 18:13 and
+    doesn't stop on the way" is about the Intercity of 18:02, not the Sprinter that was chosen."""
+    for text in (sentences[number], sentences[number - 1] if number else ""):
+        times = set(_times(text))
+        if times:
+            return [trip for trip in pool if times & ({trip["vertrek"], trip.get("aankomst")} | {
+                part.get(key) for part in trip.get("delen") or [] for key in ("vertrek", "aankomst")})]
+    return []
+
+
+def _check_fouten(answer: str, chosen: dict[str, Any] | None, pool: list[dict[str, Any]]) -> tuple[int, str]:
+    sentences = _sentences(answer)
+    for number, sentence in enumerate(sentences):
+        found = KNOWN.search(sentence)
+        # Where a bus or tram stops comes from ov_vertrek: "tram 18 stopt niet bij het Erasmus MC".
+        if not found or LOCAL.search(sentence):
+            continue
+        # Unless NS says the train really stops nowhere on the way: the one the sentence is about, else the chosen.
+        named = _named(sentences, number, pool) or ([chosen] if chosen else [])
+        if not any(all(part.get("tussenstops") == 0 for part in trip.get("delen") or [{}]) for trip in named):
+            return 0, f"zegt '{found.group(0)}'"
+    return 1, ""
 
 
 def _check_taal(case: dict[str, Any], answer: str) -> tuple[int, str]:
@@ -710,7 +728,7 @@ def grade(case: dict[str, Any], raw: dict[str, Any]) -> tuple[dict[str, float], 
         "anders": _check_anders(case, calls, answer, chosen),
         "nu": _check_nu(answer, trips),
         "rekenen": _check_rekenen(answer, calls, started, pool, lookups),
-        "fouten": _check_fouten(answer, chosen),
+        "fouten": _check_fouten(answer, chosen, pool),
         "taal": _check_taal(case, answer),
     }
     scores = {name: float(score) for name, (score, _) in checks.items() if score is not None}

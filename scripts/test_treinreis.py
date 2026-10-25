@@ -189,6 +189,27 @@ async def main() -> None:
     option = result["reisadviezen"][0]
     check("overstaptijd met oordeel", option["overstaptijd"] == ["Utrecht Centraal: 2 minuten, krap"], option)
     check("tussenstops zonder de stations waar hij doorrijdt", option["delen"][0]["tussenstops"] == 3, option["delen"])
+    check("met een overstap geen zin over dezelfde trein", "zonder_overstap" not in option, option)
+    result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
+    check("zonder overstap: in een zin, met hoe vaak de trein stopt",
+          result["reisadviezen"][0].get("zonder_overstap")
+          == "Je blijft de hele reis in dezelfde trein, en die stopt onderweg 3 keer.", result["reisadviezen"][0])
+    nonstop = leg("Leiden Centraal", "Den Haag Centraal", "08:02", "08:13")
+    nonstop["stops"] = [{"name": "Leiden Centraal"}, {"name": "Voorschoten", "passing": True}, {"name": "Den Haag Centraal"}]
+    lines = [ns._direct(nonstop), ns._direct({**nonstop, "stops": [{"name": "a"}, {"name": "b"}, {"name": "c"}]}),
+             ns._direct({**nonstop, "stops": []})]
+    check("zonder tussenstops nergens, één keer, en zonder stops van NS alleen dezelfde trein", lines == [
+        "Je blijft de hele reis in dezelfde trein, en die stopt onderweg nergens.",
+        "Je blijft de hele reis in dezelfde trein, en die stopt onderweg 1 keer.",
+        "Je blijft de hele reis in dezelfde trein.",
+    ], lines)
+    walk = {"travelType": "WALK", "plannedDurationInMinutes": 20,
+            "origin": {"name": "Rotterdam Zuid", "plannedDateTime": at("18:41").isoformat()},
+            "destination": {"name": "Rotterdam Stadion", "plannedDateTime": at("19:01").isoformat()}}
+    result = await reis([trip(leg("Den Haag Centraal", "Rotterdam Zuid", "18:05", "18:41"), walk)],
+                        FRIDAY_NOON, datum="2026-10-26", tijd="18:00")
+    check("een trein en dan lopen is niet de hele reis in dezelfde trein",
+          "zonder_overstap" not in result["reisadviezen"][0], result["reisadviezen"][0])
     walking = [leg("Leiden Centraal", "Utrecht Centraal", "10:00", "10:20"),
                {"travelType": "WALK", "plannedDurationInMinutes": 3},
                leg("Utrecht Centraal", "Den Haag Centraal", "10:28", "10:50")]

@@ -525,6 +525,9 @@ def _advice(option: tuple, leaving: bool, last_stretch: int | None = None) -> di
         **({"op_bestemming": fmt_time(arrival + timedelta(minutes=last_stretch))} if last_stretch else {}),
         "reistijd_min": trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes"),
         "overstappen": trip.get("transfers"),
+        # In words: from only the numbers Haiku wrote "die stopt niet over" or "stopt niet op Schiphol" for a train
+        # that stops eight times. Replaying about 420 answers each way, such slips went from 19 to 3.
+        **({"zonder_overstap": _direct(legs[0])} if len(legs) == 1 and _is_train(legs[0]) else {}),
         # Worked out here, since Haiku called five minutes tight.
         **({"overstaptijd": [_change_line(station, gap) for station, gap in changes]} if changes else {}),
         "status": STATUS.get(trip.get("status"), trip.get("status")),
@@ -555,6 +558,25 @@ def _notes(trip: dict) -> list[str]:
     return notes
 
 
+def _is_train(leg: dict) -> bool:
+    return leg.get("travelType", "PUBLIC_TRANSIT") == "PUBLIC_TRANSIT"
+
+
+def _between(leg: dict) -> int | None:
+    """How often a train stops between where you get on and off, or None when NS does not say."""
+    stops = [stop for stop in leg.get("stops") or [] if not stop.get("passing") and not stop.get("cancelled")]
+    return len(stops) - 2 if len(stops) >= 2 else None
+
+
+def _direct(leg: dict) -> str:
+    """A trip in one train, in words."""
+    between = _between(leg)
+    if between is None:
+        return "Je blijft de hele reis in dezelfde trein."
+    often = "nergens" if between == 0 else "1 keer" if between == 1 else f"{between} keer"
+    return f"Je blijft de hele reis in dezelfde trein, en die stopt onderweg {often}."
+
+
 def _leaving(departure: datetime, now: datetime) -> bool:
     """Whether a train leaves right now: within LEAVING minutes, or less than a minute ago."""
     return now - timedelta(minutes=1) <= departure < now + timedelta(minutes=LEAVING)
@@ -580,7 +602,7 @@ def _changes(legs: list[dict]) -> list[tuple[str, int]]:
     changes: list[tuple[str, int]] = []
     walk, last = 0, None
     for leg in legs:
-        if leg.get("travelType", "PUBLIC_TRANSIT") != "PUBLIC_TRANSIT":
+        if not _is_train(leg):
             walk += leg.get("plannedDurationInMinutes") or 0
             continue
         departure = _expected(leg.get("origin"))
@@ -694,8 +716,8 @@ def _leg(leg: dict) -> dict[str, Any]:
     product = leg.get("product") or {}
     planned = parse_time(origin.get("plannedDateTime"))
     actual = parse_time(origin.get("actualDateTime"))
-    # With where you get on and off. Without the count Haiku said a train without transfers makes no stops.
-    stops = [stop for stop in leg.get("stops") or [] if not stop.get("passing") and not stop.get("cancelled")]
+    # Without the count Haiku said a train without transfers makes no stops.
+    between = _between(leg)
     return {
         "trein": product.get("displayName") or product.get("shortCategoryName") or leg.get("name"),
         "richting": leg.get("direction"),
@@ -705,7 +727,7 @@ def _leg(leg: dict) -> dict[str, Any]:
         "spoor": origin.get("actualTrack") or origin.get("plannedTrack"),
         "naar": destination.get("name"),
         "aankomst": fmt_time(_expected(destination)),
-        **({"tussenstops": len(stops) - 2} if len(stops) >= 2 else {}),
+        **({"tussenstops": between} if between is not None else {}),
         "geannuleerd": bool(leg.get("cancelled")),
     }
 
