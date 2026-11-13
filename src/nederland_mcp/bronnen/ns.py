@@ -400,6 +400,7 @@ async def trein_reis(
         "naar": _station_name(destination),
         "gezocht_op": f"{'aankomst' if aankomst else 'vertrek'} {moment.strftime('%Y-%m-%d %H:%M')}",
         "dag": _day(moment),
+        **({"dienstregeling": _timetable(moment.date())} if moment.date() > now.date() else {}),
     }
     if before:
         walk = f"{lopen_min} minuten lopen en " if lopen_min else ""
@@ -463,6 +464,7 @@ async def _last(origin: dict, destination: dict, datum: str | None) -> dict:
         # Just after midnight "gisteren" would read as if the trains had gone.
         "dag": f"{WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]} (vannacht)"
         if end.replace(hour=0) <= now < end else _day(end - timedelta(days=1)),
+        **({"dienstregeling": _timetable(day)} if day > now.date() else {}),
         # A sentence, before the trips: as a list Haiku left the night trains out, or said they leave earlier.
         **({"nachttreinen": _night_trains(late)} if evening and late else {}),
         "reisadviezen": trips,
@@ -614,10 +616,21 @@ def _changes(legs: list[dict]) -> list[tuple[str, int]]:
 
 
 def _change_line(station: str, gap: int) -> str:
+    """A transfer in a sentence. From "Schiphol Airport: 5 minuten, genoeg" Haiku often kept only "dat is genoeg", or
+    made it "krap maar genoeg" or 5 minutes of walking."""
+    # NS writes "Schiphol Airport ✈".
+    station = re.sub(r"[^\w).']+$", "", station)
+    where = f"{'Op' if station.startswith('Schiphol') else 'In'} {station}"
     if gap < 0:
-        return f"{station}: haal je niet, de trein vertrekt voor je aankomt"
+        return f"{where} haal je de overstap niet: de volgende trein vertrekt voor je aankomt."
     verdict = "krap" if gap < TIGHT else "genoeg" if gap < AMPLE else "ruim"
-    return f"{station}: {gap} {'minuut' if gap == 1 else 'minuten'}, {verdict}"
+    return f"{where} heb je {gap} {'minuut' if gap == 1 else 'minuten'} om over te stappen, dat is {verdict}."
+
+
+def _timetable(day: date) -> str:
+    """What the times of a later day are. Haiku said "dit is de dienstregeling van vandaag" for a trip on Monday."""
+    return (f"Dit is de dienstregeling voor {WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]}. Vertraging "
+            "en storingen zie je pas op de dag zelf, in de NS-app.")
 
 
 def _options(trips: list[dict]) -> list[tuple[datetime, datetime, dict, list[dict]]]:

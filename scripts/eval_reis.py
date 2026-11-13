@@ -81,6 +81,10 @@ KNOWN = re.compile(
 )
 LOCAL = re.compile(r"\b(bus|tram|metro)\b", re.I)
 TRANSFER = re.compile(r"overst|over te stappen|\bstap\w*\b[^.]*\bover\b|\bover in\b|transfer|chang", re.I)
+# "Die rijdt zonder overstap en is om 08:55 in Amsterdam, dus wel krap" is about another trip, not about a transfer.
+NO_TRANSFER = re.compile(
+    r"\b(?:zonder|geen|niet|without|no)\s+(?:te\s+)?(?:overst\w*|over te stappen|transfers?|chang\w*)", re.I
+)
 # "Op Schiphol stap je over. Je hebt 11 minuten": the minutes can be in a sentence of their own.
 HAVE = re.compile(r"\b(?:je hebt|heb je|hebt|you have|you've got|you get)\b[^.]*?\d+\s*min", re.I)
 MINUTES = re.compile(r"(\d+)\s*(?:minuten|minuut|minutes?|min)\b", re.I)
@@ -545,7 +549,7 @@ def _check_overstap(answer: str, chosen: dict[str, Any] | None, pool: list[dict[
     allowed = own.union(*(_allowed_gaps(trip) for trip in pool))
     problems, stated, follow = [], [], False
     for sentence in _sentences(answer):
-        about = bool(TRANSFER.search(sentence) or HAVE.search(sentence))
+        about = bool(TRANSFER.search(NO_TRANSFER.sub(" ", sentence)) or HAVE.search(sentence))
         if not (about or follow):
             continue
         numbers, others = [], []

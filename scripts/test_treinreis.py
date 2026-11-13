@@ -187,7 +187,12 @@ async def main() -> None:
           and "op_bestemming" not in result["reisadviezen"][0], result)
     result = await reis([via("08:00", "08:20", "08:22", "08:50")], FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
     option = result["reisadviezen"][0]
-    check("overstaptijd met oordeel", option["overstaptijd"] == ["Utrecht Centraal: 2 minuten, krap"], option)
+    check("overstaptijd met oordeel, in een zin", option["overstaptijd"]
+          == ["In Utrecht Centraal heb je 2 minuten om over te stappen, dat is krap."], option)
+    check("een latere dag: de dienstregeling van die dag", result.get("dienstregeling") == "Dit is de dienstregeling "
+          "voor maandag 26 oktober. Vertraging en storingen zie je pas op de dag zelf, in de NS-app.", result)
+    result = await reis([direct("10:06", "10:20")], at("10:00"))
+    check("vandaag geen zin over de dienstregeling", "dienstregeling" not in result, result)
     check("tussenstops zonder de stations waar hij doorrijdt", option["delen"][0]["tussenstops"] == 3, option["delen"])
     check("met een overstap geen zin over dezelfde trein", "zonder_overstap" not in option, option)
     result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
@@ -221,11 +226,13 @@ async def main() -> None:
         "lopen_min": 20, "van": "Rotterdam Zuid", "vertrek": "19:02", "naar": "Rotterdam Stadion", "aankomst": "19:22",
     }, ns._leg(walk))
     lines = [ns._change_line("Leiden Centraal", gap) for gap in (1, 5, 10, -1)]
+    lines.append(ns._change_line("Schiphol Airport ✈", 5))
     check("oordeel per overstap", lines == [
-        "Leiden Centraal: 1 minuut, krap",
-        "Leiden Centraal: 5 minuten, genoeg",
-        "Leiden Centraal: 10 minuten, ruim",
-        "Leiden Centraal: haal je niet, de trein vertrekt voor je aankomt",
+        "In Leiden Centraal heb je 1 minuut om over te stappen, dat is krap.",
+        "In Leiden Centraal heb je 5 minuten om over te stappen, dat is genoeg.",
+        "In Leiden Centraal heb je 10 minuten om over te stappen, dat is ruim.",
+        "In Leiden Centraal haal je de overstap niet: de volgende trein vertrekt voor je aankomt.",
+        "Op Schiphol Airport heb je 5 minuten om over te stappen, dat is genoeg.",
     ], lines)
     at_now(FRIDAY_NOON)
     check("vandaag en morgen", [ns._day(FRIDAY_NOON), ns._day(FRIDAY_NOON + timedelta(days=1))]
@@ -250,7 +257,8 @@ async def main() -> None:
           times(result) == ["00:21", "23:21", "23:51"] and result["reisadviezen"][0].get("laatste")
           and "nachttreinen" not in result, result["reisadviezen"])
     check("laatste: gezocht_op en dag", result["gezocht_op"] == "laatste trein 2026-10-26"
-          and result["dag"] == "maandag 26 oktober (over 3 dagen)", result)
+          and result["dag"] == "maandag 26 oktober (over 3 dagen)"
+          and result.get("dienstregeling", "").startswith("Dit is de dienstregeling voor maandag 26 oktober."), result)
     result = await reis([direct("28:02", "28:30"), *morning], FRIDAY_NOON, (
         [direct("25:04", "25:30"), direct("26:02", "26:30"), direct("27:02", "27:30")],
         [direct("23:54", "24:40"), direct("24:11", "24:45"), via("24:20", "24:40", "24:46", "25:10")],
@@ -265,7 +273,8 @@ async def main() -> None:
           chosen == ["23:41-00:45", "23:30-00:20", "23:30-00:30"], chosen)
     result = await reis(morning, at("24:30"), ([direct("23:51", "24:20"), direct("24:40", "25:10")],), laatste=True)
     check("laatste na middernacht zonder datum: nog dezelfde nacht, en wat al weg is valt weg",
-          times(result) == ["00:40"] and result["dag"] == "maandag 26 oktober (vannacht)", result)
+          times(result) == ["00:40"] and result["dag"] == "maandag 26 oktober (vannacht)"
+          and "dienstregeling" not in result, result)
     try:
         await reis(morning, at("24:30"), ([direct("23:51", "24:20"), direct("24:21", "24:50")],), laatste=True)
         check("laatste als alles al weg is: zeg het, met de eerste van de ochtend", False, "geen fout")
