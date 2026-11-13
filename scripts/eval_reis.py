@@ -62,6 +62,7 @@ METRICS = [
     ("rekenen", "Dag en minuten"),
     ("fouten", "Bekende fouten"),
     ("taal", "Taal"),
+    ("kort", "Kort bij kaartjes"),
 ]
 WEEKDAYS = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"]
 MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober",
@@ -217,9 +218,13 @@ async def _ask(case: dict[str, Any], rep: int) -> dict[str, Any]:
     started = common.now_local()
     clock = time.monotonic()
     text = ""
+    cards: list[dict[str, Any]] = []
     async for event in vraag._answer(server, messages, f"eval-{case['id']}-{rep}", english):
         if event["type"] == "text":
             text += event["text"]
+        # Since 0.36.0 the page shows the trips as cards above the answer; what is on them, the answer need not say.
+        elif event["type"] == "kaart":
+            cards.append(event["kaart"])
         # An answer that stays empty is an answer too, and graded as an empty one.
         elif event["type"] == "error" and event["text"] != vraag._say(vraag.EMPTY, english):
             raise _Failed("api", event["text"])
@@ -238,6 +243,7 @@ async def _ask(case: dict[str, Any], rep: int) -> dict[str, Any]:
     )
     return {
         "answer": text,
+        "kaarten": cards,
         "empty_rounds": empty,
         "lookups": seen["lookups"],
         "started": started.isoformat(),
@@ -460,11 +466,13 @@ def _departures(trip: dict[str, Any]) -> set[str]:
     return {trip["vertrek"], *(part["vertrek"] for part in (trip.get("delen") or [])[:1])}
 
 
-def _check_nu(answer: str, trips: list[dict[str, Any]]) -> tuple[int | None, str]:
-    """A train that leaves right now is named, and with it that it leaves now."""
+def _check_nu(answer: str, trips: list[dict[str, Any]], raw: dict[str, Any] | None = None) -> tuple[int | None, str]:
+    """A train that leaves right now is named, and with it that it leaves now; or its card says so."""
     leaving = [trip for trip in trips if trip.get("vertrekt_nu")]
     if not leaving:
         return None, ""
+    if raw and any((_on_card(raw, trip) or {}).get("nu") for trip in leaving):
+        return 1, ""
     sentences = _sentences(answer)
     for trip in leaving:
         own = _departures(trip) | {trip.get("aankomst")} | {part.get(key) for part in trip.get("delen") or []
@@ -481,6 +489,14 @@ def _check_nu(answer: str, trips: list[dict[str, Any]]) -> tuple[int | None, str
                 if NOW_AFTER.search(following):
                     return 1, ""
     return 0, f"zegt niet dat de {leaving[0]['vertrek']} nu vertrekt"
+
+
+def _on_card(raw: dict[str, Any], trip: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The card of a trip, when the page showed it: same departure and arrival."""
+    if trip is None:
+        return None
+    return next((shown for card in raw.get("kaarten") or [] for shown in card.get("reizen") or []
+                 if shown.get("vertrek") == trip.get("vertrek") and shown.get("aankomst") == trip.get("aankomst")), None)
 
 
 def _check_tijden(case: dict[str, Any], answer: str, lookups: list[dict[str, Any]], started: datetime) -> tuple[int | None, str]:
@@ -541,7 +557,10 @@ def _allowed_gaps(trip: dict[str, Any]) -> set[int]:
     return set(gaps) | {gap + (part.get("vertraging_min") or 0) for gap, part in zip(gaps, (trip.get("delen") or [])[1:])}
 
 
-def _check_overstap(answer: str, chosen: dict[str, Any] | None, pool: list[dict[str, Any]]) -> tuple[int | None, str]:
+def _check_overstap(
+    answer: str, chosen: dict[str, Any] | None, pool: list[dict[str, Any]], card: dict[str, Any] | None = None
+) -> tuple[int | None, str]:
+    """Minutes to change and their word, as NS gave them; the card names them too, so then the answer need not."""
     if chosen is None or len(chosen.get("delen") or []) < 2:
         return None, ""
     gaps, own = _gaps(chosen), _allowed_gaps(chosen)
@@ -580,7 +599,7 @@ def _check_overstap(answer: str, chosen: dict[str, Any] | None, pool: list[dict[
                 check = [near[1]] if near else gaps if len(gaps) == 1 else []
                 if any(not fits(gap) for gap in check):
                     problems.append(f"'{name}' bij {'/'.join(map(str, check))} minuten")
-    if not own & set(stated):
+    if not own & set(stated) and not (card and card.get("overstappen")):
         problems.append(f"noemt de overstaptijd niet ({'/'.join(map(str, gaps))} minuten)")
     return (0, "; ".join(dict.fromkeys(problems))) if problems else (1, "")
 
@@ -603,10 +622,10 @@ def _check_geen_toeslag(case: dict[str, Any], calls: list[dict[str, Any]], answe
     return (0, "; ".join(problems)) if problems else (1, "")
 
 
-def _check_toeslag(answer: str, chosen: dict[str, Any] | None) -> tuple[int | None, str]:
+def _check_toeslag(answer: str, chosen: dict[str, Any] | None, card: dict[str, Any] | None = None) -> tuple[int | None, str]:
     if chosen is None or not chosen.get("toeslag_euro"):
         return None, ""
-    if re.search(r"toeslag|supplement|surcharge", answer, re.I):
+    if re.search(r"toeslag|supplement|surcharge", answer, re.I) or (card and card.get("toeslag")):
         return 1, ""
     return 0, f"noemt de toeslag van €{chosen['toeslag_euro']:.2f} niet"
 
@@ -706,6 +725,31 @@ def _check_fouten(answer: str, chosen: dict[str, Any] | None, pool: list[dict[st
     return 1, ""
 
 
+def _check_kort(answer: str, raw: dict[str, Any], calls: list[dict[str, Any]]) -> tuple[int | None, str]:
+    """With cards above it, the answer only chooses: two short sentences per route, one more for a question about the
+    last stretch, one for each thing the cards do not show and three for a bus or tram, which has no card. Without a
+    list, and without "Bron: NS" when only NS was asked."""
+    if not raw.get("kaarten"):
+        return None, ""
+    routes = {(card.get("van"), card.get("naar")) for card in raw["kaarten"]}
+    others = {lookup["name"] for lookup in raw["lookups"]} - {"trein_reis", vraag.MISSED_TOOL["name"]}
+    extra = 3 * bool(others)
+    for call in calls:
+        result = call["result"]
+        extra += sum(bool(result.get(key)) for key in ("let_op", "niet_mogelijk", "nachttreinen"))
+        extra += any(trip.get("meldingen") or trip.get("vertrekt_nu") for trip in result.get("reisadviezen") or [])
+    limit = 1 + 2 * len(routes) + extra
+    problems = []
+    if re.search(r"^\s*(?:[-*•]|\d+\.)\s", answer, re.M):
+        problems.append("maakt een lijstje")
+    if not others and re.search(r"\b(?:bron|source):\s*ns\b", answer, re.I):
+        problems.append("zet er nog 'Bron: NS' onder")
+    sentences = [sentence for sentence in _sentences(answer) if re.search(r"\w", sentence)]
+    if len(sentences) > limit:
+        problems.append(f"{len(sentences)} zinnen naast de kaartjes, hooguit {limit}")
+    return (0, "; ".join(problems)) if problems else (1, "")
+
+
 def _check_taal(case: dict[str, Any], answer: str) -> tuple[int, str]:
     words = re.findall(r"[a-z']+", answer.lower())
     nl, en = sum(word in NL_WORDS for word in words), sum(word in EN_WORDS for word in words)
@@ -720,20 +764,22 @@ def grade(case: dict[str, Any], raw: dict[str, Any]) -> tuple[dict[str, float], 
     calls = _calls(lookups)
     keuze, keuze_why, chosen = _check_keuze(case, calls, answer)
     trips, pool = _pool(case, calls)
+    card = _on_card(raw, chosen)
     checks = {
         "zoek": _check_zoek(case, calls, started),
         "keuze": (keuze, keuze_why),
         "tijden": _check_tijden(case, answer, lookups, started),
         "sporen": _check_sporen(answer, lookups),
         "prijzen": _check_prijzen(answer, lookups),
-        "overstap": _check_overstap(answer, chosen, pool),
-        "toeslag": _check_toeslag(answer, chosen),
+        "overstap": _check_overstap(answer, chosen, pool, card),
+        "toeslag": _check_toeslag(answer, chosen, card),
         "geen_toeslag": _check_geen_toeslag(case, calls, answer),
         "anders": _check_anders(case, calls, answer, chosen),
-        "nu": _check_nu(answer, trips),
+        "nu": _check_nu(answer, trips, raw),
         "rekenen": _check_rekenen(answer, calls, started, pool, lookups),
         "fouten": _check_fouten(answer, chosen, pool),
         "taal": _check_taal(case, answer),
+        "kort": _check_kort(answer, raw, calls),
     }
     scores = {name: float(score) for name, (score, _) in checks.items() if score is not None}
     why = {name: reason for name, (score, reason) in checks.items() if score == 0 and reason}

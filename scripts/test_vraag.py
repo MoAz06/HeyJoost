@@ -1,10 +1,11 @@
 """Offline checks of the chat loop in vraag.py with a made-up Haiku: what the chat does when an answer comes back
-empty. No key and no network needed.
+empty, and the trips of trein_reis as cards for the page. No key and no network needed.
 
 Run from the project folder: uv run python scripts/test_vraag.py
 """
 
 import asyncio
+import json
 import sys
 from types import SimpleNamespace as Obj
 from typing import Any
@@ -84,10 +85,50 @@ class Tools:
         return Obj(structured_content={"result": {"plaats": "Utrecht", "temperatuur": 12}}, content=[], is_error=False)
 
 
-async def chat(haiku: Haiku, question: str, english: bool = False) -> list[dict[str, Any]]:
+def leg(van: str, vertrek: str, naar: str, aankomst: str, late: int = 0, spoor: str = "5b") -> dict[str, Any]:
+    """A train as trein_reis gives it: the departure as planned, the delay apart, the arrival as expected."""
+    return {"trein": "NS Intercity", "richting": naar, "van": van, "vertrek": vertrek, "vertraging_min": late,
+            "spoor": spoor, "naar": naar, "aankomst": aankomst, "tussenstops": 3, "geannuleerd": False}
+
+
+def trip(vertrek: str, aankomst: str, *parts: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {"vertrek": vertrek, "aankomst": aankomst, "reistijd_min": 120, "drukte": "rustig", "prijs_euro": 26.5,
+            "status": "normaal", "delen": list(parts), "link": "https://www.ns.nl/rpx?ctx=reis", **extra}
+
+
+# To be in Nijmegen at 9:00 with 15 minutes of walking: the tool searched for 08:40, as in ns.trein_reis.
+TRIPS = {
+    "van": "Leiden Centraal",
+    "naar": "Nijmegen",
+    "gezocht_op": "aankomst 2026-11-14 08:40",
+    "dag": "zaterdag 14 november",
+    "dienstregeling": "Dit is de dienstregeling voor zaterdag 14 november.",
+    "reisadviezen": [
+        trip("06:17", "08:17", leg("Leiden Centraal", "06:17", "Utrecht Centraal", "07:04"),
+             leg("Utrecht Centraal", "07:20", "Nijmegen", "08:17", late=3, spoor="19"),
+             beste=True, op_bestemming="08:32", meldingen=["NS PrijsTijd Deal € 9,27 korting"]),
+        trip("04:40", "07:47", leg("Leiden Centraal", "04:40", "Nijmegen", "07:47")),
+        trip("05:00", "07:50", leg("Leiden Centraal", "05:00", "Nijmegen", "07:50"), link="https://elders.example/reis"),
+        trip("05:23", "07:53", leg("Leiden Centraal", "05:23", "Schiphol Airport ✈", "05:50"),
+             leg("Schiphol Airport ✈", "05:52", "Nijmegen", "07:53"), toeslag_euro=2.7),
+    ],
+    "bron": "NS",
+}
+
+
+class Trains(Tools):
+    """trein_reis with TRIPS, or failing when asked for a station that does not exist."""
+
+    async def call_tool(self, name: str, given: dict[str, Any]) -> Obj:
+        if given.get("van") == "Nergens":
+            raise vraag.ToolError("Geen station gevonden voor 'Nergens'.")
+        return Obj(structured_content=TRIPS, content=[], is_error=False)
+
+
+async def chat(haiku: Haiku, question: str, english: bool = False, tools: Tools | None = None) -> list[dict[str, Any]]:
     vraag._client = haiku
     messages = vraag._messages({"messages": [{"role": "user", "text": question}]})
-    return [event async for event in vraag._answer(Tools(), messages, "test", english)]
+    return [event async for event in vraag._answer(tools or Tools(), messages, "test", english)]
 
 
 def text(events: list[dict[str, Any]]) -> str:
@@ -154,6 +195,65 @@ async def main() -> None:
     events = await chat(haiku, question)
     check("met een antwoord komt de bron er nog wel onder",
           text(events) == "Het is 12 graden.\n\nBron: KNMI via Open-Meteo.com", text(events))
+
+    # The trips as cards above the answer.
+    asked = {"van": "Leiden", "naar": "Nijmegen", "datum": "2026-11-14", "tijd": "09:00", "aankomst": True, "lopen_min": 15}
+    question = "Ik moet morgen om 9 uur in Nijmegen zijn, welke trein vanuit Leiden?"
+    haiku = Haiku(looks_up("trein_reis", **asked), says("Neem de **06:17**, met een ruime overstap in Utrecht."))
+    events = await chat(haiku, question, tools=Trains())
+    check("de kaartjes komen na het zoeken en vóór de tekst",
+          [event["type"] for event in events] == ["tool", "kaart", "text", "done"], [e["type"] for e in events])
+    told = [block.get("text") for block in haiku.asked[1]["messages"][-1]["content"] if block["type"] == "text"]
+    check("Joost hoort bij de resultaten dat de kaartjes er al staan", told == [vraag.CARDS, vraag.IN_DUTCH], told)
+    check("en er komt geen bron onder: die staat op de kaartjes",
+          text(events) == "Neem de **06:17**, met een ruime overstap in Utrecht.", text(events))
+
+    card = events[1]["kaart"]
+    check("het kaartje zegt wat er gezocht is: aankomst vóór 9:00, met een kwartier lopen, op een latere dag",
+          {key: card.get(key) for key in ("van", "naar", "soort", "datum", "tijd", "lopen", "later")}
+          == {"van": "Leiden Centraal", "naar": "Nijmegen", "soort": "aankomst", "datum": "2026-11-14", "tijd": "09:00",
+              "lopen": 15, "later": True}, card)
+    check("de beste eerst, dan de twee die het dichtst bij 9:00 aankomen",
+          [trip["vertrek"] for trip in card["reizen"]] == ["06:17", "05:00", "05:23"], card["reizen"])
+    best = card["reizen"][0]
+    check("de beste: om 08:32 op je plek, 28 minuten vóór 9:00",
+          best.get("beste") is True and best.get("bestemming") == "08:32" and best.get("over") == 28, best)
+    check("de overstap met de vertraging erin: 07:04 aan, 07:23 weg, 19 minuten, ruim",
+          best["overstappen"] == [{"station": "Utrecht Centraal", "min": 19, "oordeel": "ruim"}]
+          and best["delen"][1]["vertrek"] == "07:23" and best["delen"][1]["vertraging"] == 3
+          and best["delen"][0]["trein"] == "Intercity", best)
+    check("een link alleen naar de NS zelf",
+          best.get("link") == "https://www.ns.nl/rpx?ctx=reis" and "link" not in card["reizen"][1], card["reizen"][1])
+    other = card["reizen"][2]
+    check("2 minuten op Schiphol is krap, zonder het vliegtuigje, en de toeslag staat erbij",
+          other["overstappen"] == [{"station": "Schiphol Airport", "min": 2, "oordeel": "krap"}]
+          and other.get("toeslag") == 2.7 and other.get("over") == 67, other)
+
+    haiku = Haiku(looks_up("trein_reis", van="Nergens", naar="Nijmegen"), says("Dat station ken ik niet."))
+    events = await chat(haiku, "Trein van Nergens naar Nijmegen?", tools=Trains())
+    told = [block.get("text") for block in haiku.asked[1]["messages"][-1]["content"] if block["type"] == "text"]
+    check("geen kaartje en geen uitleg over kaartjes als het zoeken mislukt",
+          "kaart" not in [event["type"] for event in events] and vraag.CARDS not in told, events)
+
+    leaving = {**TRIPS, "gezocht_op": "vertrek 2026-11-14 04:30", "reisadviezen": [
+        trip("04:40", "07:47", leg("Leiden Centraal", "04:40", "Nijmegen", "07:47"), beste=True),
+        *TRIPS["reisadviezen"][2:], TRIPS["reisadviezen"][0]]}
+    card = vraag._card({"van": "Leiden", "naar": "Nijmegen"}, json.dumps(leaving))
+    check("bij vertrek: de beste en dan de eerste twee daarna, zonder 'over'",
+          [trip["vertrek"] for trip in card["reizen"]] == ["04:40", "05:00", "05:23"] and card["tijd"] == "04:30"
+          and "over" not in card["reizen"][0], card)
+    night = {**TRIPS, "gezocht_op": "laatste trein 2026-11-14", "reisadviezen": [
+        trip("00:36", "01:13", leg("Amsterdam Centraal", "00:36", "Leiden Centraal", "01:13"), laatste=True),
+        trip("00:19", "00:54", leg("Amsterdam Centraal", "00:06", "Leiden Centraal", "00:54", late=13)),
+        trip("00:20", "01:00", leg("Amsterdam Centraal", "00:20", "Leiden Centraal", "01:00"))]}
+    card = vraag._card({"laatste": True}, json.dumps(night))
+    check("de laatste trein: de vertraagde trein vertrekt om 00:19, 13 minuten later dan gepland",
+          card["soort"] == "laatste" and card["datum"] == "2026-11-14" and "tijd" not in card
+          and card["reizen"][0].get("laatste") is True and card["reizen"][1]["delen"][0]["vertrek"] == "00:19"
+          and card["reizen"][1]["delen"][0]["vertraging"] == 13, card)
+    check("over middernacht rekenen", vraag._gap("23:50", "00:10") == 20 and vraag._gap("00:10", "23:50") == -20)
+    check("geen kaartje van iets anders dan een reisadvies",
+          vraag._card({}, json.dumps({"result": {"plaats": "Utrecht"}})) is None and vraag._card({}, "geen json") is None)
 
     # The counts of this test are not for the log.
     tellers._counts.clear()

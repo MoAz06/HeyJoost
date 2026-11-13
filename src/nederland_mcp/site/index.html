@@ -43,7 +43,9 @@
   <symbol id="i-omlaag" viewBox="0 0 24 24"><path d="M12 4v15M6 13l6 6 6-6"/></symbol>
   <symbol id="i-opnieuw" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></symbol>
   <symbol id="i-pas" viewBox="0 0 24 24"><path d="M4 20v-4L15 5l4 4L8 20zM12 8l4 4"/></symbol>
-  <symbol id="i-nieuw" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-potlood" viewBox="0 0 24 24"><path d="M11 4H4v16h16v-7"/><path d="M17.5 3.5l3 3L12 15H9v-3z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><rect x="10.5" y="3.8" width="3" height="3" fill="currentColor" stroke="none"/><path d="M9.6 10.2h2.6v8.6M9.2 18.8h6"/></symbol>
+  <symbol id="i-klap" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
   <symbol id="i-luister" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 9a4.5 4.5 0 0 1 0 6M19.5 6a8.5 8.5 0 0 1 0 12"/></symbol>
   <symbol id="i-stil" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></symbol>
 </svg>
@@ -51,7 +53,8 @@
 
 <!-- The home page is the chat. What Joost knows, how to add him to your own AI and his sources are on /over. -->
 <div class="app">
-  <div class="wrap">
+  <!-- On a phone this header makes way, and the top of the chat has the logo and the links behind the i. -->
+  <div class="wrap kop">
     <header class="top">
       <a class="brand" href="/" aria-label="Hey Joost, naar de start" data-en-aria-label="Hey Joost, home"><svg class="logo" aria-hidden="true"><use href="#logo"/></svg>Hey Joost</a>
       <nav class="nav" aria-label="Menu">
@@ -68,7 +71,21 @@
          not set to Dutch. -->
     <div class="chat" id="chat" data-vraag="{{VRAAG}}" role="region" aria-label="Voorbeeld van een gesprek" data-en-aria-label="Example of a conversation">
       <!-- The heading shows in capitals, like the board, but a screen reader gets it as written: some spell out words in capitals. -->
-      <div class="chat-top"><h1><span class="vh" data-en="Ask Joost">Vraag het Joost</span><span aria-hidden="true" data-en="Ask Joost">Vraag het Joost</span></h1><span class="ai">AI</span></div>
+      <!-- What Joost is and the links are behind the i, in a panel that closes with Escape or a tap next to it. The
+           pencil starts a new conversation and only shows during one. -->
+      <div class="chat-top">
+        <span class="merk" aria-hidden="true"><svg class="logo"><use href="#logo"/></svg></span>
+        <h1><span class="vh" data-en="Ask Joost">Vraag het Joost</span><span aria-hidden="true" data-en="Ask Joost">Vraag het Joost</span></h1><span class="ai">AI</span>
+        <div class="iconen">
+          <button class="icoon" id="info-knop" type="button" aria-expanded="false" aria-controls="info" aria-label="Over deze chat" title="Over deze chat" data-en-aria-label="About this chat" data-en-title="About this chat"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg></button>
+          <div class="info" id="info" hidden>
+            <p data-en="Joost is an AI (Claude) and can make mistakes. The data comes from official sources, the sentences are written by the AI. Don’t share personal details.">Joost is een AI (Claude) en kan fouten maken. De gegevens komen uit officiële bronnen, de zinnen schrijft de AI. Deel geen persoonlijke gegevens.</p>
+            <!-- The switch between Dutch and English only shows in a browser that is not set to Dutch. -->
+            <p class="info-links"><a href="/privacy">Privacy</a><a href="/toegankelijkheid" data-en="Accessibility">Toegankelijkheid</a><a href="/over" data-en="About Joost">Over Joost</a><a class="taal" href="?lang=en" lang="en" hreflang="en" hidden data-en="Nederlands" data-en-href="?lang=nl" data-en-lang="nl" data-en-hreflang="nl">English</a></p>
+          </div>
+          <button class="icoon nieuw" type="button" hidden aria-label="Nieuw gesprek" title="Nieuw gesprek" data-en-aria-label="New chat" data-en-title="New chat"><svg class="i" aria-hidden="true"><use href="#i-potlood"/></svg></button>
+        </div>
+      </div>
       <div class="log" id="log">
         <div class="welkom">
           <p class="groet" data-en="<span>Who knows?</span> Joost <em>knows</em>."><span>Joost mag het weten?</span> Joost <em>wéét</em> het.</p>
@@ -85,6 +102,8 @@
       </div>
       <p class="vh" id="status" role="status"></p>
       <form class="ask" id="ask" hidden>
+        <!-- For a few seconds after the pencil: the conversation back, in case that was a mistake. -->
+        <div class="terug" hidden><span data-en="Chat cleared.">Gesprek gewist.</span><button type="button" data-en="Undo">Zet terug</button></div>
         <textarea id="vraag" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Vraag het Joost…" data-en-placeholder="Ask in any language…" aria-label="Je vraag aan Joost" data-en-aria-label="Your question for Joost" aria-describedby="teller nog"></textarea>
         <button type="submit" aria-label="Verstuur" title="Verstuur" data-en-aria-label="Send" data-en-title="Send"><svg class="pijl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg><svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/></svg></button>
       </form>
@@ -98,8 +117,6 @@
         <button class="chip prompt" type="button" data-copy="Waar staat er nu file?" data-via="chip" data-en="Traffic jams now?" data-en-data-copy="Where are the traffic jams right now?">Files nu?</button>
         <!--vluchten--><button class="chip prompt" type="button" data-copy="Wat is de status van vlucht KL1001?" data-via="chip" data-en="Flight KL1001?" data-en-data-copy="What is the status of flight KL1001?">Vlucht KL1001?</button><!--/vluchten-->
       </div>
-      <!-- The switch between Dutch and English only shows in a browser that is not set to Dutch. -->
-      <p class="fine" hidden data-en='Joost is an AI (Claude) and can make mistakes. Don’t share personal details. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=nl" lang="nl" hreflang="nl">Nederlands</a></span>'>Joost is een AI (Claude) en kan fouten maken. Deel geen persoonlijke gegevens. <a href="/privacy">Privacy</a><span class="taal" hidden> · <a href="?lang=en" lang="en" hreflang="en">English</a></span></p>
     </div>
   </main>
 </div>
@@ -252,7 +269,26 @@
       }
     }
   }
-  chat.querySelector(".fine .taal").hidden = dutchBrowser;
+  chat.querySelector(".taal").hidden = dutchBrowser;
+
+  // The i at the top of the chat: what Joost is, with the links. A second tap, Escape or a tap next to it closes it.
+  const infoButton = document.getElementById("info-knop");
+  const infoPanel = document.getElementById("info");
+  const showInfo = (on) => {
+    infoPanel.hidden = !on;
+    infoButton.setAttribute("aria-expanded", on);
+  };
+  infoButton.addEventListener("click", () => showInfo(infoPanel.hidden));
+  document.addEventListener("click", (event) => {
+    if (!infoPanel.hidden && !event.target.closest("#info, #info-knop")) showInfo(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || infoPanel.hidden) return;
+    const inside = infoPanel.contains(document.activeElement) || document.activeElement === infoButton;
+    showInfo(false);
+    if (inside) infoButton.focus();
+  });
+
   if (chat.dataset.vraag === "aan") startChat();
   else closed();
 
@@ -293,7 +329,7 @@
     const status = document.getElementById("status");
     const form = document.getElementById("ask");
     const input = document.getElementById("vraag");
-    const send = form.querySelector("button");
+    const send = form.querySelector("button[type=submit]");
     const counter = document.getElementById("teller");
     const quota = document.getElementById("nog");
     // As on the server, which counts characters the way Python does.
@@ -321,6 +357,9 @@
     // conversation along, so "En terug?" is enough.
     const NEXT = {
       trein_reis: [["En terug?", "And back?"], ["Trein daarna?", "Next train?"]],
+      // For a trip that has to arrive in time, and for the last train, by what the cards were for.
+      trein_reis_aankomst: [["En terug?", "And back?"], ["Eerdere trein?", "Earlier train?"]],
+      trein_reis_laatste: [["Eerste trein morgen?", "First train tomorrow?"]],
       trein_vertrek: [["Storingen?", "Disruptions?"]],
       trein_aankomst: [["Trein daarna?", "Next train?"], ["Storingen?", "Disruptions?"]],
       trein_storingen: [["Hoe lang nog?", "How much longer?"]],
@@ -349,6 +388,29 @@
       nl: new Set("het een van naar niet geen ook nog wordt gaat vandaag jij bij voor mijn zijn deze dit dat wat hoe wanneer waar uur graden".split(" ")),
       en: new Set("the and what how when where which could does there you your from this that today tomorrow with for are can it".split(" ")),
     };
+    // For the trip cards (see tripCards). Up here, because a reload draws the cards of the chat right away.
+    const WEEK = t("zo ma di wo do vr za", "Sun Mon Tue Wed Thu Fri Sat").split(" ");
+    const WEEKDAYS = t("zondag maandag dinsdag woensdag donderdag vrijdag zaterdag",
+      "Sunday Monday Tuesday Wednesday Thursday Friday Saturday").split(" ");
+    const MONTHS = t("jan feb mrt apr mei jun jul aug sep okt nov dec", "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec").split(" ");
+    const MONTHS_LONG = t("januari februari maart april mei juni juli augustus september oktober november december",
+      "January February March April May June July August September October November December").split(" ");
+    // The words NS gives in Dutch, for the English chat.
+    const WORDS = {
+      rustig: "quiet", gemiddeld: "fairly busy", druk: "busy", krap: "tight", genoeg: "enough", ruim: "plenty",
+      "vervangend vervoer": "replacement transport", "rijdt niet": "cancelled", storing: "disruption",
+      werkzaamheden: "engineering works", gewijzigd: "changed", onzeker: "uncertain",
+    };
+    const nsWord = (text) => english ? WORDS[text] || text : text;
+    const money = new Intl.NumberFormat(english ? "en-GB" : "nl-NL", { style: "currency", currency: "EUR" });
+    let tripCount = 0;
+    const isWalk = (part) => !!part && "lopen" in part;
+    // A time as people say it, 9:00, and Leiden Centraal as Leiden C, as on the boards at the station.
+    const hour = (clock) => String(clock || "").replace(/^0(\d)/, "$1");
+    const short = (name) => String(name || "").replace(/ Centraal$/, " C");
+    const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+    const minutes = (n, long) => long ? t(`${n} ${n === 1 ? "minuut" : "minuten"}`, `${n} minute${n === 1 ? "" : "s"}`) : `${n} min`;
+    const flat = (parts) => parts.map((part) => typeof part === "object" ? part.b : part).join("");
 
     // Lees voor: the answer read aloud by a voice on this device itself, so the text goes nowhere. Without such a
     // voice for the language of the answer there is no button.
@@ -367,7 +429,7 @@
 
     chat.classList.add("on");
     chat.setAttribute("aria-label", t("Chat met Joost", "Chat with Joost"));
-    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog, .taal, .beginscherm)").forEach((el) => { el.hidden = false; });
+    chat.querySelectorAll("[hidden]:not(.dicht, .teller, .nog, .taal, .beginscherm, .info, .nieuw, .terug)").forEach((el) => { el.hidden = false; });
     // On a phone the keyboard has a microphone, so the field says you can also say your question. Short enough for
     // one line on the smallest phone. In English it says you can ask in any language.
     if (!english && matchMedia("(pointer: coarse)").matches) input.placeholder = "Typ of zeg je vraag…";
@@ -441,12 +503,22 @@
       stop();
     });
 
-    // A new conversation: Joost forgets everything so far and the chat looks as it did when the page opened. The
-    // button sits with the chips, because the top of the chat has no room for it on a small phone.
-    const restart = button("", t("Nieuw gesprek", "New chat"), "i-nieuw");
-    restart.className = "chip nieuw";
-    restart.insertAdjacentHTML("beforeend", `<span>${t("Nieuw gesprek", "New chat")}</span>`);
+    // A new conversation, with the pencil at the top: Joost forgets everything so far and the chat looks as it did
+    // when the page opened. For a few seconds a bar above the field can put it back.
+    const restart = chat.querySelector(".icoon.nieuw");
     restart.addEventListener("click", fresh);
+    const undo = form.querySelector(".terug");
+    let lost = null;
+    undo.querySelector("button").addEventListener("click", () => {
+      if (!lost || busy) return;
+      turns = lost;
+      forgetUndo();
+      hold("gesprek", turns);
+      restore();
+      showSaved();
+      say(t("Het gesprek is terug", "The chat is back"));
+      if (matchMedia("(pointer: fine)").matches) input.focus();
+    });
 
     // The field grows with your question up to five lines, so a long or spoken question can be read back. Enter
     // sends and Shift+Enter starts a new line, but not while a word is still being composed, as in Japanese. Some
@@ -508,11 +580,13 @@
         stopped = true;
         control.abort();
       };
+      // A new question means the old conversation stays gone.
+      forgetUndo();
       if (example) {
         log.replaceChildren(more);
         log.classList.remove("krap", "kort");
         example = false;
-        // Under the field only Nieuw gesprek stays. A chip that was used hands its focus to the stop button.
+        // The chips under the field go. A chip that was used hands its focus to the stop button.
         if (document.activeElement && document.activeElement.closest(".chips")) send.focus();
         showSaved();
       }
@@ -548,6 +622,8 @@
       const wheres = [];
       let over = null;
       let looked = [];
+      // The trips as cards, one set per route: a second search for the same route replaces the first.
+      const cards = [];
       // What went wrong, if anything, and whether the server said it was done.
       let failure = null;
       let reached = false;
@@ -603,6 +679,19 @@
           shown += event.text;
           answer += event.text;
           if (!frame) frame = requestAnimationFrame(() => paint(false));
+        } else if (event.type === "kaart" && event.kaart && Array.isArray(event.kaart.reizen)) {
+          done();
+          paint(true);
+          bubble = null;
+          const key = `${event.kaart.van} ${event.kaart.naar}`;
+          const old = cards.findIndex((item) => item.key === key);
+          if (old >= 0) cards.splice(old, 1)[0].el.remove();
+          const el = tripCards(event.kaart);
+          if (el) {
+            more.before(el);
+            cards.push({ key, card: event.kaart, el });
+            settle();
+          }
         } else if (event.type === "error") {
           failure = { text: event.text, again: event.opnieuw === true };
         } else if (event.type === "done") {
@@ -656,16 +745,19 @@
       else if (!failure && !finished) failure = { text: BROKEN, again: true };
       if (!failure && answer.trim()) {
         history.push({ role: "assistant", text: answer, tools: looked });
-        turns = [...turns, { q: text, a: answer, w: wheres, s: source, t: looked }].slice(-20);
+        const shown = cards.map((item) => item.card);
+        turns = [...turns, { q: text, a: answer, w: wheres, s: source, t: looked, k: shown }].slice(-20);
         hold("gesprek", turns);
         // The question and its answer in their own language, so a screen reader and Lees voor pronounce them right.
         const lang = language(text + " " + answer);
         for (const el of [asked, ...bubbles]) el.lang = lang;
-        actions(text, answer, lang);
-        followUps(source, answer, lang);
+        // Lees voor, Deel and a screen reader get what the cards say too, in sentences.
+        const told = withTrips(shown, answer);
+        actions(text, told, lang);
+        followUps(source, answer, lang, shown.length ? shown.at(-1).soort : "");
         // The steps for the home screen are only in Dutch.
         if (!english && canInstall && !tipped && !remember("tip")) tip();
-        say(t("Joost antwoordt: ", "Joost answers: ") + spoken(answer) + (remaining(over) ? " " + quota.textContent.replace(/\.?$/, ".") : ""));
+        say(t("Joost antwoordt: ", "Joost answers: ") + spoken(told) + (remaining(over) ? " " + quota.textContent.replace(/\.?$/, ".") : ""));
       } else {
         history.pop();
         // Your question is never lost: it goes back in the field, unless you are already typing a new one. After a
@@ -686,9 +778,9 @@
     // answer, so you can ask for it without having to say why. In one place, and gone with the next question.
     // They are in the language of the conversation, since Joost answers a follow-up in its language. English for
     // English, and in the English chat also for a language they do not come in.
-    function followUps(source, answer, lang) {
+    function followUps(source, answer, lang, kind) {
       const en = /^en/i.test(lang) || (english && !/^nl/i.test(lang));
-      const list = (NEXT[source] || []).map((pair) => pair[en ? 1 : 0]);
+      const list = (NEXT[`${source}_${kind}`] || NEXT[source] || []).map((pair) => pair[en ? 1 : 0]);
       if (plain(answer).length > 240) list.push(en ? "Say it more simply" : "Zeg het simpeler");
       if (!list.length) return;
       const row = add("vervolg");
@@ -744,13 +836,14 @@
     }
 
     // A stop first when Joost is still answering, then everything goes: the conversation he remembers, and what the
-    // chat shows. Your next question in the field stays.
+    // chat shows. Your next question in the field stays. What went can come back for a few seconds.
     async function fresh() {
       quiet();
       if (stop) {
         stop();
         await running;
       }
+      const gone = turns;
       history.length = 0;
       turns = [];
       hold("gesprek", null);
@@ -763,6 +856,17 @@
       fits();
       say(t("Nieuw gesprek, het vorige is gewist", "New chat, the last one is cleared"));
       (matchMedia("(pointer: fine)").matches ? input : chips.querySelector("button") || input).focus();
+      forgetUndo();
+      if (!gone.length) return;
+      lost = gone;
+      undo.hidden = false;
+      forgetUndo.timer = setTimeout(forgetUndo, 10000);
+    }
+
+    function forgetUndo() {
+      clearTimeout(forgetUndo.timer);
+      lost = null;
+      undo.hidden = true;
     }
 
     // A question in the field, typed or put there by the page.
@@ -795,13 +899,20 @@
           el.classList.remove("busy");
           el.dataset.where = where;
         }
+        const shown = (Array.isArray(turn.k) ? turn.k : []).filter((card) => card && Array.isArray(card.reizen));
+        for (const card of shown) {
+          const el = tripCards(card);
+          if (el) more.before(el);
+        }
         const bubble = add("msg ai");
         bubble.lang = lang;
         bubble.innerHTML = heading("Joost antwoordt:", "Joost answers:") + render(turn.a);
-        actions(turn.q, turn.a, lang);
+        actions(turn.q, withTrips(shown, turn.a), lang);
         history.push({ role: "user", text: turn.q }, { role: "assistant", text: turn.a, tools: Array.isArray(turn.t) ? turn.t : [] });
       }
-      followUps(turns.at(-1).s, turns.at(-1).a, language(turns.at(-1).q + " " + turns.at(-1).a));
+      const last = turns.at(-1);
+      const kinds = (Array.isArray(last.k) ? last.k : []).filter((card) => card && Array.isArray(card.reizen));
+      followUps(last.s, last.a, language(last.q + " " + last.a), kinds.length ? kinds.at(-1).soort : "");
       settle(true);
     }
 
@@ -1034,9 +1145,12 @@
       });
     }
 
-    // Before the first question the examples or your saved questions, and during a conversation only Nieuw gesprek.
+    // Before the first question the examples or your saved questions under the field. During a conversation nothing
+    // is there, and the pencil at the top starts a new one.
     function showSaved() {
-      chips.replaceChildren(...(!example ? [restart] : saved.length ? saved.map(savedChip) : examples));
+      chips.replaceChildren(...(!example ? [] : saved.length ? saved.map(savedChip) : examples));
+      chips.hidden = !example;
+      restart.hidden = example;
     }
 
     function savedChip(text) {
@@ -1075,6 +1189,303 @@
       go.addEventListener("click", install);
       el.append("Tip: zet Joost op je beginscherm, dan heb je hem met één tik. ", go);
       settle();
+    }
+
+    // The trips of a train search as cards, straight from what NS gave (see _card in vraag.py): the best one first
+    // with an orange edge, each a button that opens its route. Joost's own sentence comes under them. Everything in
+    // them is text, never markup, and in the language of the chat. Their words are at the top of startChat.
+    function duration(total, long) {
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      const hours = h ? t(`${h} uur`, long ? `${h} hour${h === 1 ? "" : "s"}` : `${h} h`) : "";
+      return [hours, m || !h ? minutes(m, long) : ""].filter(Boolean).join(" ");
+    }
+
+    function weekday(iso) {
+      const [y, m, d] = String(iso).split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    }
+
+    function day(iso, long) {
+      const [, m, d] = String(iso).split("-").map(Number);
+      const index = weekday(iso);
+      if (!(index >= 0)) return "";
+      return long ? `${WEEKDAYS[index]} ${d} ${MONTHS_LONG[m - 1]}` : `${WEEK[index]} ${d} ${MONTHS[m - 1]}`;
+    }
+
+    // The day and what was asked: arrive by a time, leave from a time, or the last train.
+    function when(card, long) {
+      const what = card.soort === "aankomst" && card.tijd ? t("aankomst vóór ", "arrive by ") + hour(card.tijd)
+        : card.soort === "laatste" ? t("laatste trein", "last train")
+        : card.tijd ? t("vertrek vanaf ", "leaving from ") + hour(card.tijd) : "";
+      return [day(card.datum, long), what].filter(Boolean).join(long ? ", " : " · ");
+    }
+
+    function labels(trip) {
+      const off = trip.status === "rijdt niet" || (trip.delen || []).some((part) => part && part.geannuleerd);
+      return [trip.beste && t("Beste", "Best"), trip.laatste && t("Laatste", "Last"), trip.nu && t("Vertrekt nu", "Leaving now"),
+        off && t("Rijdt niet", "Cancelled")].filter(Boolean);
+    }
+
+    // Under the times: for an arrival search how much time you have left, otherwise the platform and how long it takes.
+    function spare(card, trip, long) {
+      if (card.soort === "aankomst") {
+        if (card.lopen && trip.bestemming) return [t("Je bent er om ", "You’re there at "), { b: trip.bestemming }];
+        if (typeof trip.over !== "number" || !card.tijd) return [];
+        if (trip.over === 0) return [t("Aankomst precies om ", "Arrives right at "), { b: hour(card.tijd) }];
+        return [t("Aankomst ", "Arrives "), { b: minutes(Math.abs(trip.over), long) },
+          (trip.over > 0 ? t(" vóór ", " before ") : t(" na ", " after ")) + hour(card.tijd)];
+      }
+      const train = (trip.delen || []).find((part) => part && !isWalk(part));
+      const parts = train && train.spoor ? [t("Spoor ", "Platform "), { b: train.spoor }] : [];
+      if (typeof trip.reistijd === "number") {
+        const time = duration(trip.reistijd, long);
+        parts.push(parts.length ? (long ? ", " : " · ") + t("reistijd ", "journey ") + time : t("Reistijd ", "Journey ") + time);
+      }
+      return parts;
+    }
+
+    // Where you change trains, how long you have there and what that is.
+    function changes(trip, long) {
+      const list = (trip.overstappen || []).filter(Boolean);
+      const name = (station) => long ? String(station || "") : short(station);
+      if (!list.length) {
+        return (trip.delen || []).filter((part) => part && !isWalk(part)).length === 1 ? t("Zonder overstap", "No transfer") : "";
+      }
+      if (list.length === 1) {
+        const [change] = list;
+        if (change.oordeel === "mis") return t(`Overstap in ${name(change.station)} haal je niet`, `You won’t make the transfer at ${name(change.station)}`);
+        return t(`Overstap in ${name(change.station)}, ${minutes(change.min, long)}, ${long ? "dat is " : ""}${change.oordeel}`,
+          `Change at ${name(change.station)}, ${minutes(change.min, long)}, ${long ? "that’s " : ""}${nsWord(change.oordeel)}`);
+      }
+      const items = list.map((change) => `${name(change.station)} (${change.oordeel === "mis" ? t("haal je niet", "missed")
+        : `${minutes(change.min, long)}, ${nsWord(change.oordeel)}`})`);
+      const joined = `${items.slice(0, -1).join(", ")}${t(" en ", " and ")}${items.at(-1)}`;
+      return t(`Overstappen in ${joined}`, `Changes at ${joined}`);
+    }
+
+    function changeText(change, long) {
+      return change.oordeel === "mis" ? t("Deze overstap haal je niet", "You won’t make this transfer")
+        : t(`${minutes(change.min, long)} overstappen, dat is ${change.oordeel}`, `${minutes(change.min, long)} to change, that’s ${nsWord(change.oordeel)}`);
+    }
+
+    function price(trip) {
+      if (typeof trip.prijs !== "number") return "";
+      const extra = typeof trip.toeslag === "number" ? t(" met ", " incl. ") + money.format(trip.toeslag) + t(" toeslag", " supplement") : "";
+      return money.format(trip.prijs) + extra;
+    }
+
+    // What all cards have the same, which the note under them says once.
+    function same(list) {
+      const one = (values) => list.length > 1 && values.every((value) => value && value === values[0]) ? values[0] : "";
+      return { drukte: one(list.map((trip) => trip.drukte)), prijs: one(list.map(price)) };
+    }
+
+    function facts(trip, shared) {
+      return [!shared.drukte && trip.drukte && nsWord(trip.drukte), !shared.prijs && price(trip)].filter(Boolean);
+    }
+
+    // In orange: that a train leaving now only works if you are there, a status like works, and a delay.
+    function warnings(trip, long) {
+      const first = (trip.delen || []).find((part) => part && !isWalk(part));
+      return [
+        trip.nu && t("Haal je alleen als je er al bent", "Only if you’re already there"),
+        trip.status && trip.status !== "rijdt niet" && capital(nsWord(trip.status)),
+        first && first.vertraging && t(`${minutes(first.vertraging, long)} later dan gepland`, `${minutes(first.vertraging, long)} later than planned`),
+      ].filter(Boolean);
+    }
+
+    function note(card, list, long) {
+      const shared = same(list);
+      const together = [shared.drukte && nsWord(shared.drukte), shared.prijs].filter(Boolean);
+      const lines = [];
+      if (together.length) {
+        lines.push(`${list.length === 2 ? t("Allebei", "Both") : t("Allemaal", "All")} ${together.join(t(" en ", " and "))}.`);
+      }
+      if (card.lopen) {
+        lines.push(t(`Met ${minutes(card.lopen, long)} voor het laatste stuk vanaf het station.`,
+          `With ${minutes(card.lopen, long)} for the last bit from the station.`));
+      }
+      if (card.later && weekday(card.datum) >= 0) {
+        lines.push(t(`Vertraging zie je pas op ${WEEKDAYS[weekday(card.datum)]} zelf.`, `Delays only show on ${WEEKDAYS[weekday(card.datum)]} itself.`));
+      }
+      return lines;
+    }
+
+    function usable(card) {
+      return ((card && card.reizen) || []).filter((trip) => trip && typeof trip.vertrek === "string" && typeof trip.aankomst === "string");
+    }
+
+    function tripCards(card) {
+      const list = usable(card);
+      if (!list.length) return null;
+      const shared = same(list);
+      const box = make("div", "reizen");
+      box.lang = english ? "en" : "nl";
+      const arrow = make("span", "", " → ");
+      arrow.setAttribute("aria-hidden", "true");
+      box.append(make("p", "reizen-kop", make("b", "", short(card.van), arrow, make("span", "vh", t(" naar ", " to ")), short(card.naar)),
+        make("span", "reizen-wanneer", when(card, false))));
+      for (const trip of list) {
+        const tags = labels(trip);
+        const id = `reis-${++tripCount}`;
+        const el = make("div", "reis" + (trip.beste || trip.laatste ? " beste" : ""));
+        const toggle = make("span", "reis-route", tags.length ? t("Bekijk route", "Show route") : "Route", svgIcon("i-klap"));
+        toggle.setAttribute("aria-hidden", "true");
+        const open = make("button", "reis-knop");
+        open.type = "button";
+        open.setAttribute("aria-expanded", "false");
+        open.setAttribute("aria-controls", id);
+        const times = make("span", "reis-tijden", make("b", "", trip.vertrek), mark(), make("span", "vh", t(" tot ", " to ")), make("b", "", trip.aankomst));
+        if (tags.length) open.append(make("span", "reis-label", make("span", "reis-soort", tags.join(" · ")), toggle));
+        else times.append(toggle);
+        open.append(times);
+        const left = spare(card, trip, false);
+        if (left.length) open.append(make("span", "reis-marge", ...left));
+        const change = [changes(trip, false), ...facts(trip, shared)].filter(Boolean).join(" · ");
+        if (change) open.append(make("span", "reis-over", change));
+        const warn = warnings(trip, false);
+        if (warn.length) open.append(make("span", "reis-let", warn.join(" · ")));
+
+        const route = make("div", "reis-meer", stops(trip));
+        route.id = id;
+        route.hidden = true;
+        const notes = (trip.meldingen || []).filter((text) => typeof text === "string" && text);
+        if (notes.length) {
+          const list = make("ul", "reis-meldingen", ...notes.map((text) => make("li", "", text)));
+          list.lang = "nl";
+          route.append(list);
+        }
+        const foot = [typeof trip.reistijd === "number" && duration(trip.reistijd), trip.drukte && nsWord(trip.drukte), price(trip)];
+        const footer = make("div", "reis-voet", make("span", "", foot.filter(Boolean).join(" · ")));
+        if (typeof trip.link === "string" && trip.link.startsWith("https://www.ns.nl/")) {
+          const link = make("a", "reis-link", t("Open bij de NS", "Open at NS"), svgIcon("i-arrow"));
+          link.href = trip.link;
+          link.target = "_blank";
+          link.rel = "noopener";
+          footer.append(link);
+        }
+        route.append(footer);
+        open.addEventListener("click", () => {
+          const opening = route.hidden;
+          route.hidden = !opening;
+          el.classList.toggle("open", opening);
+          open.setAttribute("aria-expanded", opening);
+          if (tags.length) toggle.firstChild.textContent = opening ? t("Verberg route", "Hide route") : t("Bekijk route", "Show route");
+          if (opening) reveal(el);
+          showMore();
+        });
+        el.append(open, route);
+        box.append(el);
+      }
+      const lines = note(card, list, false);
+      if (lines.length) box.append(make("p", "reizen-noot", lines.join(" ")));
+      return box;
+    }
+
+    // The route of a trip as a line from stop to stop: where you get on, change and get off, with the platforms.
+    function stops(trip) {
+      const list = make("ol", "haltes");
+      const parts = (trip.delen || []).filter(Boolean);
+      const left = [...(trip.overstappen || [])];
+      const stop = (kind, time, station, platform) => make("li", "halte " + kind, make("time", "", time || ""), mark(),
+        make("div", "", make("b", "", station || ""), platform ? " " : null, platform ? make("span", "spoor", t("spoor ", "platform ") + platform) : null));
+      const between = (kind, ...content) => make("li", kind, make("time", ""), mark(), make("div", "", ...content));
+      let before = null;
+      let train = false;
+      parts.forEach((part, index) => {
+        const last = index === parts.length - 1;
+        if (isWalk(part)) {
+          if (!before) list.append(stop("begin te-voet", part.vertrek, part.van));
+          else if (!isWalk(before)) list.append(stop("aan", before.aankomst, before.naar));
+          const walk = t(`${minutes(part.lopen || 0)} lopen`, `${minutes(part.lopen || 0)} walk`);
+          list.append(between("loop", walk + (part.naar && !last ? t(" naar ", " to ") + part.naar : "")));
+          if (last) list.append(stop("eind te-voet", part.aankomst, part.naar));
+          before = part;
+          return;
+        }
+        if (!before) {
+          list.append(stop("begin", part.vertrek, part.van, part.spoor));
+        } else {
+          const change = train ? left.shift() : null;
+          const tight = change && (change.oordeel === "mis" || change.oordeel === "krap") ? "let" : "";
+          if (isWalk(before)) {
+            // After a walk the minutes left to change go under it.
+            if (change) list.lastChild.lastChild.append(make("em", tight, changeText(change)));
+          } else {
+            list.append(stop("aan", before.aankomst, before.naar));
+            list.append(between("loop", change ? make("span", tight, changeText(change)) : ""));
+          }
+          list.append(stop("af", part.vertrek, part.van, part.spoor));
+        }
+        const about = [];
+        const n = part.tussenstops;
+        if (typeof n === "number") {
+          about.push(make("em", "", n === 0 ? t("stopt nergens onderweg", "no stops on the way")
+            : n === 1 ? t("1 tussenstop", "1 stop on the way") : t(`${n} tussenstops`, `${n} stops on the way`)));
+        }
+        if (part.vertraging) about.push(make("em", "let", t(`${minutes(part.vertraging)} later dan gepland`, `${minutes(part.vertraging)} later than planned`)));
+        if (part.geannuleerd) about.push(make("em", "let", t("Rijdt niet", "Cancelled")));
+        const name = (part.trein || t("Trein", "Train")) + (part.richting ? t(" richting ", " towards ") + part.richting : "");
+        list.append(between("deel", name, ...about));
+        if (last) list.append(stop("eind", part.aankomst, part.naar));
+        before = part;
+        train = true;
+      });
+      return list;
+    }
+
+    // An opened route comes into view as far as it fits, its top first. The button to read on and its fade cover
+    // the bottom of the chat, so it keeps clear of those.
+    function reveal(el) {
+      const box = el.getBoundingClientRect();
+      const view = log.getBoundingClientRect();
+      const below = box.bottom - view.bottom + 84;
+      if (below > 0) log.scrollBy({ top: Math.min(below, box.top - view.top - 12), behavior: calm.matches ? "auto" : "smooth" });
+    }
+
+    // What the cards say, in sentences before Joost's answer: for Lees voor, Deel and a screen reader.
+    function withTrips(cards, answer) {
+      const lines = [];
+      for (const card of cards) {
+        const list = usable(card);
+        if (!list.length) continue;
+        const shared = same(list);
+        lines.push(t(`Treinen van ${card.van} naar ${card.naar}, `, `Trains from ${card.van} to ${card.naar}, `) + when(card, true) + ".");
+        for (const trip of list) {
+          const head = trip.beste ? t("Beste reis", "Best trip") : trip.laatste ? t("Laatste trein", "Last train") : t("Of", "Or");
+          const parts = [flat(spare(card, trip, true)), changes(trip, true), ...facts(trip, shared), ...warnings(trip, true)]
+            .filter(Boolean).map((part) => part.charAt(0).toLowerCase() + part.slice(1));
+          lines.push(`${head}: ${[`${trip.vertrek} ${t("tot", "to")} ${trip.aankomst}`, ...parts].join(", ")}.`);
+        }
+        lines.push(...note(card, list, true));
+      }
+      return lines.length ? lines.join("\n") + "\n\n" + answer : answer;
+    }
+
+    // An element with a class and what goes in it: text, elements, or { b: text } for bold text.
+    function make(tag, className, ...parts) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      for (const part of parts) {
+        if (part === null || part === undefined || part === false || part === "") continue;
+        if (part instanceof Node) el.append(part);
+        else if (typeof part === "object") el.append(make("b", "", part.b));
+        else el.append(String(part));
+      }
+      return el;
+    }
+
+    function mark() {
+      const el = document.createElement("i");
+      el.setAttribute("aria-hidden", "true");
+      return el;
+    }
+
+    function svgIcon(symbol) {
+      const holder = document.createElement("span");
+      holder.innerHTML = `<svg class="i" aria-hidden="true"><use href="#${symbol}"/></svg>`;
+      return holder.firstChild;
     }
 
     // The answer is escaped first, so only the paragraphs, lists, bold text and links below become markup. Lines

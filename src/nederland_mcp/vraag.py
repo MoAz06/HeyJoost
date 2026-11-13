@@ -13,7 +13,7 @@ import re
 import secrets
 import time
 from collections.abc import AsyncIterator
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import anthropic
@@ -23,7 +23,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
 from . import tellers
-from .bronnen import reisplanner, schiphol
+from .bronnen import ns, reisplanner, schiphol
 from .common import now_local
 
 log = logging.getLogger(__name__)
@@ -205,6 +205,32 @@ CREDITS = {
     "stroomprijs": ("smard", "Bundesnetzagentur | SMARD.de"),
     "buurt_info": ("cbs", "CBS"),
 }
+# The trips of trein_reis also go to the page, as cards above the answer (see _card): the best and two others.
+CARD_TRIPS = 3
+# For Claude, with the results of trein_reis: the cards say the trips, so the answer only has to choose.
+CARDS = (
+    "De bezoeker ziet deze reizen al als kaartjes boven je antwoord: per reis de tijden, de reistijd, de overstappen "
+    "met het oordeel, de sporen, de drukte, de prijs en een link naar de NS. Herhaal die dus niet en reken niets uit. "
+    "Schrijf hooguit twee korte zinnen, samen niet meer dan 30 woorden, zonder lijstje: welke reis je aanraadt, met "
+    "de vertrektijd vet, en in een paar woorden waarom. Heeft een andere reis iets wat de beste mist, zoals geen "
+    "overstap of geen toeslag, noem die dan met de tijd en alleen dat verschil. Noem daarnaast alleen wat niet op de "
+    "kaartjes staat: 'let_op', een storing of werkzaamheden uit 'meldingen', 'niet_mogelijk', 'nachttreinen', een "
+    "trein met 'vertrekt_nu', of een korte vraag over het laatste stuk. Zeg niets over storingen of vertraging die "
+    "niet in het resultaat staan. Geen 'Bron: NS' en geen zin over de NS-app."
+)
+CARDS_EN = (
+    "The visitor already sees these trips as cards above your answer: per trip the times, the travel time, the "
+    "transfers with how much time they leave, the platforms, how busy it is, the price and a link to NS. So don't "
+    "repeat those and don't work anything out. Write at most two short sentences, 30 words at most together, without "
+    "a list: which trip you recommend, with the departure time in bold, and in a few words why. If another trip has "
+    "something the best one lacks, like no transfer or no supplement, name it by its time and only that difference. "
+    "Besides that only mention what is not on the cards: 'let_op', a disruption or works from 'meldingen', "
+    "'niet_mogelijk', 'nachttreinen', a train with 'vertrekt_nu', or a short question about the last stretch. Say "
+    "nothing about disruptions or delays that are not in the results. No 'Source: NS' and no sentence about the NS "
+    "app."
+)
+NS_LINK = "https://www.ns.nl/"
+SEARCHED = re.compile(r"(aankomst|vertrek) (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})|laatste trein (\d{4}-\d{2}-\d{2})")
 # Where a question came from, as the page reports it. Only counted, never stored with anything else. A "chip" is an
 # example in the chat that asks right away, "aangevuld" one that put a question in the field for you to finish, and
 # "vervolg" a follow-up button under an answer.
@@ -277,14 +303,15 @@ Zo antwoord je:
 - Roep een tool meteen aan, zonder eerst te zeggen dat je gaat zoeken.
 - Hou het kort: een paar zinnen, of een kort lijstje met "- ". Geen tabellen of kopjes. Zet tijden, sporen en perrons vet met **.
 - Schrijf eenvoudig, op B1-niveau, ook in andere talen: korte zinnen, gewone woorden, het belangrijkste eerst. Leg een moeilijk woord of een afkorting de eerste keer kort uit tussen haakjes, zoals kWh (kilowattuur, de eenheid waarin je stroom betaalt), NAP (het nulpunt voor hoogtes in Nederland, ongeveer het gemiddelde zeeniveau) of WOZ-waarde (de waarde van een huis volgens de gemeente). Namen van bronnen, zoals NS of KNMI, hoef je niet uit te leggen.
-- Sluit af met de bron in een paar woorden, zoals "Bron: NS". Dat woord schrijf je in de taal van je antwoord, in het Engels dus "Source: NS". De bron staat in het veld 'bron' van elk resultaat.
+- Sluit af met de bron in een paar woorden, zoals "Bron: NS". Dat woord schrijf je in de taal van je antwoord, in het Engels dus "Source: NS". De bron staat in het veld 'bron' van elk resultaat. Bij trein_reis hoeft het niet, want de kaartjes boven je antwoord komen van de NS.
 - Lukt iets niet of vind je niks, zeg dat dan eerlijk en stel een betere vraag voor.
 - Mis je iets wat echt nodig is, zoals de plaats van een halte, vraag dat dan kort.
 {reisplanner}
-- Noem bij een overstap hoeveel minuten je hebt en of dat krap, genoeg of ruim is, zoals "in Utrecht heb je 12 minuten om over te stappen, dat is ruim". Bij trein_reis staat dat in 'overstaptijd': neem dat oordeel letterlijk over (5 minuten is dus genoeg, niet krap) en reken het niet zelf uit. Anders reken je zelf: minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
+- Noem bij een overstap hoeveel minuten je hebt en of dat krap, genoeg of ruim is, zoals "in Utrecht heb je 12 minuten om over te stappen, dat is ruim". Bij trein_reis staat dat al op de kaartjes (zie hieronder); noem je het toch, neem dan het oordeel uit 'overstaptijd' letterlijk over (5 minuten is dus genoeg, niet krap) en reken het niet zelf uit. Anders reken je zelf: minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
 - Gaat het om een trein van de ene plaats naar de andere, ook bij "de volgende trein", gebruik dan trein_reis en niet trein_vertrek. Noemt iemand bij zo'n reis een tijd, zoals "vrijdag om 17:10 van Delft naar Gouda", dan is dat de vertrektijd. aankomst=true is alleen voor als iemand op een tijd ergens moet zijn. De eerste trein van een dag zoek je vanaf 04:00, want treinen tussen middernacht en 4 uur horen bij de nacht ervoor. Wil iemand de laatste trein, of zo laat mogelijk terug, gebruik dan laatste=true met alleen de datum: dan zoekt de tool zelf tot in de nacht. Raad de reis met 'laatste' aan, of de laatste die past bij wat iemand wil, zoals zonder toeslag. Vertrekt die na middernacht, zeg dan dat het 's nachts is. Staat er 'nachttreinen', neem die zin dan altijd over, want daarmee kan iemand nog later terug.
-- Bij trein_reis staat de beste reis bovenaan, met 'beste'. Die komt zo vroeg mogelijk aan met zo min mogelijk overstappen, of bij aankomst=true vertrekt die zo laat mogelijk en is nog op tijd. Raad die reis aan, ook als een andere korter onderweg is. Noem daarna hooguit één andere reis, ook als volgende trein of als extra zekerheid, en alleen als die iets heeft wat de beste mist: geen overstap, geen toeslag of meer tijd over. Hoe vaak een trein onderweg stopt, staat in 'tussenstops'; zeg alleen dat hij nergens stopt als dat 0 is. Hoeft iemand niet over te stappen, zeg dan "zonder overstap". Welke dag de reis is, staat in 'dag', en de tijden gelden voor die dag: noem die dag, en zeg geen "vandaag" als het een andere dag is. Vertrekt de beste trein binnen een paar minuten, zeg dat dan en noem ook de volgende. Een reis met 'vertrekt_nu' vertrekt nu of binnen 2 minuten en is daarom niet de beste, want die haal je alleen als je al bij de trein staat. Noem die er kort bij, zoals "de trein van 17:15 vertrekt nu, die haal je alleen als je al op het perron staat"; die telt niet als die ene andere reis. Heeft de beste zelf 'vertrekt_nu', zeg dan dat die nu vertrekt.
-- Heeft een treinreis 'toeslag_euro', zeg dan dat er een toeslag in de prijs zit voor de Intercity direct of de ICE, en hoeveel. Staan er reizen in 'niet_mogelijk', zeg dan kort dat die niet gaan.
+- In deze chat ziet de bezoeker de reizen van trein_reis als kaartjes boven je antwoord: per reis de tijden, de reistijd, de overstappen met het oordeel, de sporen, de drukte, de prijs met een eventuele toeslag, hoe laat iemand er is en, na een tik, de hele route. Dat gaat voor op de andere regels over wat je bij een treinreis noemt. Herhaal het dus niet, reken niets uit en maak geen lijstje. Schrijf één of twee korte zinnen, samen niet meer dan 30 woorden: welke reis je aanraadt, met de vertrektijd vet, en in een paar woorden waarom, zoals "zonder overstap" of "het snelst, met één overstap in Utrecht". Noem daarnaast alleen wat niet op de kaartjes staat: 'let_op', 'meldingen', 'niet_mogelijk', 'nachttreinen', een trein met 'vertrekt_nu', een krappe overstap, of een korte vraag over het laatste stuk. Zeg niet "de bovenste" of "het eerste kaartje", maar noem de tijd. Vraagt iemand iets wat op de kaartjes staat, zoals het spoor, geef dan gewoon antwoord. "Bron: NS" en een zin over de NS-app horen er niet onder, want de kaartjes komen van de NS en linken ernaar.
+- Bij trein_reis staat de beste reis bovenaan, met 'beste'. Die komt zo vroeg mogelijk aan met zo min mogelijk overstappen, of bij aankomst=true vertrekt die zo laat mogelijk en is nog op tijd. Raad die reis aan, ook als een andere korter onderweg is. Wil iemand iets, zoals geen toeslag of niet overstappen, raad dan de eerste reis aan die daarbij past. Noem daarna hooguit één andere reis, en alleen als die iets heeft wat de beste mist: geen overstap of geen toeslag. Noem die met de tijd en alleen dat verschil. Hoe vaak een trein onderweg stopt, staat in 'tussenstops'; zeg alleen dat hij nergens stopt als dat 0 is. Hoeft iemand niet over te stappen, zeg dan "zonder overstap". Welke dag de reis is, staat in 'dag', en de tijden gelden voor die dag: noem die dag, en zeg geen "vandaag" als het een andere dag is. Vertrekt de beste trein binnen een paar minuten, zeg dat dan en noem ook de volgende. Een reis met 'vertrekt_nu' vertrekt nu of binnen 2 minuten en is daarom niet de beste, want die haal je alleen als je al bij de trein staat. Noem die er kort bij, zoals "de trein van 17:15 vertrekt nu, die haal je alleen als je al op het perron staat"; die telt niet als die ene andere reis. Heeft de beste zelf 'vertrekt_nu', zeg dan dat die nu vertrekt.
+- Raad je een treinreis met 'toeslag_euro' aan, zeg dan kort dat er een toeslag in de prijs zit voor de Intercity direct of de ICE; hoeveel staat op het kaartje. Staan er reizen in 'niet_mogelijk', zeg dan kort dat die niet gaan.
 - Gaat het om een later moment, geef dan datum en tijd mee aan de tool. "Volgende week dinsdag" is de dinsdag in volgende week, en welke dagen dat zijn, staat bij de tijd van nu.
 - Staat er in een resultaat een 'let_op', zoals een staking, noem dat dan altijd, vóór de tijden. Gaat het bericht over een andere dag dan de vraag, zeg dat er dan kort bij. Staan er bij een treinreis 'meldingen', zoals een bus in plaats van de trein, noem die dan ook.
 - Vraagt iemand of de treinen rijden, of naar storingen of werkzaamheden, gebruik dan trein_storingen, met het station en de dagen als die genoemd worden. Noem wat er rijdt (bussen of minder treinen), waar, tot wanneer, en het advies van NS.
@@ -298,7 +325,7 @@ Zo antwoord je:
 - Bij open in de buurt zeg je eerst vanaf waar je zocht, zoals in 'rond' staat. Noem dan per plek de naam, het adres of de straat, hoe ver ongeveer, en of het nu open is en tot hoe laat, of wanneer het weer opengaat. Staat er een 'tip', noem die dan kort. Zeg erbij dat de openingstijden kunnen afwijken, zeker op feestdagen. Vraagt iemand naar een apotheek als die dicht is, noem dan wat er over de dienstapotheek staat. Noem als bron "OpenStreetMap".
 - Zeg nooit dat iets niet lukte als je het niet hebt geprobeerd.
 - Je eerdere antwoorden in dit gesprek heb je echt opgezocht. Van je eerdere zoekacties zie je nog met welke tool en waarmee je zocht; de resultaten staan er niet meer bij, om het gesprek kort te houden, maar je antwoorden komen eruit. Twijfel er dus niet aan en zoek ze niet opnieuw op, behalve als de gebruiker daarom vraagt of zegt dat iets niet klopt.
-- Gaat het om iets belangrijks, zoals een trein halen, zeg dan dat de officiële app de laatste stand heeft.
+- Gaat het om iets belangrijks, zoals een trein halen, zeg dan dat de officiële app de laatste stand heeft. Bij trein_reis hoeft dat niet, want de kaartjes linken naar de NS.
 
 Grenzen:
 - Je helpt alleen met deze onderwerpen. Vraagt iemand iets anders, zoals huiswerk, code, nieuws of een verhaal, zeg dan vriendelijk dat je hier alleen live info over Nederland geeft, en dat iemand Hey Joost ook in een eigen AI kan zetten, zoals Claude of ChatGPT. Hoe dat moet, staat op deze pagina.
@@ -334,8 +361,8 @@ NO_PLANNER = (
     "zelf moet zijn). De tool haalt dat en 5 minuten marge van de tijd af, dus doe dat niet zelf. Bijvoorbeeld: "
     "afspraak om 10:00 en een kwartier lopen, dan zoek je met tijd 10:00 en lopen_min 15. Hoe laat iemand er dan "
     "is, staat in 'op_bestemming'. Neem de reis met 'beste', want die vertrekt zo laat mogelijk en is nog op tijd. "
-    "Noem hooguit één eerdere trein, als extra zekerheid. Zoek daarna de bus of tram naar het station, met als tijd "
-    "een half uur voor die trein, en kies de laatste die minstens 5 minuten voor vertrek bij het station is.\n"
+    "Zoek daarna de bus of tram naar het station, met als tijd een half uur voor die trein, en kies de laatste die "
+    "minstens 5 minuten voor vertrek bij het station is.\n"
     "- Gaat het laatste stuk, van het station naar de bestemming, met bus, tram of metro, zoek dat dan na de trein "
     "met ov_vertrek: halte is het station waar de trein aankomt, naar is de bestemming en tijd de aankomst van de "
     "trein. Noem de eerste die minstens 5 minuten na aankomst vertrekt, waar je uitstapt en hoe laat je er bent "
@@ -646,7 +673,15 @@ async def _answer(
             {"tool": use.name, "input": use.input}
             for use, result in zip(uses, results) if not result["is_error"] and use.name != MISSED_TOOL["name"]
         ]
-        content = [*results, *note]
+        # The trips go to the page as cards, which show them above the answer, straight from NS (see _card).
+        cards = False
+        for use, result in zip(uses, results):
+            if use.name == "trein_reis" and not result["is_error"] and (card := _card(use.input, result["content"])):
+                cards = True
+                yield {"type": "kaart", "kaart": card}
+        # Haiku hears it right after the results too: from the system prompt alone it still wrote out every trip.
+        told = [{"type": "text", "text": CARDS_EN if _in_english(question, english) else CARDS}] if cards else []
+        content = [*results, *told, *note]
         if round_ + 1 >= MAX_ROUNDS - 1:
             # The next round can no longer look anything up, and Haiku hears it with these results (see NO_MORE).
             content.append({"type": "text", "text": NO_MORE_EN if _in_english(question, english) else NO_MORE})
@@ -738,6 +773,138 @@ async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: 
     else:
         text = json.dumps(data, ensure_ascii=False)
     return {**result, "content": text or "Geen resultaat.", "is_error": bool(getattr(output, "is_error", False))}
+
+
+def _card(given: Any, content: str) -> dict[str, Any] | None:
+    """A trein_reis result as the page shows it: cards above Joost's answer with the best trip and at most two others.
+    The sums are done here, with the thresholds of ns.py, so the page needs no rules of its own and the cards say what
+    Joost was told. All times are as expected now. None when there is nothing to show."""
+    try:
+        found = json.loads(content)
+    except ValueError:
+        return None
+    if not isinstance(found, dict):
+        return None
+    trips = [trip for trip in found.get("reisadviezen") or []
+             if isinstance(trip, dict) and _clock(trip.get("vertrek")) is not None and _clock(trip.get("aankomst")) is not None]
+    searched = SEARCHED.fullmatch(found.get("gezocht_op") or "")
+    if not trips or not searched:
+        return None
+    kind, day, at, last_day = searched.groups()
+    kind = kind or "laatste"
+    given = given if isinstance(given, dict) else {}
+    card: dict[str, Any] = {"van": _place(found.get("van")), "naar": _place(found.get("naar")), "soort": kind,
+                            "datum": day or last_day}
+    asked = None
+    if kind == "aankomst":
+        # The tool searched that many minutes before the asked time: the last stretch and the margin.
+        walk = _whole(given.get("lopen_min"))
+        before = (walk + ns.MARGIN) if walk is not None else 0
+        asked = f"{datetime.fromisoformat(f'{day}T{at}') + timedelta(minutes=before):%H:%M}"
+        card.update({"tijd": asked, **({"lopen": walk} if walk else {})})
+    elif kind == "vertrek":
+        card["tijd"] = at
+    if found.get("dienstregeling"):
+        # A later day: the timetable, without delays.
+        card["later"] = True
+    first, others = (trips[:1], trips[1:]) if trips[0].get("beste") or trips[0].get("laatste") else ([], trips)
+    # The others are in time order. For an arrival search and the last train the ones nearest the asked time matter
+    # most, otherwise the first ones after it.
+    room = CARD_TRIPS - len(first)
+    others = others[:room] if kind == "vertrek" or not first else others[-room:]
+    card["reizen"] = [_card_trip(trip, asked) for trip in first + others]
+    return card
+
+
+def _card_trip(trip: dict[str, Any], asked: str | None) -> dict[str, Any]:
+    parts = [_card_part(part) for part in trip.get("delen") or [] if isinstance(part, dict)]
+    there = trip.get("op_bestemming") if _clock(trip.get("op_bestemming")) is not None else None
+    link = trip.get("link")
+    found: dict[str, Any] = {
+        "vertrek": trip["vertrek"],
+        "aankomst": trip["aankomst"],
+        **{flag: True for flag, key in (("beste", "beste"), ("laatste", "laatste"), ("nu", "vertrekt_nu")) if trip.get(key)},
+        # For an arrival search: when you are where you have to be, and how many minutes before the asked time.
+        **({"bestemming": there} if there else {}),
+        **({"over": _gap(there or trip["aankomst"], asked)} if asked else {}),
+        "reistijd": _whole(trip.get("reistijd_min")),
+        "overstappen": _card_changes(parts),
+        "drukte": trip.get("drukte") if isinstance(trip.get("drukte"), str) else None,
+        "prijs": trip.get("prijs_euro") if isinstance(trip.get("prijs_euro"), int | float) else None,
+        **({"toeslag": trip["toeslag_euro"]} if isinstance(trip.get("toeslag_euro"), int | float) else {}),
+        # "normaal" goes without saying.
+        **({"status": trip["status"]} if isinstance(trip.get("status"), str) and trip["status"] != "normaal" else {}),
+        "delen": parts,
+        "meldingen": [text[:300] for text in trip.get("meldingen") or [] if isinstance(text, str)][:4],
+        # Only a link to NS itself.
+        **({"link": link} if isinstance(link, str) and link.startswith(NS_LINK) else {}),
+    }
+    return found
+
+
+def _card_part(part: dict[str, Any]) -> dict[str, Any]:
+    if "lopen_min" in part:
+        return {"lopen": _whole(part.get("lopen_min")), "van": _place(part.get("van")), "vertrek": part.get("vertrek"),
+                "naar": _place(part.get("naar")), "aankomst": part.get("aankomst")}
+    # The tool gives the departure as planned, with the delay apart; the card shows when the train leaves.
+    late = _whole(part.get("vertraging_min")) or 0
+    leaves = _clock(part.get("vertrek"))
+    return {
+        "trein": re.sub(r"^NS\s+", "", part.get("trein") or "") or None,
+        "richting": _place(part.get("richting")),
+        "van": _place(part.get("van")),
+        "vertrek": f"{(leaves + late) // 60 % 24:02d}:{(leaves + late) % 60:02d}" if leaves is not None else None,
+        **({"vertraging": late} if late > 0 else {}),
+        "spoor": part.get("spoor") if isinstance(part.get("spoor"), str) else None,
+        "naar": _place(part.get("naar")),
+        "aankomst": part.get("aankomst"),
+        **({"tussenstops": part["tussenstops"]} if isinstance(part.get("tussenstops"), int) else {}),
+        **({"geannuleerd": True} if part.get("geannuleerd") else {}),
+    }
+
+
+def _card_changes(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Where you change trains, the minutes you have there and what that is, as ns.py says it: a walk in between comes
+    off the minutes."""
+    changes: list[dict[str, Any]] = []
+    last, walk = None, 0
+    for part in parts:
+        if "lopen" in part:
+            walk += part.get("lopen") or 0
+            continue
+        if last is not None and _clock(last.get("aankomst")) is not None and _clock(part.get("vertrek")) is not None:
+            gap = _gap(last["aankomst"], part["vertrek"]) - walk
+            verdict = "mis" if gap < 0 else "krap" if gap < ns.TIGHT else "genoeg" if gap < ns.AMPLE else "ruim"
+            changes.append({"station": last.get("naar"), "min": gap, "oordeel": verdict})
+        last, walk = part, 0
+    return changes
+
+
+def _clock(value: Any) -> int | None:
+    """A time like 06:44 in minutes after midnight."""
+    found = re.fullmatch(r"([01]\d|2[0-3]):([0-5]\d)", value) if isinstance(value, str) else None
+    return int(found[1]) * 60 + int(found[2]) if found else None
+
+
+def _gap(start: str, end: str) -> int:
+    """The minutes from one time to the next, also past midnight, and less than zero when the second is earlier."""
+    gap = ((_clock(end) or 0) - (_clock(start) or 0)) % 1440
+    return gap - 1440 if gap > 720 else gap
+
+
+def _whole(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return round(value)
+    return int(value) if isinstance(value, str) and value.strip().isdigit() else None
+
+
+def _place(name: Any) -> str | None:
+    """A station without the sign NS puts after some, as in "Schiphol Airport ✈"."""
+    if not isinstance(name, str):
+        return None
+    return re.sub(r"[^\w).']+$", "", name).strip() or None
 
 
 def _missed(question: Any) -> str:
