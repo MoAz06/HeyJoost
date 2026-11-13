@@ -18,6 +18,8 @@ from nederland_mcp.common import AMSTERDAM
 DAY = "2026-10-27"
 failed: list[str] = []
 asked: list[tuple[str, dict]] = []
+# What Transitous got that is or holds an address: a text with a house number or postcode, or a precise point.
+leaks: list[str] = []
 
 
 def check(name: str, ok: bool, got: Any = None) -> None:
@@ -122,6 +124,12 @@ SEARCHES[("PLACE", "lumc")] = [
     found("LUMC Hoofdingang", "Leiden", (52.1663, 4.4790), "PLACE", "entrance_main"),
     found("LUMC Parkeergarage", "Leiden", (52.1679, 4.4765), "PLACE", "parking_16"),
 ]
+# The address of a public building: the main entrance of the Erasmus MC.
+STREETS["dr. molewaterplein 40 rotterdam"] = [{
+    "type": "adres", "weergavenaam": "Dr. Molewaterplein 40, 3015GD Rotterdam", "straatnaam": "Dr. Molewaterplein",
+    "postcode": "3015GD", "woonplaatsnaam": "Rotterdam", "gemeentenaam": "Rotterdam",
+    "centroide_ll": "POINT(4.468644 51.911926)",
+}]
 SEARCHES[("PLACE", "uithof utrecht")] = [found("De Uithof", "Utrecht", (52.0893, 5.1639), "PLACE")]
 SEARCHES[("PLACE", "binnenhof")] = [
     found("Binnenhof", "Leiderdorp", (52.1643, 4.5364), "PLACE", "neighbourhood"),
@@ -150,6 +158,10 @@ async def get_json(url: str, params: Any = None, **kwargs: Any) -> Any:
     if url == ov.LOCATIESERVER:
         return {"response": {"docs": STREETS.get(dict(params)["q"].lower(), [])}}
     asked.append((url.rsplit("/", 1)[-1], dict(params)))
+    if url.endswith("/geocode") and ov._is_address(params["text"]):
+        leaks.append(params["text"])
+    if url.endswith("/reverse-geocode") and any(len(part.split(".")[-1]) > 3 for part in params["place"].split(",")):
+        leaks.append(params["place"])
     if url.endswith("/geocode") and (params["type"], params["text"].lower()) in SEARCHES:
         return SEARCHES[(params["type"], params["text"].lower())]
     if url.endswith("/geocode") and params["type"] == "PLACE":
@@ -318,6 +330,27 @@ async def main() -> None:
     wrong = [(words, name) for words, name, meant in looks if ov._lookalike(words, name) != meant]
     check("lijkt er alleen op: Hooftplein voor Hofplein en Kurhausweg voor Kurhaus, maar Kurhaus is Kurhaus Scheveningen", not wrong, wrong)
 
+    # An address never goes to Transitous: not as 'naar', and not when PDOK does not know it.
+    result = await vertrek("Rotterdam Centraal", naar="Dr. Molewaterplein 40 Rotterdam", tijd="08:30")
+    walks = rides(result, "lijn", "stopt_bij", "lopen_min")
+    check("naar een adres: de haltes op loopafstand ervan, met het lopen",
+          walks == [("44", "Rotterdam, Dijkzigt", 3), ("18", "Rotterdam, Kievitslaan", 6)], walks)
+    try:
+        error = str(await vertrek("Nergensstraat 12", "Rotterdam", tijd="17:00"))
+    except ToolError as exc:
+        error = str(exc)
+    check("een adres dat PDOK niet kent: de straat zonder nummer als halte, en anders een fout",
+          "Nergensstraat" in error and "12" not in error, error)
+    streets = [
+        ("Breestraat 70 a, 2311 CS Leiden", "Breestraat Leiden"),
+        ("Laan van Meerdervoort 100", "Laan van Meerdervoort"),
+        ("Stationsplein 1 hs Utrecht", "Stationsplein Utrecht"),
+        ("2311 CS", ""),
+        ("Spui", "Spui"),
+    ]
+    wrong = [(text, ov._street(text)) for text, meant in streets if ov._street(text) != meant]
+    check("van een adres blijft alleen de straat en de plaats over", not wrong, wrong)
+
     # A trip at two stops around a place counts once when filling a page.
     evening = {"time": when("17:00")}
     pages = {
@@ -334,6 +367,7 @@ async def main() -> None:
     check("een rit die bij twee haltes stopt telt een keer: dan volgt de volgende pagina",
           [st["routeShortName"] for st in found] == ["32", "32", "A"], [st["routeShortName"] for st in found])
 
+    check("niets naar Transitous dat een adres is of bevat", not leaks, leaks)
     print(f"\n{len(failed)} fout" if failed else "\nalles goed")
     sys.exit(1 if failed else 0)
 

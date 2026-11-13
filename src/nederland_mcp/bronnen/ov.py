@@ -69,6 +69,8 @@ LINE_PREFIX = re.compile(r"^(lijn|bus|tram|metro|veerboot|veerpont|pont)\s*", re
 LINE_KINDS = {"bus": "bus", "tram": "tram", "metro": "metro", "veerboot": "veerboot", "veerpont": "veerboot", "pont": "veerboot"}
 POSTCODE = re.compile(r"\b(\d{4})\s?([a-z]{2})\b", re.IGNORECASE)
 HOUSE_NUMBER = re.compile(r"[a-z]\.?\s+(\d+)\s*[a-z]?\b", re.IGNORECASE)
+# What can follow a house number: 70 a, 70 hs, 70 bis.
+NUMBER_SUFFIXES = {"hs", "bis", "zw", "rd", "bg", "bv", "ra", "huis"}
 ADDRESS_TYPES = ("adres", "weg", "postcode")
 # Around an address, the nearest stops count up to this far, as the crow flies.
 ADDRESS_RADIUS = 2000
@@ -145,6 +147,12 @@ def _distance(a: dict, b: dict) -> float:
 
 
 async def _geocode(text: str, kind: str, box: tuple[float, ...] | None = None) -> list[dict]:
+    if _is_address(text):
+        # Transitous never gets an address: at most the street, without its number or postcode. The callers
+        # look an address up at PDOK first; this is the last guard.
+        text = _street(text)
+        if not text:
+            return []
     params: dict[str, Any] = {"text": text, "language": "nl", "type": kind, "numResults": 15}
     if kind == "STOP":
         params["mode"] = MODES
@@ -278,6 +286,19 @@ def _is_address(text: str) -> bool:
     return bool(POSTCODE.search(text) or HOUSE_NUMBER.search(text))
 
 
+def _street(text: str) -> str:
+    """An address without what makes it someone's: 'Breestraat 70 a, 2311 CS Leiden' becomes 'Breestraat Leiden'."""
+    kept: list[str] = []
+    after_number = False
+    for word in POSTCODE.sub(" ", text).replace(",", " ").split():
+        if any(char.isdigit() for char in word) or (after_number and (len(word) == 1 or word.lower() in NUMBER_SUFFIXES)):
+            after_number = True
+            continue
+        after_number = False
+        kept.append(word)
+    return " ".join(kept)
+
+
 def _names_street(text: str, street: str, fuzzy: bool = True) -> bool:
     """The text names this street, allowing a small typo: 'Laan v Meerdervoort 100' names Laan van Meerdervoort."""
     wanted = normalize(street)
@@ -408,7 +429,11 @@ async def _origin(halte: str, plaats: str | None) -> tuple[dict | None, dict | N
         point = await _address(halte, plaats)
         if point:
             return point, None, [], True
-        best, candidates, sure = await _find(halte, plaats)
+        # Not an address PDOK knows, so maybe a stop. Transitous only gets the street, never the number.
+        street = _street(halte)
+        if not street:
+            raise ToolError(f"Geen adres gevonden dat lijkt op '{halte}'. Noem de straat met huisnummer en de plaats.")
+        best, candidates, sure = await _find(street, plaats)
         return None, best, candidates, sure
     street = await _address(halte, plaats) if plaats else None
     try:
@@ -501,6 +526,13 @@ async def _places(wanted: list[str], naar: str, origin: dict) -> list[dict]:
     which stops are meant."""
     if not set(wanted) - STATION_WORDS:
         return []
+    if _is_address(naar):
+        # An address only goes to PDOK, and the stops within a walk of it serve it, as for a place.
+        try:
+            point = await _address(naar, None)
+        except ToolError:
+            point = None
+        return [{"lat": point["lat"], "lon": point["lon"], "name": point["naam"], "type": "PLACE"}] if point else []
     box = (origin["lat"] - BOX_LAT, origin["lon"] - BOX_LON, origin["lat"] + BOX_LAT, origin["lon"] + BOX_LON)
     try:
         hits = await _geocode(naar, "STOP", box)

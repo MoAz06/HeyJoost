@@ -592,6 +592,8 @@ async def _answer(
     tools: MCPServer, messages: list[dict[str, Any]], visitor: str, english: bool = False
 ) -> AsyncIterator[dict[str, Any]]:
     day = _day.today()
+    # Counted per plan, not per lookup: one reis_plannen can ask a second plan (see reisplanner.PER_QUESTION).
+    reisplanner.new_question()
     definitions = [
         {"name": tool.name, "description": tool.description or "", "input_schema": tool.input_schema}
         for tool in await tools.list_tools()

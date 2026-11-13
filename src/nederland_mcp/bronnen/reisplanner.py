@@ -9,16 +9,17 @@ to about a hundred metres, never an address. A stop or a place like the Kurhaus 
 
 import os
 import re
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
 from ..common import cached, fmt_time, get_json, now_local, parse_moment, parse_time
+from . import ns
 from . import plaats as plaatsen
-from .ov import BASE, SOURCE, _address, _distance, _find, _is_address, _near
+from .ov import BASE, SOURCE, _address, _distance, _find, _is_address, _near, _spot
 from .plaats import common_name
-from .winkels import _station
 
 AAN = os.environ.get("HEYJOOST_REISPLANNER") == "1"
 BRON = (
@@ -31,8 +32,18 @@ MODES = {
     "REGIONAL_RAIL": "trein", "REGIONAL_FAST_RAIL": "trein", "SUBURBAN": "trein",
 }
 MAX_TRIPS = 3
+# Transitous was told: at most two plans per question in the chat, the second chance in reis_plannen included.
+PER_QUESTION = 2
 # The plan requests of the whole service today, so a busy day stays light for Transitous.
 _today: dict[str, Any] = {"dag": None, "aantal": 0}
+# The plans the current chat question may still ask. A list, so the lookups that run side by side share it. None
+# outside the chat: an MCP client only has the cap of the day.
+_left: ContextVar[list[int] | None] = ContextVar("reisplanner_left", default=None)
+
+
+def new_question() -> None:
+    """A chat question starts: from here it may ask PER_QUESTION plans."""
+    _left.set([PER_QUESTION])
 
 
 def _per_day() -> int:
@@ -57,19 +68,24 @@ async def _point(text: str, plaats: str | None) -> _Place:
             return _Place(f"{found['lat']:.3f},{found['lon']:.3f}", common_name(name), found)
     if _is_address(text):
         raise ToolError(f"Geen adres gevonden dat lijkt op '{text}'. Noem de straat met huisnummer en de plaats.")
-    # A station, a stop or a spot with its own stop, like the Kurhaus: the stop itself, so the trip starts there
-    # and not on the street outside.
+    station = await _station(text, plaats)
+    if station:
+        # A station is a public place, so its point needs no rounding.
+        return _Place(f"{station['lat']:.5f},{station['lng']:.5f}", ns._station_name(station))
+    # A stop or a spot with its own stop, like the Kurhaus: the stop itself, so the trip starts there and not on the
+    # street outside.
     try:
         stop, _, sure = await _find(text, plaats)
     except ToolError:
         stop, sure = None, False
     if stop and sure:
         return _Place(stop["id"], common_name(stop["name"]))
-    station = await _station(both)
-    if station:
-        # A station is a public place, so its point needs no rounding.
-        lat, lon, name = station
-        return _Place(f"{lat:.5f},{lon:.5f}", name)
+    # A place that no stop is named after, like the LUMC or Rotterdam Ahoy, or that only lends its name to a stop,
+    # like the Erasmus MC: the place itself, as ov_vertrek finds it. Without this the trip went to the middle of the
+    # town. It is a public place too, so no rounding.
+    spot = await _spot(text, plaats)
+    if spot:
+        return _Place(f"{spot['lat']:.5f},{spot['lon']:.5f}", common_name(spot["naam"]), spot)
     try:
         place = await plaatsen.zoek(both)
     except ToolError:
@@ -77,6 +93,23 @@ async def _point(text: str, plaats: str | None) -> _Place:
             f"Geen plek gevonden die lijkt op '{text}'. Noem een adres, straat, station, halte of plaats."
         ) from None
     return _Place(f"{place.lat:.3f},{place.lon:.3f}", place.naam)
+
+
+async def _station(text: str, plaats: str | None) -> dict | None:
+    """The NS station meant, the same one trein_reis takes: Utrecht is Utrecht Centraal, where Transitous gave a spot
+    in Bunnik called Utrecht. With a town, the text alone counts as well when the station is in that town, as Leiden
+    Centraal with Leiden and Science Park with Amsterdam, but not Science Park with Utrecht. None when no station has
+    that name."""
+    try:
+        stations = await ns._stations()
+    except ToolError:
+        return None
+    found = ns._match(f"{text} {plaats}" if plaats else text, stations)
+    if found is None and plaats:
+        # Whole words, so Ede is not Rheden.
+        town = f" {' '.join(ns._words(plaats))} "
+        found = ns._match(text, [s for s in stations if any(town in f" {' '.join(ns._words(n))} " for n in ns._names(s))])
+    return found if found and found.get("lat") and found.get("lng") else None
 
 
 async def _stop_near(place: _Place) -> tuple[_Place, int] | None:
@@ -119,6 +152,8 @@ def _leg(leg: dict, names: dict[str, str]) -> dict[str, Any]:
 
 
 async def _ask(params: dict) -> dict:
+    """One plan from Transitous, counted for the day and for the chat question. A plan from the cache is not asked
+    and does not count."""
     day = now_local().date()
     if _today["dag"] != day:
         _today.update(dag=day, aantal=0)
@@ -127,7 +162,15 @@ async def _ask(params: dict) -> dict:
             "De reisplanner zit voor vandaag aan zijn maximum. Plan de reis in stukken met trein_reis en ov_vertrek, "
             "of probeer het morgen weer."
         )
+    left = _left.get()
+    if left is not None and left[0] <= 0:
+        raise ToolError(
+            "Voor deze vraag zijn al genoeg reizen gepland. Antwoord met wat je al hebt, of plan de rest in stukken "
+            "met trein_reis en ov_vertrek."
+        )
     _today["aantal"] += 1
+    if left is not None:
+        left[0] -= 1
     return await get_json(f"{BASE}/v6/plan", params=params, source=SOURCE)
 
 
