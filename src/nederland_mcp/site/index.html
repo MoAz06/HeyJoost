@@ -410,6 +410,12 @@
     const money = new Intl.NumberFormat(english ? "en-GB" : "nl-NL", { style: "currency", currency: "EUR" });
     let tripCount = 0;
     const isWalk = (part) => !!part && "lopen" in part;
+    // The signs for what you ride (see rideRow). Up here, since restore() draws the cards of a kept conversation
+    // before the code further down has run: there it gave "Cannot access 'VEHICLES' before initialization".
+    const VEHICLES = {
+      trein: ["i-trein", "trein", "train"], tram: ["i-tram", "tram", "tram"], metro: ["i-metro", "metro", "metro"],
+      bus: ["i-bus", "bus", "bus"], veerboot: ["i-boot", "veerboot", "ferry"],
+    };
     // A time as people say it, 9:00, and Leiden Centraal as Leiden C, as on the boards at the station.
     const hour = (clock) => String(clock || "").replace(/^0(\d)/, "$1");
     const short = (name) => String(name || "").replace(/ Centraal$/, " C");
@@ -1351,11 +1357,6 @@
 
     // What you ride, as small signs with the line: train, then tram 22. Only for trips with a bus, tram, metro or
     // ferry in them, from the journey planner; a card of NS is all train. A kind without a sign gets its word.
-    const VEHICLES = {
-      trein: ["i-trein", "trein", "train"], tram: ["i-tram", "tram", "tram"], metro: ["i-metro", "metro", "metro"],
-      bus: ["i-bus", "bus", "bus"], veerboot: ["i-boot", "veerboot", "ferry"],
-    };
-
     function rides(trip) {
       return (trip.delen || []).filter((part) => part && !isWalk(part))
         .map((part) => ({ soort: part.soort ? String(part.soort) : "trein", lijn: part.soort && part.lijn ? String(part.lijn) : "" }));
