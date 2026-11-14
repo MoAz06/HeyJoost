@@ -364,11 +364,16 @@ async def trein_aankomst(
     title="Treinreis plannen",
     description=(
         "Reisadvies met de trein tussen twee stations: vertrek, aankomst, overstappen, vertraging, drukte en "
-        "prijs. Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
+        "prijs. Van en naar mogen ook een plaats, een adres of een plek zijn: dan neemt de tool zelf het station "
+        "erbij, het dichtstbijzijnde, en rekent het lopen uit tot ongeveer 1,5 km hemelsbreed. Dat staat in "
+        "'eerste_stuk' en 'laatste_stuk' en als deel met 'lopen_min' in 'delen', en vertrek, aankomst en reistijd zijn "
+        "dan van deur tot deur. Ligt de plek verder weg, dan neemt de tool het grote station in de buurt, staat er "
+        "'niet_berekend' bij dat stuk en houdt de trein 'speling_min' minuten vrij voor bus of tram: 15 minuten plus 3 "
+        "per km hemelsbreed. Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
         "komt zo vroeg mogelijk aan met zo min mogelijk overstappen (een overstap telt als 5 minuten, een krappe "
         "als 10). Met aankomst=true komen alleen reizen die op tijd aankomen, en vertrekt de beste zo laat "
-        "mogelijk; met lopen_min gaat daar eerst het laatste stuk en 5 minuten marge af, en staat bij elke reis in "
-        "'op_bestemming' hoe laat je er dan bent. Daarna volgen de andere "
+        "mogelijk; daarvoor gaan het lopen of de speling en 5 minuten marge van de tijd af ('op_tijd_voor'). Daarna "
+        "volgen de andere "
         "reizen op tijd; een reis die in alles slechter is dan een andere valt weg. 'overstaptijd' zegt per "
         "overstap in een zin hoeveel minuten je hebt en of dat krap (minder dan 5), genoeg of ruim (vanaf 10) is, en "
         "'tussenstops' per deel hoe vaak de trein onderweg stopt. Een reis zonder overstap zegt dat in een zin in "
@@ -386,15 +391,14 @@ async def trein_aankomst(
     annotations=READ_ONLY,
 )
 async def trein_reis(
-    van: Annotated[str, Field(description="Vertrekstation, bijvoorbeeld Den Haag Centraal")],
-    naar: Annotated[str, Field(description="Aankomststation, bijvoorbeeld Utrecht Centraal")],
+    van: Annotated[str, Field(description="Waar je vertrekt, zoals de bezoeker het zegt: een station (Den Haag Centraal), plaats (Utrecht), adres met plaats (Stadhuisplein 1 Leiden) of plek met plaats (Radboudumc Nijmegen)")],
+    naar: Annotated[str, Field(description="Waar je heen gaat, zoals de bezoeker het zegt: een station, plaats, adres met plaats of plek met plaats")],
     datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
-    tijd: Annotated[str | None, Field(description="Tijd als UU:MM. Leeg = nu")] = None,
-    aankomst: Annotated[bool, Field(description="True als de tijd de gewenste aankomsttijd is")] = False,
-    lopen_min: Annotated[int | None, Field(ge=0, le=120, description="Alleen met aankomst=true: hoeveel minuten je na de trein nog onderweg bent naar waar je op tijd moet zijn, zoals lopen of de tram, en 0 als dat het station zelf is. De tool haalt dat en 5 minuten marge van de tijd af. Leeg = precies op de tijd aankomen")] = None,
-    laatste: Annotated[bool, Field(description="True voor de laatste trein van die dag, of om zo laat mogelijk te vertrekken. Dan telt alleen de datum, niet tijd, aankomst of lopen_min")] = False,
+    tijd: Annotated[str | None, Field(description="Tijd als UU:MM: wanneer de bezoeker weg wil of er moet zijn, zonder er zelf lopen of marge af te halen. Leeg = nu")] = None,
+    aankomst: Annotated[bool, Field(description="True als de tijd is waarop je er moet zijn. De tool haalt het lopen of de speling voor bus of tram, en 5 minuten marge, er zelf af")] = False,
+    laatste: Annotated[bool, Field(description="True voor de laatste trein van die dag, of om zo laat mogelijk te vertrekken. Dan telt alleen de datum, niet tijd of aankomst")] = False,
 ) -> dict[str, Any]:
-    return await ns.trein_reis(van, naar, datum, tijd, aankomst, lopen_min, laatste)
+    return await ns.trein_reis(van, naar, datum, tijd, aankomst, laatste)
 
 
 @server.tool(

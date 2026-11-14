@@ -331,14 +331,11 @@
         ],
         "aankomst": true,
         "dag": "maandag",
-        "tijd": [
-          "08:40",
-          "08:55"
-        ]
+        "tijd": "08:55"
       }
     ],
     "keuze": "beste",
-    "goed": "Zoekt op aankomst tussen 08:40 en 08:55: het adres is onbekend, dus wat looptijd mag, plus 5 minuten marge."
+    "goed": "Zoekt op aankomst 08:55: Amsterdam is het station zelf, dus geen looptijd, wel 5 minuten marge."
   },
   {
     "id": "maandag-10-erasmusmc",
@@ -602,5 +599,219 @@
     "keuze": null,
     "zonder_toeslag": true,
     "goed": "Neemt de dinsdag van volgende week, zoekt op aankomst in Rotterdam met het laatste stuk en marge, zoekt terug laat op de avond, en raadt heen en terug een reis zonder toeslag aan."
+  },
+  {
+    "id": "morgen-21-nijmegen",
+    "vraag": "Ik wil morgen om 21:00 in Nijmegen aankomen, ik vertrek vanuit Leiden. Welke trein moet ik nemen?",
+    "zoek": [
+      {
+        "van": [
+          "Leiden Centraal"
+        ],
+        "naar": [
+          "Nijmegen"
+        ],
+        "aankomst": true,
+        "dag": "morgen",
+        "tijd": "20:55"
+      }
+    ],
+    "tags": [
+      "aankomst",
+      "dag",
+      "plaats"
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt op aankomst 20:55: in Nijmegen is het station het eind, dus geen looptijd, wel 5 minuten marge."
+  },
+  {
+    "id": "maandag-10-radboudumc",
+    "vraag": "Ik heb maandag om 10:00 een afspraak in het Radboudumc in Nijmegen en ik kom uit Utrecht. Welke trein?",
+    "zoek": [
+      {
+        "van": [
+          "Utrecht Centraal"
+        ],
+        "naar": [
+          "Heyendaal"
+        ],
+        "aankomst": true,
+        "dag": "maandag",
+        "tijd": [
+          "09:35",
+          "09:47"
+        ]
+      }
+    ],
+    "tags": [
+      "aankomst",
+      "dag",
+      "plek",
+      "lopen"
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt naar Nijmegen Heyendaal, het station bij het Radboudumc, met het lopen dat de tool uitrekent en 5 minuten marge."
+  },
+  {
+    "id": "dinsdag-stadhuis-leiden",
+    "vraag": "Ik moet dinsdag om 14:00 op het stadhuis van Leiden zijn, Stadhuisplein 1. Ik kom uit Den Haag. Welke trein?",
+    "zoek": [
+      {
+        "van": [
+          "Den Haag"
+        ],
+        "naar": [
+          "Leiden Centraal"
+        ],
+        "aankomst": true,
+        "dag": "dinsdag",
+        "tijd": [
+          "13:30",
+          "13:45"
+        ]
+      }
+    ],
+    "tags": [
+      "aankomst",
+      "dag",
+      "adres",
+      "lopen"
+    ],
+    "keuze": "beste",
+    "goed": "Zoekt naar Leiden Centraal, met het lopen naar het stadhuis dat de tool uitrekent en 5 minuten marge."
+  },
+  {
+    "id": "engels-arena",
+    "vraag": "I need to be at the Johan Cruijff ArenA on Sunday at 18:00, coming from Utrecht. Which train should I take?",
+    "zoek": [
+      {
+        "van": [
+          "Utrecht Centraal"
+        ],
+        "naar": [
+          "Bijlmer"
+        ],
+        "aankomst": true,
+        "dag": "zondag",
+        "tijd": [
+          "17:40",
+          "17:50"
+        ]
+      }
+    ],
+    "tags": [
+      "aankomst",
+      "dag",
+      "plek",
+      "lopen",
+      "engels"
+    ],
+    "keuze": "beste",
+    "taal": "en",
+    "goed": "Answers in English and searches to Amsterdam Bijlmer ArenA, with the walk the tool works out and 5 minutes margin."
+  },
+  {
+    "id": "heen-en-terug-lumc",
+    "vraag": "Ik moet morgen om 11:00 bij het LUMC in Leiden zijn en wil om 15:00 weer terug naar Amsterdam. Welke treinen?",
+    "zoek": [
+      {
+        "van": [
+          "Amsterdam"
+        ],
+        "naar": [
+          "Leiden Centraal"
+        ],
+        "aankomst": true,
+        "dag": "morgen",
+        "tijd": [
+          "10:48",
+          "10:55"
+        ]
+      },
+      {
+        "van": [
+          "Leiden Centraal"
+        ],
+        "naar": [
+          "Amsterdam"
+        ],
+        "aankomst": false,
+        "dag": "morgen",
+        "tijd": [
+          "15:00",
+          "15:08"
+        ]
+      }
+    ],
+    "tags": [
+      "aankomst",
+      "vertrek",
+      "dag",
+      "plek",
+      "lopen",
+      "twee reizen"
+    ],
+    "keuze": null,
+    "goed": "Zoekt heen op aankomst bij het LUMC en terug vanaf het LUMC, met het lopen van en naar Leiden Centraal dat de tool uitrekent."
+  },
+  {
+    "id": "zaterdag-14-kurhaus",
+    "vraag": "Hoe kom ik zaterdag om 14:00 bij het Kurhaus in Scheveningen? Ik kom uit Utrecht.",
+    "zoek": [
+      {
+        "van": [
+          "Utrecht Centraal"
+        ],
+        "naar": [
+          "Den Haag"
+        ],
+        "aankomst": true,
+        "dag": "zaterdag",
+        "tijd": [
+          "13:05",
+          "13:35"
+        ]
+      }
+    ],
+    "tags": [
+      "aankomst",
+      "dag",
+      "plek",
+      "laatste stuk",
+      "moeilijk"
+    ],
+    "keuze": null,
+    "goed": "Zoekt een trein naar Den Haag die op tijd is voor de tram naar het Kurhaus; welke trein mag Joost zelf kiezen, passend bij die aansluiting."
+  },
+  {
+    "id": "morgen-9-wassenaar",
+    "vraag": "Ik wil morgen om 9 uur vanuit Wassenaar met het ov naar Amsterdam Centraal. Welke trein haal ik?",
+    "zoek": [
+      {
+        "van": [
+          "Den Haag",
+          "Leiden",
+          "Wassenaar"
+        ],
+        "naar": [
+          "Amsterdam Centraal"
+        ],
+        "aankomst": false,
+        "dag": "morgen",
+        "tijd": [
+          "09:15",
+          "10:00"
+        ]
+      }
+    ],
+    "tags": [
+      "vertrek",
+      "dag",
+      "plaats zonder station",
+      "eerste stuk",
+      "moeilijk"
+    ],
+    "keuze": null,
+    "goed": "Zoekt een trein die vertrekt nadat de bus uit Wassenaar bij het station is, niet om 9:00 zelf."
   }
 ]

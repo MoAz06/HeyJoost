@@ -12,7 +12,9 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ..common import AMSTERDAM, cached, fmt_datetime, fmt_time, get_json, normalize, now_local, parse_moment, parse_time
+from ..common import (
+    AMSTERDAM, cached, fmt_datetime, fmt_time, get_json, normalize, now_local, parse_moment, parse_time, place_key,
+)
 
 BASE = "https://gateway.apiportal.ns.nl/reisinformatie-api/api"
 SOURCE = "NS Reisinformatie"
@@ -65,6 +67,20 @@ EXTRA_WORDS = {"station", "centraal", "central", "cs", "ns"}
 WALK = 800
 FURTHER = 2
 NEAR = 15_000
+# trein_reis works out a walk between a place and its station up to this far, as the crow flies. Further away it does
+# not guess: the stretch is said to be not worked out. Within it, a bigger station at most BIGGER further away than
+# the nearest is the better end, some 5 minutes more on foot for a train that stops there more often.
+WALK_FAR = 1500
+BIGGER = 300
+# Further away the stretch is not worked out, but the train leaves room for a bus or tram: SLACK minutes plus SLACK_KM
+# for each km as the crow flies, rounded up to five minutes and at most SLACK_MAX. Without it Haiku advised the train
+# that reached Utrecht Centraal 13 minutes before 9:00 for the Science Park, with a tram ride still to go. Now that is
+# 30 minutes, 20 for the Erasmus MC and 40 from Wassenaar to Den Haag Centraal.
+SLACK = 15
+SLACK_KM = 3
+SLACK_MAX = 60
+# From the platform to a bus or tram stop, or back: the minutes to change between them.
+CHANGE = 5
 WEEKDAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
 MONTHS = (
     "januari", "februari", "maart", "april", "mei", "juni",
@@ -186,27 +202,118 @@ async def _station(name: str) -> dict:
     return found
 
 
+async def _split(name: str) -> tuple[str, str | None]:
+    """A name with its town at the end, as 'LUMC Leiden' or 'Breestraat 70, Leiden', as the place and the town, which
+    ov_vertrek gets apart: the LUMC is then looked for around Leiden. Without a town at the end, the name alone."""
+    from . import plaats
+
+    words = name.replace(",", " ").split()
+    for size in (3, 2, 1):
+        if len(words) > size and await plaats.is_town(" ".join(words[-size:])):
+            return " ".join(words[:-size]), " ".join(words[-size:])
+    return name, None
+
+
+async def _where(name: str) -> dict | None:
+    """Where a name that is no station lies, as a point with 'lat', 'lon' and 'naam': an address, a place like the
+    Radboudumc, a stop, or else the middle of a town without a station, like Wassenaar. None when nothing is found. A
+    name in more than one town raises ov.Ambiguous, so the town can be asked."""
+    # ov finds stops and places at Transitous, and uses this module itself for the stations.
+    from . import ov, plaats
+
+    text, town = await _split(name)
+    try:
+        point, stop, _, sure = await ov._origin(text, town)
+    except ov.Ambiguous:
+        raise
+    except ToolError:
+        point, stop, sure = None, None, True
+    # ov_vertrek also takes a stop near the town, but for 'stadhuis Leiden' Zoetermeer Stadhuis is not the place.
+    away = bool(stop and town and place_key(town) not in ov._towns(stop))
+    # A stop found on the town alone, as Rotterdam Beurs for Rotterdam Ahoy, says little: the place itself first,
+    # and the stop only when it shares a word of its own with the name.
+    if stop and (away or not sure):
+        try:
+            point = await ov._spot(text, town)
+        except ToolError:
+            point = None
+        own = ov._town_words(stop)
+        if away or not (set(ov._words(ov._short(stop["name"]))) - own) & (set(ov._words(text)) - own):
+            stop = None
+    if point:
+        return point
+    if stop:
+        return {"lat": stop["lat"], "lon": stop["lon"], "naam": stop["name"]}
+    try:
+        found = await plaats.zoek(name)
+    except ToolError:
+        return None
+    return {"lat": found.lat, "lon": found.lon, "naam": found.naam}
+
+
+def _label(place: dict) -> str:
+    """The name of a place for the answer: an address without its postcode, and Den Haag as people call it."""
+    from . import plaats
+
+    return plaats.common_name(re.sub(r"\s*\b\d{4}\s?[A-Z]{2}\b", "", place.get("naam") or "").strip(" ,"))
+
+
+async def _end(name: str, stations: list[dict]) -> tuple[dict, dict | None]:
+    """The station for one end of a trip, and when the name is no station, the stretch between it and the place:
+    {"plek", "station", "meter"} plus "lopen_min" up to WALK_FAR, the walk worked out as in ov_vertrek. Within that
+    the nearest station with trains; further away the biggest near it, as _nearby says, where the most buses and trams
+    go, and the stretch is not worked out: "speling_min" is the room the train leaves for it (see SLACK)."""
+    from . import ov
+
+    found = _match(name, stations)
+    if found is not None:
+        return found, None
+    place = await _where(name)
+    nl = [s for s in stations if s.get("land") == "NL" and s.get("lat") and s.get("heeftVertrektijden")]
+    if place is None or not nl:
+        raise ToolError(
+            f"Geen station, adres of plek gevonden voor '{name}'. Noem een station, of een adres of plek met de "
+            "plaats erbij, zoals Radboudumc Nijmegen."
+        )
+
+    def far(station: dict) -> float:
+        return ov._distance(place, {"lat": station["lat"], "lon": station["lng"]})
+
+    nearest = min(nl, key=far)
+    if far(nearest) <= WALK_FAR:
+        # A bigger station hardly further away, as Leiden Centraal with its intercity trains rather than Leiden
+        # Lammenschans for the Hooglandse Kerk.
+        reach = min(WALK_FAR, far(nearest) + BIGGER)
+    else:
+        # Never closer than the nearest itself, which can be further than NEAR.
+        reach = max(far(nearest), min(NEAR, FURTHER * far(nearest)))
+    chosen = min((s for s in nl if far(s) <= reach), key=lambda s: (_size(s), far(s)))
+    metres = int(max(10, round(far(chosen), -1)))
+    stretch: dict[str, Any] = {"plek": _label(place), "station": _station_name(chosen), "meter": metres}
+    if far(chosen) <= WALK_FAR:
+        stretch["lopen_min"] = ov._walk(far(chosen))
+    else:
+        stretch["speling_min"] = _slack(far(chosen))
+    return chosen, stretch
+
+
+def _slack(metres: float) -> int:
+    """The minutes a train leaves for a bus or tram on a stretch this long as the crow flies (see SLACK)."""
+    return min(SLACK_MAX, 5 * math.ceil((SLACK + SLACK_KM * metres / 1000) / 5))
+
+
+def _lead(stretch: dict | None) -> int:
+    """The minutes between a place and the train: the walk worked out, or the room left for a bus or tram."""
+    return (stretch or {}).get("lopen_min") or (stretch or {}).get("speling_min") or 0
+
+
 async def _no_station(name: str, stations: list[dict]) -> str:
     """Why there is no train for this name, with the stations near the place it names. Without them Haiku guessed:
     for Utrecht Science Park it tried 'Utrecht Science Park Galgenwaard' and 'Bèta' before it took Utrecht Centraal."""
-    # ov finds stops and places at Transitous, and uses this module itself for the stations.
-    from . import ov
-
     try:
-        point, stop, _, sure = await ov._origin(name, None)
+        place = await _where(name)
     except ToolError:
-        point, stop, sure = None, None, True
-    # A stop found on the town alone, as Rotterdam Beurs for Rotterdam Ahoy, says little: the place itself first,
-    # and the stop only when it shares a word of its own with the name.
-    if stop and not sure:
-        try:
-            point = await ov._spot(name, None)
-        except ToolError:
-            point = None
-        town = ov._town_words(stop)
-        if not (set(ov._words(ov._short(stop["name"]))) - town) & (set(ov._words(name)) - town):
-            stop = None
-    place = point or stop
+        place = None
     nearby = _nearby(place, name, stations) if place else None
     if nearby is None:
         return (
@@ -235,7 +342,8 @@ def _nearby(place: dict, name: str, stations: list[dict]) -> str | None:
             f"{_station_name(nearest)} ligt op {max(10, round(far(nearest), -1)):.0f} meter, ongeveer {walk} "
             f"{'minuut' if walk == 1 else 'minuten'} lopen: zoek de trein van of naar dat station."
         )
-    reach = min(NEAR, FURTHER * far(nearest))
+    # Never closer than the nearest itself, which can be further than NEAR.
+    reach = max(far(nearest), min(NEAR, FURTHER * far(nearest)))
     biggest = min((s for s in nl if far(s) <= reach), key=lambda s: (_size(s), far(s)))
     text = f"Het dichtstbijzijnde station is {_station_name(nearest)}, op {_km(far(nearest))}"
     if biggest is not nearest and _size(biggest) < _size(nearest):
@@ -338,16 +446,28 @@ async def trein_reis(
     datum: str | None = None,
     tijd: str | None = None,
     aankomst: bool = False,
-    lopen_min: int | None = None,
     laatste: bool = False,
 ) -> dict:
-    origin, destination = await _station(van), await _station(naar)
+    """A train trip between two stations, or between places near them: an address, a town or a place like the
+    Radboudumc goes from or to its station, with the walk worked out (see _end). The times of a trip are then from
+    door to door, and the walks are parts of it. For an arrival the walk and MARGIN come off the asked time, here and
+    not by Haiku, which guessed: a quarter of an hour of walking to Nijmegen, which was the station itself."""
+    stations = await _stations()
+    (origin, first), (destination, last) = await _end(van, stations), await _end(naar, stations)
+    if origin.get("code") == destination.get("code"):
+        where = " en ".join(f"'{name}'" for name in (van, naar))
+        raise ToolError(
+            f"{where} liggen allebei bij {_station_name(origin)}, dus de trein helpt niet. Zoek bus, tram of metro met "
+            "ov_vertrek, of loop."
+        )
+    ends = (first, last)
+    lead_in, lead_out = _lead(first), _lead(last)
     if laatste:
-        return await _last(origin, destination, datum)
+        return await _last(origin, destination, datum, ends)
     asked = parse_moment(datum, tijd)
-    # The last stretch and the margin come off here: Haiku often forgot to do that itself.
-    before = lopen_min + MARGIN if aankomst and lopen_min is not None else 0
-    moment = asked - timedelta(minutes=before)
+    # For an arrival the walk or the room for a bus, and the margin, come off; for a departure you first get to the
+    # station.
+    moment = asked - timedelta(minutes=lead_out + MARGIN) if aankomst else asked + timedelta(minutes=lead_in)
 
     params = {
         "fromStation": origin.get("code"),
@@ -376,18 +496,20 @@ async def trein_reis(
     # NS also returns options just outside the asked time, such as a train that already left.
     fitting = [o for o in options if fits(o)]
     now = now_local()
+    # When you can be at the station at the earliest, with the walk or the bus there.
+    ready = now + timedelta(minutes=lead_in)
     # Searching from about now, a train that left more than a minute ago is no use, as long as there is another.
     near = moment >= now - timedelta(minutes=5)
     if near:
-        fitting = [o for o in fitting if o[0] >= now - timedelta(minutes=1)] or fitting
+        fitting = [o for o in fitting if o[0] >= ready - timedelta(minutes=1)] or fitting
     running = [o for o in fitting if not _cancelled(o)]
     if running:
-        chosen = _pick(running, aankomst, now if near else None)
+        chosen = _pick(running, aankomst, ready if near else None)
     else:
         # Nothing on time runs: show what NS has, so the answer can say so.
         chosen = (fitting[-MAX_TRIPS:][::-1] if aankomst else fitting[:MAX_TRIPS]) or options[:MAX_TRIPS]
 
-    trips = [_advice(option, near and _leaving(option[0], now), lopen_min if aankomst else None) for option in chosen]
+    trips = [_advice(option, near and _leaving(option[0] - timedelta(minutes=lead_in), now), ends) for option in chosen]
     if not trips:
         raise ToolError(
             f"Geen reisadvies gevonden van {_station_name(origin)} naar {_station_name(destination)}."
@@ -395,16 +517,20 @@ async def trein_reis(
         )
     if running:
         trips[0] = {"beste": True, **trips[0]}
+    kind = "aankomst" if aankomst else "vertrek"
     result: dict[str, Any] = {
-        "van": _station_name(origin),
-        "naar": _station_name(destination),
-        "gezocht_op": f"{'aankomst' if aankomst else 'vertrek'} {moment.strftime('%Y-%m-%d %H:%M')}",
+        **_ends(origin, destination, ends),
+        "gezocht_op": f"{kind} {moment.strftime('%Y-%m-%d %H:%M')}",
+        # The time the visitor gave, for the cards.
+        "gevraagd": f"{kind} {asked.strftime('%Y-%m-%d %H:%M')}",
         "dag": _day(moment),
         **({"dienstregeling": _timetable(moment.date())} if moment.date() > now.date() else {}),
     }
-    if before:
-        walk = f"{lopen_min} minuten lopen en " if lopen_min else ""
-        result["op_tijd_voor"] = f"{fmt_time(asked)}, met {walk}{MARGIN} minuten marge"
+    if aankomst:
+        walk, slack = ((last or {}).get(key) for key in ("lopen_min", "speling_min"))
+        room = (f"{walk} {'minuut' if walk == 1 else 'minuten'} lopen en " if walk
+                else f"{slack} minuten speling voor bus of tram en " if slack else "")
+        result["op_tijd_voor"] = f"{fmt_time(asked)}, met {room}{MARGIN} minuten marge"
     result["reisadviezen"] = trips
     if running and (gone := [o for o in fitting if _cancelled(o)]):
         # Often the first train runs and a connection does not, so say which trip, not which train.
@@ -412,12 +538,50 @@ async def trein_reis(
     return {**result, "bron": BRON}
 
 
-async def _last(origin: dict, destination: dict, datum: str | None) -> dict:
+def _ends(origin: dict, destination: dict, ends: tuple[dict | None, dict | None]) -> dict[str, Any]:
+    """Where a trip goes from and to: the stations, or the places with the stretch to and from their station."""
+    first, last = ends
+    found: dict[str, Any] = {
+        "van": first["plek"] if first else _station_name(origin),
+        "naar": last["plek"] if last else _station_name(destination),
+    }
+    if first:
+        found["eerste_stuk"] = _stretch(first, leaving=True)
+    if last:
+        found["laatste_stuk"] = _stretch(last, leaving=False)
+    return found
+
+
+def _stretch(stretch: dict, leaving: bool) -> dict[str, Any]:
+    """The stretch between a place and its station: the walk, or the room the train leaves for a bus or tram, with a
+    sentence that the stretch is not worked out and how to find it. The metres are as the crow flies. Searching again
+    with the same place would take the room off twice, so a train that does not fit gives way to another in the list."""
+    place, station = stretch["plek"], stretch["station"]
+    part: dict[str, Any] = {"van": place, "naar": station} if leaving else {"van": station, "naar": place}
+    part["meter"] = stretch["meter"]
+    if "lopen_min" in stretch:
+        return {**part, "lopen_min": stretch["lopen_min"]}
+    far, slack = _km(stretch["meter"]), stretch["speling_min"]
+    # Haiku advised a tram that left a minute after the train came in.
+    if leaving:
+        how = (f"Zoek de bus of tram met ov_vertrek vanaf '{place}', met naar {station} en de tijd waarop de bezoeker "
+               f"weg wil. Ben je minder dan {CHANGE} minuten voor het vertrek van de trein op het station, neem dan "
+               "een latere trein uit de lijst.")
+    else:
+        how = (f"Zoek de bus of tram met ov_vertrek vanaf {station}, met naar '{place}' en als tijd {CHANGE} minuten "
+               "na de aankomst van de trein, om over te stappen. Ben je dan te laat, neem dan een eerdere trein uit de "
+               "lijst.")
+    return {**part, "speling_min": slack, "niet_berekend": f"Dit stuk is {far} hemelsbreed en zit niet in de tijden: "
+            f"de trein is gekozen met {slack} minuten speling voor bus of tram. {how}"}
+
+
+async def _last(origin: dict, destination: dict, datum: str | None, ends: tuple[dict | None, dict | None]) -> dict:
     """The last trains of an evening, the very last first, and the night trains after them.
 
     NS searches forward from a time, so this starts at the end of the night and goes back page by page. Without a
     date, just after midnight it is still the night before.
     """
+    lead_in = _lead(ends[0])
     now = now_local()
     day = parse_moment(datum, None).date()
     if datum is None and now.hour < NIGHT_ENDS:
@@ -442,7 +606,8 @@ async def _last(origin: dict, destination: dict, datum: str | None) -> dict:
         context = page.get("scrollRequestBackwardContext")
     options = sorted(_unique(options), key=lambda option: option[0])
     if now < end:
-        options = [option for option in options if option[0] >= now - timedelta(minutes=1)]
+        # Only trains you can still reach, with the walk or the bus to the station.
+        options = [option for option in options if option[0] >= now + timedelta(minutes=lead_in - 1)]
     running = [option for option in options if not _cancelled(option)]
     evening = [option for option in running if option[0] < night]
     late = [option for option in running if option[0] >= night]
@@ -455,11 +620,10 @@ async def _last(origin: dict, destination: dict, datum: str | None) -> dict:
             f"{WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]}.{then}"
         )
 
-    trips = [_advice(option, _leaving(option[0], now)) for option in chosen]
+    trips = [_advice(option, _leaving(option[0] - timedelta(minutes=lead_in), now), ends) for option in chosen]
     trips[0] = {"laatste": True, **trips[0]}
     result: dict[str, Any] = {
-        "van": _station_name(origin),
-        "naar": _station_name(destination),
+        **_ends(origin, destination, ends),
         "gezocht_op": f"laatste trein {day.isoformat()}",
         # Just after midnight "gisteren" would read as if the trains had gone.
         "dag": f"{WEEKDAYS[day.weekday()]} {day.day} {MONTHS[day.month - 1]} (vannacht)"
@@ -513,19 +677,32 @@ async def _trips(params: dict) -> dict:
     )
 
 
-def _advice(option: tuple, leaving: bool, last_stretch: int | None = None) -> dict[str, Any]:
-    """A trip as trein_reis gives it; with the minutes of the last stretch also when you are there."""
+def _advice(option: tuple, leaving: bool, ends: tuple[dict | None, dict | None] = (None, None)) -> dict[str, Any]:
+    """A trip as trein_reis gives it. With a walk to or from the station (see _end) the times are from door to door,
+    and the walks are parts of the trip, so nobody has to add them up: Haiku once made 08:48 and a quarter of an hour
+    "rond 09:05"."""
     departure, arrival, trip, legs = option
+    first, last = ends
+    walk_in, walk_out = ((stretch or {}).get("lopen_min") or 0 for stretch in ends)
+    start, end = departure - timedelta(minutes=walk_in), arrival + timedelta(minutes=walk_out)
+    parts = [_leg(leg) for leg in legs]
+    if walk_in:
+        station = (legs[0].get("origin") or {}).get("name") or first["station"]
+        parts.insert(0, {"lopen_min": walk_in, "van": first["plek"], "vertrek": fmt_time(start), "naar": station,
+                         "aankomst": fmt_time(departure)})
+    if walk_out:
+        station = (legs[-1].get("destination") or {}).get("name") or last["station"]
+        parts.append({"lopen_min": walk_out, "van": station, "vertrek": fmt_time(arrival), "naar": last["plek"],
+                      "aankomst": fmt_time(end)})
+    duration = trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes")
     fare = trip.get("productFare") or {}
     changes = _changes(legs)
     advice = {
-        "vertrek": fmt_time(departure),
+        "vertrek": fmt_time(start),
         # Named, but not the best: Haiku once said a train that left two minutes late had gone.
         **({"vertrekt_nu": True} if leaving else {}),
-        "aankomst": fmt_time(arrival),
-        # Haiku added the last stretch itself and rounded: 08:48 and a quarter of an hour became "rond 09:05".
-        **({"op_bestemming": fmt_time(arrival + timedelta(minutes=last_stretch))} if last_stretch else {}),
-        "reistijd_min": trip.get("actualDurationInMinutes") or trip.get("plannedDurationInMinutes"),
+        "aankomst": fmt_time(end),
+        "reistijd_min": duration + walk_in + walk_out if isinstance(duration, int) else duration,
         "overstappen": trip.get("transfers"),
         # In words: from only the numbers Haiku wrote "die stopt niet over" or "stopt niet op Schiphol" for a train
         # that stops eight times. Replaying about 420 answers each way, such slips went from 19 to 3.
@@ -537,7 +714,7 @@ def _advice(option: tuple, leaving: bool, last_stretch: int | None = None) -> di
         "prijs_euro": fare["priceInCents"] / 100 if fare.get("priceInCents") else None,
         # Intercity direct and ICE cost extra on part of the way; the price above includes it.
         **({"toeslag_euro": fare["supplementInCents"] / 100} if fare.get("supplementInCents") else {}),
-        "delen": [_leg(leg) for leg in legs],
+        "delen": parts,
         "link": (trip.get("shareUrl") or {}).get("uri"),
     }
     if notes := _notes(trip):

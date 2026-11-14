@@ -13,7 +13,7 @@ import re
 import secrets
 import time
 from collections.abc import AsyncIterator
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 import anthropic
@@ -349,24 +349,12 @@ NO_FLIGHTS = (
 # Door to door: in pieces, or with the journey planner of Transitous once they agree to it (HEYJOOST_REISPLANNER,
 # see bronnen/reisplanner.py). Filled in by _system().
 NO_PLANNER = (
-    "- Een routeplanner heb je niet, dus van deur tot deur doe je in stukjes. Moet iemand vanaf een adres met de "
-    "trein naar een andere plaats, zoek dan tegelijk de trein met trein_reis vanaf het grote station in de buurt, "
-    "en met ov_vertrek de bus of tram vanaf het adres of de straat met naar dat station, dus niet naar de "
-    "eindbestemming. Noem de halte waar je opstapt en hoe ver die ongeveer is. De afstand is hemelsbreed, lopen "
-    "is iets verder.\n"
-    "- Moet iemand op een vaste tijd ergens zijn, plan dan terug vanaf die tijd en zoek de stukjes na elkaar in "
-    "plaats van tegelijk. Zoek eerst de trein met trein_reis, met aankomst=true, als tijd de tijd waarop iemand er "
-    "moet zijn, en lopen_min: hoe lang het laatste stuk vanaf het station duurt (reken 10 tot 15 minuten lopen als "
-    "je het niet weet, 20 als het laatste stuk met bus, tram of metro gaat, en alleen 0 als iemand op het station "
-    "zelf moet zijn). De tool haalt dat en 5 minuten marge van de tijd af, dus doe dat niet zelf. Bijvoorbeeld: "
-    "afspraak om 10:00 en een kwartier lopen, dan zoek je met tijd 10:00 en lopen_min 15. Hoe laat iemand er dan "
-    "is, staat in 'op_bestemming'. Neem de reis met 'beste', want die vertrekt zo laat mogelijk en is nog op tijd. "
-    "Zoek daarna de bus of tram naar het station, met als tijd een half uur voor die trein, en kies de laatste die "
-    "minstens 5 minuten voor vertrek bij het station is.\n"
-    "- Gaat het laatste stuk, van het station naar de bestemming, met bus, tram of metro, zoek dat dan na de trein "
-    "met ov_vertrek: halte is het station waar de trein aankomt, naar is de bestemming en tijd de aankomst van de "
-    "trein. Noem de eerste die minstens 5 minuten na aankomst vertrekt, waar je uitstapt en hoe laat je er bent "
-    "('op_bestemming')."
+    "- Een routeplanner heb je niet, maar trein_reis neemt als van en naar ook een plaats, adres of plek, zoals "
+    "'Radboudumc Nijmegen' of 'Stadhuisplein 1 Leiden'. Geef de woorden van de bezoeker door, en de tijd waarop hij "
+    "weg wil of er moet zijn: de tool kiest het station en rekent zelf met het lopen of de bus en 5 minuten marge, "
+    "dus trek daar zelf niets voor af.\n"
+    "- Staat er bij een stuk 'niet_berekend', doe dan wat daar staat, en noem waar je opstapt, waar je uitstapt en "
+    "hoe laat je er bent ('op_bestemming')."
 )
 PLANNER = (
     "- Van deur tot deur met het ov gebruik je reis_plannen, met het adres, de straat, het station of de plaats "
@@ -678,7 +666,7 @@ async def _answer(
         # The trips go to the page as cards, which show them above the answer, straight from NS (see _card).
         cards = False
         for use, result in zip(uses, results):
-            if use.name == "trein_reis" and not result["is_error"] and (card := _card(use.input, result["content"])):
+            if use.name == "trein_reis" and not result["is_error"] and (card := _card(result["content"])):
                 cards = True
                 yield {"type": "kaart", "kaart": card}
         # Haiku hears it right after the results too: from the system prompt alone it still wrote out every trip.
@@ -777,7 +765,7 @@ async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: 
     return {**result, "content": text or "Geen resultaat.", "is_error": bool(getattr(output, "is_error", False))}
 
 
-def _card(given: Any, content: str) -> dict[str, Any] | None:
+def _card(content: str) -> dict[str, Any] | None:
     """A trein_reis result as the page shows it: cards above Joost's answer with the best trip and at most two others.
     The sums are done here, with the thresholds of ns.py, so the page needs no rules of its own and the cards say what
     Joost was told. All times are as expected now. None when there is nothing to show."""
@@ -794,18 +782,31 @@ def _card(given: Any, content: str) -> dict[str, Any] | None:
         return None
     kind, day, at, last_day = searched.groups()
     kind = kind or "laatste"
-    given = given if isinstance(given, dict) else {}
     card: dict[str, Any] = {"van": _place(found.get("van")), "naar": _place(found.get("naar")), "soort": kind,
                             "datum": day or last_day}
+    # The trains go between these stations. A new card for them takes the place of the old one on the page, also when
+    # Joost searched again with the station instead of the place, as for an earlier train for the Erasmus MC.
+    first_stretch, last_stretch = (found.get(key) if isinstance(found.get(key), dict) else {}
+                                   for key in ("eerste_stuk", "laatste_stuk"))
+    card["route"] = (f"{_place(first_stretch.get('naar') or found.get('van'))} > "
+                     f"{_place(last_stretch.get('van') or found.get('naar'))}")
     asked = None
-    if kind == "aankomst":
-        # The tool searched that many minutes before the asked time: the last stretch and the margin.
-        walk = _whole(given.get("lopen_min"))
-        before = (walk + ns.MARGIN) if walk is not None else 0
-        asked = f"{datetime.fromisoformat(f'{day}T{at}') + timedelta(minutes=before):%H:%M}"
-        card.update({"tijd": asked, **({"lopen": walk} if walk else {})})
-    elif kind == "vertrek":
-        card["tijd"] = at
+    if kind in ("aankomst", "vertrek"):
+        # The time the visitor gave, not the one the tool searched with: that is earlier by the walk and the margin,
+        # or later by the walk to the station. Only from the result, never from what Haiku filled in.
+        requested = SEARCHED.fullmatch(found.get("gevraagd") or "")
+        card["tijd"] = requested[3] if requested and requested[1] == kind else at
+        asked = card["tijd"] if kind == "aankomst" else None
+    # A stretch to or from a station that is too far to walk is not in the times, and the card says so, with the room
+    # the train leaves for a bus or tram.
+    for key, side in (("eerste_stuk", "begin"), ("laatste_stuk", "eind")):
+        stretch = found.get(key)
+        if isinstance(stretch, dict) and stretch.get("niet_berekend") and isinstance(stretch.get("meter"), int | float):
+            slack = _whole(stretch.get("speling_min"))
+            card.setdefault("niet_berekend", []).append(
+                {"waar": side, "van": _place(stretch.get("van")), "naar": _place(stretch.get("naar")),
+                 "meter": stretch["meter"], **({"speling": slack} if slack else {})}
+            )
     if found.get("dienstregeling"):
         # A later day: the timetable, without delays.
         card["later"] = True
@@ -820,15 +821,13 @@ def _card(given: Any, content: str) -> dict[str, Any] | None:
 
 def _card_trip(trip: dict[str, Any], asked: str | None) -> dict[str, Any]:
     parts = [_card_part(part) for part in trip.get("delen") or [] if isinstance(part, dict)]
-    there = trip.get("op_bestemming") if _clock(trip.get("op_bestemming")) is not None else None
     link = trip.get("link")
     found: dict[str, Any] = {
         "vertrek": trip["vertrek"],
         "aankomst": trip["aankomst"],
         **{flag: True for flag, key in (("beste", "beste"), ("laatste", "laatste"), ("nu", "vertrekt_nu")) if trip.get(key)},
-        # For an arrival search: when you are where you have to be, and how many minutes before the asked time.
-        **({"bestemming": there} if there else {}),
-        **({"over": _gap(there or trip["aankomst"], asked)} if asked else {}),
+        # For an arrival search: how many minutes before the asked time you are there, walk included.
+        **({"over": _gap(trip["aankomst"], asked)} if asked else {}),
         "reistijd": _whole(trip.get("reistijd_min")),
         "overstappen": _card_changes(parts),
         "drukte": trip.get("drukte") if isinstance(trip.get("drukte"), str) else None,

@@ -279,6 +279,18 @@ async def zoek(plaats: str) -> Plaats:
     return Plaats(_name(doc), lat, lon, doc.get("gemeentenaam") or "", doc.get("provincienaam") or "", doc.get("type") or "")
 
 
+async def is_town(name: str) -> bool:
+    """Whether a name is a woonplaats, like Leiden in 'LUMC Leiden' or Den Haag in 'Kurhaus Den Haag'."""
+    wanted = _words(name)
+    if not wanted:
+        return False
+    try:
+        docs = await _search(name, "type:woonplaats", rows=5)
+    except ToolError:
+        return False
+    return any(_words(doc.get("woonplaatsnaam") or "") == wanted for doc in docs)
+
+
 def extra_words(query: str, place: Plaats) -> set[str]:
     """The words of a question that the place it found does not explain, like the street in 'Kinkerstraat Amsterdam'."""
     known = _words(place.naam) | _words(place.gemeente) | _words(place.provincie)

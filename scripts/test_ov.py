@@ -130,6 +130,13 @@ STREETS["dr. molewaterplein 40 rotterdam"] = [{
     "postcode": "3015GD", "woonplaatsnaam": "Rotterdam", "gemeentenaam": "Rotterdam",
     "centroide_ll": "POINT(4.468644 51.911926)",
 }]
+# Roads named after the town, exits of the A4: no street that 'LUMC Leiden' names.
+STREETS["lumc leiden"] = [
+    {"type": "weg", "weergavenaam": "Leiden, Leiden", "straatnaam": "Leiden", "woonplaatsnaam": "Leiden",
+     "gemeentenaam": "Leiden", "centroide_ll": "POINT(4.49944387 52.13339256)"},
+    {"type": "weg", "weergavenaam": "Leiden 7, Leiden", "straatnaam": "Leiden 7", "woonplaatsnaam": "Leiden",
+     "gemeentenaam": "Leiden", "centroide_ll": "POINT(4.49072275 52.13028309)"},
+]
 SEARCHES[("PLACE", "uithof utrecht")] = [found("De Uithof", "Utrecht", (52.0893, 5.1639), "PLACE")]
 SEARCHES[("PLACE", "binnenhof")] = [
     found("Binnenhof", "Leiderdorp", (52.1643, 4.5364), "PLACE", "neighbourhood"),
@@ -284,6 +291,10 @@ async def main() -> None:
     point, best, _, _ = await ov._origin("Hofplein", "Rotterdam")
     check("een halte die er alleen op lijkt (P.C. Hooftplein) wijkt voor de straat met precies die naam",
           bool(point) and point["naam"] == "Hofplein, Rotterdam" and best is None, (point, best and best["name"]))
+    check("een weg die alleen zo heet als de plaats, is niet wat 'LUMC Leiden' bedoelt",
+          await ov._address("LUMC Leiden", None, fuzzy=False) is None and await ov._address("LUMC Leiden", None) is None)
+    check("een straat met de plaats erachter blijft gewoon die straat",
+          (await ov._address("Hofplein Rotterdam", None) or {}).get("naam") == "Hofplein, Rotterdam")
     point = await ov._spot("LUMC", "Leiden")
     check("een plek met een hoofdingang: de hoofdingang, niet het kantoor of de parkeergarage",
           bool(point) and point["naam"] == "LUMC Hoofdingang, Leiden", point)

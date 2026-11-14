@@ -411,6 +411,8 @@
     const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
     const minutes = (n, long) => long ? t(`${n} ${n === 1 ? "minuut" : "minuten"}`, `${n} minute${n === 1 ? "" : "s"}`) : `${n} min`;
     const flat = (parts) => parts.map((part) => typeof part === "object" ? part.b : part).join("");
+    // Metres as the crow flies in km, as 2,6 km.
+    const km = (metres) => `${(Math.round(metres / 100) / 10).toLocaleString(english ? "en-GB" : "nl-NL")} km`;
 
     // Lees voor: the answer read aloud by a voice on this device itself, so the text goes nowhere. Without such a
     // voice for the language of the answer there is no button.
@@ -622,7 +624,8 @@
       const wheres = [];
       let over = null;
       let looked = [];
-      // The trips as cards, one set per route: a second search for the same route replaces the first.
+      // The trips as cards, one set per route: a second search for the same trains replaces the first, also when it
+      // names the station instead of the place, as for an earlier train to Rotterdam Centraal for the Erasmus MC.
       const cards = [];
       // What went wrong, if anything, and whether the server said it was done.
       let failure = null;
@@ -683,7 +686,7 @@
           done();
           paint(true);
           bubble = null;
-          const key = `${event.kaart.van} ${event.kaart.naar}`;
+          const key = event.kaart.route || `${event.kaart.van} ${event.kaart.naar}`;
           const old = cards.findIndex((item) => item.key === key);
           if (old >= 0) cards.splice(old, 1)[0].el.remove();
           const el = tripCards(event.kaart);
@@ -1227,21 +1230,40 @@
         off && t("Rijdt niet", "Cancelled")].filter(Boolean);
     }
 
+    // The walks the tool worked out, to the station at the start and from it at the end (see _advice in ns.py). The
+    // times on the card are from door to door then.
+    function walks(trip) {
+      const parts = (trip.delen || []).filter(Boolean);
+      const trains = parts.filter((part) => !isWalk(part)).length;
+      return { first: trains && isWalk(parts[0]) ? parts[0] : null, last: trains && isWalk(parts.at(-1)) ? parts.at(-1) : null };
+    }
+
+    // A stretch to or from the station that is too far to walk: it is not in the times (see _card in vraag.py).
+    function unworked(card, side) {
+      return ((card && card.niet_berekend) || []).find((stretch) => stretch && stretch.waar === side && typeof stretch.meter === "number") || null;
+    }
+
     // Under the times: for an arrival search how much time you have left, otherwise the platform and how long it takes.
     function spare(card, trip, long) {
+      const { first, last } = walks(trip);
       if (card.soort === "aankomst") {
-        if (card.lopen && trip.bestemming) return [t("Je bent er om ", "You’re there at "), { b: trip.bestemming }];
         if (typeof trip.over !== "number" || !card.tijd) return [];
-        if (trip.over === 0) return [t("Aankomst precies om ", "Arrives right at "), { b: hour(card.tijd) }];
-        return [t("Aankomst ", "Arrives "), { b: minutes(Math.abs(trip.over), long) },
+        const end = unworked(card, "eind");
+        // With the walk worked out you are there; with a stretch too far to walk only at the station.
+        const lead = end ? t(`Op ${short(end.van)} `, `At ${short(end.van)} `)
+          : last ? t(`Met ${minutes(last.lopen, long)} lopen ben je er `, `With a ${minutes(last.lopen, long)} walk you’re there `)
+          : t("Aankomst ", "Arrives ");
+        if (trip.over === 0) return [lead + t("precies om ", "right at "), { b: hour(card.tijd) }];
+        return [lead, { b: minutes(Math.abs(trip.over), long) },
           (trip.over > 0 ? t(" vóór ", " before ") : t(" na ", " after ")) + hour(card.tijd)];
       }
       const train = (trip.delen || []).find((part) => part && !isWalk(part));
-      const parts = train && train.spoor ? [t("Spoor ", "Platform "), { b: train.spoor }] : [];
-      if (typeof trip.reistijd === "number") {
-        const time = duration(trip.reistijd, long);
-        parts.push(parts.length ? (long ? ", " : " · ") + t("reistijd ", "journey ") + time : t("Reistijd ", "Journey ") + time);
-      }
+      const parts = [];
+      const add = (...bits) => parts.push(...(parts.length ? [long ? ", " : " · "] : []), ...bits);
+      if (first) add(t(`${minutes(first.lopen, long)} lopen naar `, `${minutes(first.lopen, long)} walk to `) + short(first.naar));
+      if (train && train.spoor) add(t("spoor ", "platform "), { b: train.spoor });
+      if (typeof trip.reistijd === "number") add(t("reistijd ", "journey ") + duration(trip.reistijd, long));
+      if (typeof parts[0] === "string") parts[0] = capital(parts[0]);
       return parts;
     }
 
@@ -1285,13 +1307,21 @@
       return [!shared.drukte && trip.drukte && nsWord(trip.drukte), !shared.prijs && price(trip)].filter(Boolean);
     }
 
-    // In orange: that a train leaving now only works if you are there, a status like works, and a delay.
-    function warnings(trip, long) {
+    // In orange: that a train leaving now only works if you are there, a status like works, a delay, and a stretch
+    // too far to walk that is not in the times.
+    function warnings(card, trip, long) {
       const first = (trip.delen || []).find((part) => part && !isWalk(part));
+      const begin = unworked(card, "begin");
+      const end = unworked(card, "eind");
+      // The room the train leaves for a bus or tram on that stretch.
+      const room = (stretch) => typeof stretch.speling === "number"
+        ? t(`, ${minutes(stretch.speling, long)} speling`, `, ${minutes(stretch.speling, long)} to spare`) : "";
       return [
         trip.nu && t("Haal je alleen als je er al bent", "Only if you’re already there"),
         trip.status && trip.status !== "rijdt niet" && capital(nsWord(trip.status)),
         first && first.vertraging && t(`${minutes(first.vertraging, long)} later dan gepland`, `${minutes(first.vertraging, long)} later than planned`),
+        begin && t(`Eerste stuk niet berekend (${km(begin.meter)})`, `First stretch not worked out (${km(begin.meter)})`) + room(begin),
+        end && t(`Laatste stuk niet berekend (${km(end.meter)})`, `Last stretch not worked out (${km(end.meter)})`) + room(end),
       ].filter(Boolean);
     }
 
@@ -1301,10 +1331,6 @@
       const lines = [];
       if (together.length) {
         lines.push(`${list.length === 2 ? t("Allebei", "Both") : t("Allemaal", "All")} ${together.join(t(" en ", " and "))}.`);
-      }
-      if (card.lopen) {
-        lines.push(t(`Met ${minutes(card.lopen, long)} voor het laatste stuk vanaf het station.`,
-          `With ${minutes(card.lopen, long)} for the last bit from the station.`));
       }
       if (card.later && weekday(card.datum) >= 0) {
         lines.push(t(`Vertraging zie je pas op ${WEEKDAYS[weekday(card.datum)]} zelf.`, `Delays only show on ${WEEKDAYS[weekday(card.datum)]} itself.`));
@@ -1344,10 +1370,10 @@
         if (left.length) open.append(make("span", "reis-marge", ...left));
         const change = [changes(trip, false), ...facts(trip, shared)].filter(Boolean).join(" · ");
         if (change) open.append(make("span", "reis-over", change));
-        const warn = warnings(trip, false);
+        const warn = warnings(card, trip, false);
         if (warn.length) open.append(make("span", "reis-let", warn.join(" · ")));
 
-        const route = make("div", "reis-meer", stops(trip));
+        const route = make("div", "reis-meer", stops(card, trip));
         route.id = id;
         route.hidden = true;
         const notes = (trip.meldingen || []).filter((text) => typeof text === "string" && text);
@@ -1383,10 +1409,12 @@
       return box;
     }
 
-    // The route of a trip as a line from stop to stop: where you get on, change and get off, with the platforms.
-    function stops(trip) {
+    // The route of a trip as a line from stop to stop: where you get on, change and get off, with the platforms. A
+    // stretch too far to walk is a dotted line without minutes, in orange.
+    function stops(card, trip) {
       const list = make("ol", "haltes");
-      const parts = (trip.delen || []).filter(Boolean);
+      const open = (stretch) => stretch ? [{ lopen: null, van: stretch.van, naar: stretch.naar, meter: stretch.meter, speling: stretch.speling }] : [];
+      const parts = [...open(unworked(card, "begin")), ...(trip.delen || []).filter(Boolean), ...open(unworked(card, "eind"))];
       const left = [...(trip.overstappen || [])];
       const stop = (kind, time, station, platform) => make("li", "halte " + kind, make("time", "", time || ""), mark(),
         make("div", "", make("b", "", station || ""), platform ? " " : null, platform ? make("span", "spoor", t("spoor ", "platform ") + platform) : null));
@@ -1398,8 +1426,13 @@
         if (isWalk(part)) {
           if (!before) list.append(stop("begin te-voet", part.vertrek, part.van));
           else if (!isWalk(before)) list.append(stop("aan", before.aankomst, before.naar));
-          const walk = t(`${minutes(part.lopen || 0)} lopen`, `${minutes(part.lopen || 0)} walk`);
-          list.append(between("loop", walk + (part.naar && !last ? t(" naar ", " to ") + part.naar : "")));
+          if (typeof part.meter === "number") {
+            const room = typeof part.speling === "number" ? t(`, ${minutes(part.speling)} speling`, `, ${minutes(part.speling)} to spare`) : "";
+            list.append(between("loop", make("span", "let", t(`Niet berekend, ${km(part.meter)} hemelsbreed`, `Not worked out, ${km(part.meter)} as the crow flies`) + room)));
+          } else {
+            const walk = t(`${minutes(part.lopen || 0)} lopen`, `${minutes(part.lopen || 0)} walk`);
+            list.append(between("loop", walk + (part.naar && !last ? t(" naar ", " to ") + part.naar : "")));
+          }
           if (last) list.append(stop("eind te-voet", part.aankomst, part.naar));
           before = part;
           return;
@@ -1454,7 +1487,7 @@
         lines.push(t(`Treinen van ${card.van} naar ${card.naar}, `, `Trains from ${card.van} to ${card.naar}, `) + when(card, true) + ".");
         for (const trip of list) {
           const head = trip.beste ? t("Beste reis", "Best trip") : trip.laatste ? t("Laatste trein", "Last train") : t("Of", "Or");
-          const parts = [flat(spare(card, trip, true)), changes(trip, true), ...facts(trip, shared), ...warnings(trip, true)]
+          const parts = [flat(spare(card, trip, true)), changes(trip, true), ...facts(trip, shared), ...warnings(card, trip, true)]
             .filter(Boolean).map((part) => part.charAt(0).toLowerCase() + part.slice(1));
           lines.push(`${head}: ${[`${trip.vertrek} ${t("tot", "to")} ${trip.aankomst}`, ...parts].join(", ")}.`);
         }

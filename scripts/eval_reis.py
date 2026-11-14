@@ -70,6 +70,8 @@ MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augus
 MONTHS_EN = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
              "november", "december"]
 
+# The tools that plan a trip; reis_plannen only with HEYJOOST_REISPLANNER=1.
+TRIP_TOOLS = {"trein_reis", "reis_plannen"}
 TIME = re.compile(r"(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])")
 SEARCHED = re.compile(r"(vertrek|aankomst|laatste trein) (\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?")
 PLATFORM = re.compile(r"\b(?:spoor|platform|track)\s+(\d+[a-z]?)\b", re.I)
@@ -93,6 +95,8 @@ MINUTES = re.compile(r"(\d+)\s*(?:minuten|minuut|minutes?|min)\b", re.I)
 # walking, a margin or a delay.
 NOT_CHANGE_BEFORE = re.compile(
     r"(?:\b(?:reis|rit|reistijd|trip|journey|ride)\s+(?:duurt|is|van|takes|of)|\b(?:over|na|binnen|in|within|after)|"
+    # "Van station Heyendaal loop je nog 13 minuten": walking, after a sentence about the transfer.
+    r"\b(?:loop|loopt|lopen|wandel\w*|walk\w*)(?:\s+(?:je|jij|u|nog|dan|daarna|for|then))*|"
     r"\bdoet\s+er|\b(?:it|that|which)\s+takes)"
     r"\s+(?:ongeveer\s+|ruim\s+|maar\s+|zo'?n\s+|about\s+|just\s+)?$",
     re.I,
@@ -305,10 +309,10 @@ def _minutes(clock: str) -> int:
 
 
 def _calls(lookups: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Every trein_reis lookup that worked, with what NS was asked."""
+    """Every trip lookup that worked, with what Haiku filled in and what was searched with it."""
     calls = []
     for lookup in lookups:
-        if lookup["name"] != "trein_reis" or lookup["is_error"]:
+        if lookup["name"] not in TRIP_TOOLS or lookup["is_error"]:
             continue
         try:
             result = json.loads(lookup["content"])
@@ -319,12 +323,17 @@ def _calls(lookups: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         kind, day, clock = found.groups()
         # The last train has no time: the tool looks from late in the evening into the night.
-        calls.append({"result": result, "aankomst": kind == "aankomst", "dag": date.fromisoformat(day), "tijd": clock or "23:59"})
+        calls.append({"result": result, "input": lookup.get("input") or {}, "aankomst": kind == "aankomst",
+                      "dag": date.fromisoformat(day), "tijd": clock or "23:59"})
     return calls
 
 
 def _route(spec: dict[str, Any], call: dict[str, Any]) -> bool:
-    van, naar = (call["result"].get("van") or "").lower(), (call["result"].get("naar") or "").lower()
+    """Whether a search went this way: by the place asked, or by the station the tool took for it."""
+    result = call["result"]
+    first, last = (result.get(key) if isinstance(result.get(key), dict) else {} for key in ("eerste_stuk", "laatste_stuk"))
+    van = f"{result.get('van') or ''} | {first.get('naar') or ''}".lower()
+    naar = f"{result.get('naar') or ''} | {last.get('van') or ''}".lower()
     return any(name.lower() in van for name in spec["van"]) and any(name.lower() in naar for name in spec["naar"])
 
 
@@ -370,7 +379,8 @@ def _expected(spec: dict[str, Any]) -> str:
 
 
 def _check_zoek(case: dict[str, Any], calls: list[dict[str, Any]], started: datetime) -> tuple[int, str]:
-    problems = []
+    # Since 0.37.0 the tool works out the walk; minutes Haiku fills in itself are a guess (see ns.trein_reis).
+    problems = [f"vult zelf lopen_min {call['input']['lopen_min']} in" for call in calls if call["input"].get("lopen_min")][:1]
     for spec in case["zoek"]:
         route = [call for call in calls if _route(spec, call)]
         if not route:
@@ -461,9 +471,19 @@ def _check_anders(case: dict[str, Any], calls: list[dict[str, Any]], answer: str
     return (1, "") if len(others) <= 1 else (0, f"noemt {len(others)} andere reizen: {', '.join(others)}")
 
 
+def _legs(trip: dict[str, Any]) -> list[dict[str, Any]]:
+    """The trains of a trip, without the walks to, from or between them."""
+    return [part for part in trip.get("delen") or [] if "lopen_min" not in part]
+
+
 def _departures(trip: dict[str, Any]) -> set[str]:
-    """The times a trip goes by: when it leaves, and when it was meant to."""
-    return {trip["vertrek"], *(part["vertrek"] for part in (trip.get("delen") or [])[:1])}
+    """The times a trip goes by: when it leaves, and when it was meant to. With a walk to the station first, also
+    when the train leaves, as it is meant to and as it is expected."""
+    parts = trip.get("delen") or []
+    found = {trip["vertrek"], *(part["vertrek"] for part in parts[:1])}
+    if parts and "lopen_min" in parts[0]:
+        found.add(parts[0].get("aankomst"))
+    return found | {part["vertrek"] for part in _legs(trip)[:1]}
 
 
 def _check_nu(answer: str, trips: list[dict[str, Any]], raw: dict[str, Any] | None = None) -> tuple[int | None, str]:
@@ -547,21 +567,22 @@ def _sentences(answer: str) -> list[str]:
 
 
 def _gaps(trip: dict[str, Any]) -> list[int]:
-    parts = trip.get("delen") or []
+    """The minutes between one train and the next. A walk to or from a station is no transfer."""
+    parts = _legs(trip)
     return [(_minutes(b["vertrek"]) - _minutes(a["aankomst"])) % 1440 for a, b in zip(parts, parts[1:])]
 
 
 def _allowed_gaps(trip: dict[str, Any]) -> set[int]:
     """The minutes to change in a trip; also right is the time left with the delay of the next train."""
     gaps = _gaps(trip)
-    return set(gaps) | {gap + (part.get("vertraging_min") or 0) for gap, part in zip(gaps, (trip.get("delen") or [])[1:])}
+    return set(gaps) | {gap + (part.get("vertraging_min") or 0) for gap, part in zip(gaps, _legs(trip)[1:])}
 
 
 def _check_overstap(
     answer: str, chosen: dict[str, Any] | None, pool: list[dict[str, Any]], card: dict[str, Any] | None = None
 ) -> tuple[int | None, str]:
     """Minutes to change and their word, as NS gave them; the card names them too, so then the answer need not."""
-    if chosen is None or len(chosen.get("delen") or []) < 2:
+    if chosen is None or len(_legs(chosen)) < 2:
         return None, ""
     gaps, own = _gaps(chosen), _allowed_gaps(chosen)
     # The answer may also name the minutes of another trip it mentions.
@@ -597,7 +618,9 @@ def _check_overstap(
                 if near in others:
                     continue
                 check = [near[1]] if near else gaps if len(gaps) == 1 else []
-                if any(not fits(gap) for gap in check):
+                # Without a number, a late next train counts too: 4 minutes as planned and 8 late is 12, ruim.
+                late = [] if near or len(gaps) != 1 else sorted(own - set(gaps))
+                if any(not fits(gap) for gap in check) and not any(fits(gap) for gap in late):
                     problems.append(f"'{name}' bij {'/'.join(map(str, check))} minuten")
     if not own & set(stated) and not (card and card.get("overstappen")):
         problems.append(f"noemt de overstaptijd niet ({'/'.join(map(str, gaps))} minuten)")
@@ -949,7 +972,7 @@ def _selftest(variant: str, cases: dict[str, dict[str, Any]]) -> None:
         if target is None:
             continue
         english = case.get("taal") == "en"
-        first = target["delen"][0]
+        first = (_legs(target) or target["delen"])[0]
         if english:
             right = f"Take the **{target['vertrek']}** from platform {first['spoor']}. You arrive at **{target['aankomst']}**."
         else:

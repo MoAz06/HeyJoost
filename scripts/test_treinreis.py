@@ -78,12 +78,23 @@ def at_now(now: datetime) -> None:
     ns.now_local = common.now_local = lambda: now
 
 
+# Places that are no station, with their stretch as ns._end gives it.
+ENDS: dict[str, dict] = {
+    "Binnenhof Den Haag": {"plek": "Binnenhof, Den Haag", "station": "Den Haag Centraal", "meter": 600, "lopen_min": 10},
+    "Hooglandse Kerk Leiden": {"plek": "Hooglandse Kerk, Leiden", "station": "Leiden Centraal", "meter": 1300,
+                               "lopen_min": 22},
+    "Kurhaus": {"plek": "Kurhaus, Den Haag", "station": "Den Haag Centraal", "meter": 4400, "speling_min": 30},
+    "Wassenaar": {"plek": "Wassenaar", "station": "Leiden Centraal", "meter": 7300, "speling_min": 40},
+}
+
+
 async def reis(
     trips: list[dict], now: datetime, earlier: tuple[list[dict], ...] = (), later: tuple[list[dict], ...] = (),
-    **kwargs: Any,
+    van: str = "Leiden Centraal", naar: str = "Den Haag Centraal", ends: dict[str, dict] = ENDS, **kwargs: Any,
 ) -> dict:
     """trein_reis from Leiden to Den Haag when NS has these trips, at this moment. Going back, NS gives the pages in
-    `earlier`, each before the one before it, and going on the ones in `later`. What NS was asked ends up in `asked`."""
+    `earlier`, each before the one before it, and going on the ones in `later`. What NS was asked ends up in `asked`.
+    A name in `ends` is a place near a station."""
     asked.clear()
 
     async def get_json(url: str, params: dict, **kwargs: Any) -> dict:
@@ -98,15 +109,20 @@ async def reis(
         page = (earlier if way == "terug" else later)[number - 1] if way else trips
         return {"trips": page, **links}
 
-    async def station(name: str) -> dict:
-        return {"code": name[:3].upper(), "namen": {"lang": name}}
+    async def stations() -> list[dict]:
+        return []
+
+    async def end(name: str, found: list[dict]) -> tuple[dict, dict | None]:
+        stretch = ends.get(name)
+        station = stretch["station"] if stretch else name
+        return {"code": station[:3].upper(), "namen": {"lang": station}}, stretch
 
     async def uncached(key: tuple, ttl: float, fetch: Any) -> Any:
         return await fetch()
 
-    ns.get_json, ns._station, ns.cached = get_json, station, uncached
+    ns.get_json, ns._stations, ns._end, ns.cached = get_json, stations, end, uncached
     at_now(now)
-    return await ns.trein_reis("Leiden Centraal", "Den Haag Centraal", **kwargs)
+    return await ns.trein_reis(van, naar, **kwargs)
 
 
 def times(result: dict) -> list[str]:
@@ -158,7 +174,7 @@ async def main() -> None:
           second["vertrek"] == "10:00" and second.get("vertrekt_nu") and "beste" not in second
           and second["delen"][0]["vertrek"] == "09:58" and second["delen"][0]["vertraging_min"] == 2, second)
     result = await reis([direct("09:40", "10:10"), direct("10:00", "10:30"), direct("10:10", "10:38")], now,
-                        tijd="10:40", aankomst=True)
+                        tijd="10:45", aankomst=True)
     check("trein_reis bij aankomst: een trein die al weg is valt weg, die van nu staat erbij",
           times(result) == ["10:10", "10:00"] and result["reisadviezen"][1].get("vertrekt_nu"), result["reisadviezen"])
     result = await reis([direct("10:00", "10:12"), direct("10:06", "10:18")], at("12:00"), tijd="10:00")
@@ -172,19 +188,62 @@ async def main() -> None:
           times(result) == ["21:04", "21:10"] and len(asked) == 2, result["reisadviezen"])
 
     # What trein_reis says about a trip.
-    result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="09:00", aankomst=True,
-                        lopen_min=15)
-    check("lopen_min: het laatste stuk en de marge gaan eraf",
-          result["gezocht_op"] == "aankomst 2026-10-26 08:40"
-          and result["op_tijd_voor"] == "09:00, met 15 minuten lopen en 5 minuten marge", result)
-    check("lopen_min: hoe laat je er bent", result["reisadviezen"][0].get("op_bestemming") == "08:50",
-          result["reisadviezen"][0])
+    result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="09:00", aankomst=True)
+    check("aankomen op een station: altijd 5 minuten marge, en de tijd die gevraagd is",
+          result["gezocht_op"] == "aankomst 2026-10-26 08:55" and result["gevraagd"] == "aankomst 2026-10-26 09:00"
+          and result["op_tijd_voor"] == "09:00, met 5 minuten marge" and "laatste_stuk" not in result, result)
     check("dag in woorden", result["dag"] == "maandag 26 oktober (over 3 dagen)", result["dag"])
-    result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="09:00", aankomst=True,
-                        lopen_min=0)
-    check("lopen_min 0: alleen de marge", result["gezocht_op"] == "aankomst 2026-10-26 08:55"
-          and result["op_tijd_voor"] == "09:00, met 5 minuten marge"
-          and "op_bestemming" not in result["reisadviezen"][0], result)
+    result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, naar="Binnenhof Den Haag", datum="2026-10-26",
+                        tijd="09:00", aankomst=True)
+    option = result["reisadviezen"][0]
+    check("aankomen bij een plek: het lopen en de marge gaan eraf, uitgerekend en niet gegokt",
+          result["gezocht_op"] == "aankomst 2026-10-26 08:45" and result["gevraagd"] == "aankomst 2026-10-26 09:00"
+          and result["op_tijd_voor"] == "09:00, met 10 minuten lopen en 5 minuten marge", result)
+    check("bij een plek: de plek is het eind, met het stuk lopen vanaf het station",
+          result["naar"] == "Binnenhof, Den Haag" and result["laatste_stuk"]
+          == {"van": "Den Haag Centraal", "naar": "Binnenhof, Den Haag", "meter": 600, "lopen_min": 10}, result)
+    check("de tijden van deur tot deur, met het lopen als laatste deel",
+          (option["vertrek"], option["aankomst"], option["reistijd_min"]) == ("08:00", "08:45", None)
+          and option["delen"][-1] == {"lopen_min": 10, "van": "Den Haag Centraal", "vertrek": "08:35",
+                                      "naar": "Binnenhof, Den Haag", "aankomst": "08:45"}, option)
+    result = await reis([direct("09:30", "09:55"), direct("09:45", "10:10")], at("09:00"), van="Hooglandse Kerk Leiden",
+                        tijd="09:15")
+    first = result["reisadviezen"][0]
+    check("vertrekken vanaf een plek: eerst lopen, dus de trein na de tijd plus het lopen",
+          result["gezocht_op"] == "vertrek 2026-10-26 09:37" and result["gevraagd"] == "vertrek 2026-10-26 09:15"
+          and result["van"] == "Hooglandse Kerk, Leiden", result)
+    check("vertrekken vanaf een plek: weg om 09:23 voor de trein van 09:45, met het lopen als eerste deel",
+          (first["vertrek"], first["aankomst"]) == ("09:23", "10:10") and first["delen"][0]
+          == {"lopen_min": 22, "van": "Hooglandse Kerk, Leiden", "vertrek": "09:23", "naar": "Leiden Centraal",
+              "aankomst": "09:45"}, first)
+    result = await reis([direct("10:20", "10:40"), direct("10:30", "10:50")], at("10:00"), van="Hooglandse Kerk Leiden")
+    check("nu vertrekken vanaf een plek: geen trein die je lopend niet meer haalt",
+          times(result) == ["10:08"] and result["reisadviezen"][0]["delen"][1]["vertrek"] == "10:30", result["reisadviezen"])
+    result = await reis([direct("07:45", "08:20"), direct("08:00", "08:35")], FRIDAY_NOON, naar="Kurhaus",
+                        datum="2026-10-26", tijd="09:00", aankomst=True)
+    stretch = result["laatste_stuk"]
+    check("een plek te ver om te lopen: het station, niet uitgerekend, met 30 minuten speling en 5 marge",
+          result["gezocht_op"] == "aankomst 2026-10-26 08:25" and result["gevraagd"] == "aankomst 2026-10-26 09:00"
+          and result["op_tijd_voor"] == "09:00, met 30 minuten speling voor bus of tram en 5 minuten marge"
+          and stretch["meter"] == 4400 and stretch["speling_min"] == 30 and "lopen_min" not in stretch
+          and "30 minuten speling" in stretch["niet_berekend"] and "eerdere trein uit de lijst" in stretch["niet_berekend"]
+          and times(result) == ["07:45"], result)
+    check("zonder deurtijd: de trein komt aan op het station, en het stuk is geen deel van de reis",
+          result["reisadviezen"][0]["aankomst"] == "08:20" and len(result["reisadviezen"][0]["delen"]) == 1, result)
+    result = await reis([direct("09:40", "09:55"), direct("09:55", "10:10"), direct("10:10", "10:25")], at("09:00"),
+                        van="Wassenaar", tijd="09:10")
+    check("vertrekken vanaf een plaats ver van het station: de trein na de tijd plus de speling",
+          result["gezocht_op"] == "vertrek 2026-10-26 09:50" and times(result) == ["09:55", "10:10"]
+          and result["eerste_stuk"]["speling_min"] == 40 and "latere trein uit de lijst" in result["eerste_stuk"]["niet_berekend"],
+          result)
+    result = await reis([direct("10:20", "10:35"), direct("10:45", "11:00")], at("10:00"), van="Wassenaar")
+    check("nu vertrekken van ver: geen trein die je met de bus niet meer haalt", times(result) == ["10:45"],
+          result["reisadviezen"])
+    try:
+        error = str(await reis([], FRIDAY_NOON, van="Den Haag Centraal", naar="Binnenhof Den Haag"))
+    except ToolError as exc:
+        error = str(exc)
+    check("van een station naar een plek bij hetzelfde station: geen trein", "allebei bij Den Haag Centraal" in error, error)
     result = await reis([via("08:00", "08:20", "08:22", "08:50")], FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
     option = result["reisadviezen"][0]
     check("overstaptijd met oordeel, in een zin", option["overstaptijd"]

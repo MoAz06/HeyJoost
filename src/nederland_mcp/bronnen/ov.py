@@ -79,6 +79,10 @@ ADDRESS_RADIUS = 2000
 LOCAL_TRANSPORT = re.compile(r"\b(bus|tram|metro|streekvervoer|stadsvervoer)", re.IGNORECASE)
 
 
+class Ambiguous(ToolError):
+    """A name that is in more than one town: the caller can pass this on, so the town gets asked."""
+
+
 def _short(name: str) -> str:
     """OpenOV names start with the town: 'Den Haag, Spui' becomes 'Spui'."""
     return name.rsplit(", ", 1)[-1]
@@ -299,12 +303,16 @@ def _street(text: str) -> str:
     return " ".join(kept)
 
 
-def _names_street(text: str, street: str, fuzzy: bool = True) -> bool:
-    """The text names this street, allowing a small typo: 'Laan v Meerdervoort 100' names Laan van Meerdervoort."""
+def _names_street(text: str, street: str, fuzzy: bool = True, town: set[str] | None = None) -> bool:
+    """The text names this street, allowing a small typo: 'Laan v Meerdervoort 100' names Laan van Meerdervoort.
+    Not with the words of the street's town alone: PDOK has a road Leiden in Leiden, an exit of the A4, and 'LUMC
+    Leiden' does not mean that."""
     wanted = normalize(street)
     words = text.split()
     for start in range(len(words)):
         for end in range(start + 1, len(words) + 1):
+            if town and set(_words(" ".join(words[start:end]))) <= town:
+                continue
             span = normalize(" ".join(words[start:end]))
             if span == wanted or (fuzzy and len(span) > 3 and SequenceMatcher(None, span, wanted).ratio() >= 0.85):
                 return True
@@ -339,14 +347,15 @@ async def _address(text: str, plaats: str | None, fuzzy: bool = True) -> dict | 
             return False
         if code and doc.get("postcode") != code:
             return False
-        return bool(code and doc.get("type") == "postcode") or _names_street(text, doc.get("straatnaam") or "", fuzzy)
+        town = set(_words(doc.get("woonplaatsnaam") or "")) | set(_words(doc.get("gemeentenaam") or ""))
+        return bool(code and doc.get("type") == "postcode") or _names_street(text, doc.get("straatnaam") or "", fuzzy, town)
 
     docs = [d for d in data.get("response", {}).get("docs", []) if d.get("centroide_ll") and fits(d)]
     if not docs:
         return None
     towns = list(dict.fromkeys(d.get("woonplaatsnaam") for d in docs if d.get("woonplaatsnaam")))
     if not plaats and not code and len(towns) > 1:
-        raise ToolError(f"'{text}' bestaat in meer dan één plaats, bijvoorbeeld: {', '.join(towns[:5])}. Geef de plaats mee.")
+        raise Ambiguous(f"'{text}' bestaat in meer dan één plaats, bijvoorbeeld: {', '.join(towns[:5])}. Geef de plaats mee.")
     lon, lat = (float(x) for x in docs[0]["centroide_ll"].removeprefix("POINT(").removesuffix(")").split())
     return {"lat": lat, "lon": lon, "naam": docs[0]["weergavenaam"]}
 
@@ -408,7 +417,7 @@ async def _spot(text: str, plaats: str | None) -> dict | None:
     spots = await _spots(text, plaats)
     towns = list(dict.fromkeys(town for town in map(_town, spots) if town))
     if len(towns) > 1:
-        raise ToolError(f"'{text}' bestaat in meer dan één plaats, bijvoorbeeld: {', '.join(towns[:5])}. Geef de plaats mee.")
+        raise Ambiguous(f"'{text}' bestaat in meer dan één plaats, bijvoorbeeld: {', '.join(towns[:5])}. Geef de plaats mee.")
     if not spots:
         return None
     spot = spots[0]

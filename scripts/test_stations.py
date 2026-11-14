@@ -11,7 +11,7 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
-from nederland_mcp.bronnen import ns, ov
+from nederland_mcp.bronnen import ns, ov, plaats
 
 failed: list[str] = []
 
@@ -71,10 +71,16 @@ def stop(name: str, metres: float = 0) -> dict:
     return {"name": name, "lat": north(metres), "lon": 5.0, "areas": []}
 
 
-async def no_station(name: str, origin: Any, spot: Any = None, stations: list[dict] = STATIONS) -> str:
-    """The error of the train tools for this name when Transitous gives this origin (or raises it) and this spot."""
+# The woonplaatsen PDOK knows here, and what Transitous was asked to find, as the place and its town.
+TOWNS = {"Leiden", "Den Haag", "Utrecht", "Dorp"}
+origins: list[tuple[str, str | None]] = []
+
+
+def fake(origin: Any, spot: Any = None, town: Any = None, stations: list[dict] = STATIONS) -> None:
+    """Transitous gives this origin (or raises it) and this spot, PDOK this town, and NS these stations."""
 
     async def fake_origin(halte: str, plaats: str | None) -> Any:
+        origins.append((halte, plaats))
         if isinstance(origin, Exception):
             raise origin
         return origin
@@ -84,15 +90,39 @@ async def no_station(name: str, origin: Any, spot: Any = None, stations: list[di
             raise spot
         return spot
 
+    async def fake_town(name: str) -> Any:
+        if town is None:
+            raise ToolError("Geen plaats gevonden")
+        return town
+
     async def fake_stations() -> list[dict]:
         return stations
 
-    ov._origin, ov._spot, ns._stations = fake_origin, fake_spot, fake_stations
+    async def fake_is_town(name: str) -> bool:
+        return name in TOWNS
+
+    ov._origin, ov._spot, plaats.zoek, plaats.is_town, ns._stations = (
+        fake_origin, fake_spot, fake_town, fake_is_town, fake_stations)
+
+
+async def no_station(name: str, origin: Any, spot: Any = None, stations: list[dict] = STATIONS) -> str:
+    """The error of the train tools for this name when Transitous gives this origin (or raises it) and this spot."""
+    fake(origin, spot, stations=stations)
     try:
         await ns._station(name)
     except ToolError as error:
         return str(error)
     return "geen fout"
+
+
+async def end(name: str, origin: Any, spot: Any = None, town: Any = None) -> tuple[str | None, dict | None] | str:
+    """The station trein_reis takes for this end of a trip and the stretch to it, or the error."""
+    fake(origin, spot, town)
+    try:
+        found, stretch = await ns._end(name, STATIONS)
+    except ToolError as error:
+        return str(error)
+    return ns._station_name(found), stretch
 
 
 async def main() -> None:
@@ -159,6 +189,58 @@ async def main() -> None:
           text)
     found = await no_station("Gouda Centraal", ToolError("Transitous hoort niet gevraagd te worden"))
     check("een station vinden vraagt niets aan Transitous", found == "geen fout", found)
+
+    # Which station each end of a trip gets, and the stretch to it.
+    found = await end("Gouda Centraal", ToolError("Transitous hoort niet gevraagd te worden"))
+    check("A: een station is het eind zelf, zonder stuk lopen", found == ("Gouda", None), found)
+    found = await end("LUMC", ({"lat": north(2820), "lon": 5.0, "naam": "LUMC Hoofdingang, Leiden"}, None, [], True))
+    check("B: om de hoek van een station: het lopen uitgerekend, en Utrecht Centraal op 880 meter is te ver om te kiezen",
+          found == ("Utrecht Lunetten", {"plek": "LUMC Hoofdingang, Leiden", "station": "Utrecht Lunetten", "meter": 180,
+                                         "lopen_min": 3}), found)
+    found = await end("LUMC", ({"lat": north(2100), "lon": 5.0, "naam": "LUMC Hoofdingang, Leiden"}, None, [], True))
+    check("tot 1,5 km nog uitgerekend: 900 meter is 15 minuten lopen",
+          found == ("Utrecht Lunetten", {"plek": "LUMC Hoofdingang, Leiden", "station": "Utrecht Lunetten", "meter": 900,
+                                         "lopen_min": 15}), found)
+    found = await end("Utrecht Science Park", (PLACE | {"naam": "Utrecht Science Park"}, None, [], True))
+    check("C: verder weg het grootste station in de buurt, het stuk niet uitgerekend, wel 15 + 3 x 3,7 = 26, "
+          "naar boven op 30 minuten speling",
+          found == ("Utrecht Centraal", {"plek": "Utrecht Science Park", "station": "Utrecht Centraal", "meter": 3700,
+                                         "speling_min": 30}), found)
+    slack = [ns._slack(metres) for metres in (1570, 3660, 4400, 7340, 30_000)]
+    check("speling: 20 minuten voor het Erasmus MC, 30 voor Science Park en Kurhaus, 40 vanuit Wassenaar, hooguit een uur",
+          slack == [20, 30, 30, 40, 60], slack)
+    found = await end("Dorp", ToolError("Geen halte gevonden"), None, plaats.Plaats("Dorp", north(3100), 5.0, "Dorp", "Utrecht"))
+    check("een plaats zonder station: vanaf het midden, naar het dichtste van twee even grote stations",
+          found == ("Utrecht Lunetten", {"plek": "Dorp", "station": "Utrecht Lunetten", "meter": 100, "lopen_min": 2}),
+          found)
+    found = await end("Kerk", ({"lat": north(3500), "lon": 5.0, "naam": "Kerk, Utrecht"}, None, [], True))
+    check("een groter station dat nauwelijks verder ligt: dat, zoals Leiden Centraal voor de Hooglandse Kerk",
+          found == ("Utrecht Centraal", {"plek": "Kerk, Utrecht", "station": "Utrecht Centraal", "meter": 200,
+                                         "lopen_min": 4}), found)
+    found = await end("Binnenhof Den Haag", ({"lat": north(2820), "lon": 5.0, "naam": "Binnenhof, 's-Gravenhage"},
+                                             None, [], True))
+    check("Den Haag zoals iedereen het noemt", not isinstance(found, str) and found[1]["plek"] == "Binnenhof, Den Haag",
+          found)
+    hoofdingang = ({"lat": north(2820), "lon": 5.0, "naam": "LUMC Hoofdingang, Leiden"}, None, [], True)
+    asked = []
+    for name in ("LUMC Leiden", "Breestraat 70, Leiden", "Kurhaus Den Haag", "Utrecht Science Park", "LUMC"):
+        await end(name, hoofdingang)
+        asked.append(origins[-1])
+    check("de plaats achteraan gaat apart mee, zoals ov_vertrek hem krijgt: het LUMC wordt rond Leiden gezocht",
+          asked == [("LUMC", "Leiden"), ("Breestraat 70", "Leiden"), ("Kurhaus", "Den Haag"),
+                    ("Utrecht Science Park", None), ("LUMC", None)], asked)
+    elsewhere = stop("Zoetermeer, Stadhuis", 2820) | {"areas": [{"name": "Zoetermeer", "adminLevel": 8}]}
+    found = await end("stadhuis Leiden", (None, elsewhere, [elsewhere], True), None,
+                      plaats.Plaats("Leiden", north(3300), 5.0, "Leiden", "Zuid-Holland"))
+    check("een halte in een andere plaats dan genoemd is het niet: Zoetermeer Stadhuis voor 'stadhuis Leiden'",
+          not isinstance(found, str) and found[1]["plek"] == "Leiden", found)
+    found = await end("Kerkstraat 1", ov.Ambiguous("'Kerkstraat 1' bestaat in meer dan één plaats, bijvoorbeeld: Zwolle."))
+    check("een adres in meer plaatsen: die vraag gaat door", isinstance(found, str) and "meer dan één plaats" in found, found)
+    found = await end("Nergenshuizen", ToolError("Geen halte gevonden"))
+    check("niets gevonden: noem een station, adres of plek", isinstance(found, str)
+          and found.startswith("Geen station, adres of plek gevonden voor 'Nergenshuizen'."), found)
+    found = await end("Adres 1, 1234 AB Dorp", ({"lat": north(2820), "lon": 5.0, "naam": "Adres 1, 1234AB Dorp"}, None, [], True))
+    check("de naam van een adres zonder postcode", not isinstance(found, str) and found[1]["plek"] == "Adres 1, Dorp", found)
 
     # A station where trains seldom stop.
     maliebaan = next(s for s in STATIONS if s["namen"]["lang"] == "Utrecht Maliebaan")
