@@ -1314,8 +1314,21 @@
       return { drukte: one(list.map((trip) => trip.drukte)), prijs: one(list.map(price)) };
     }
 
-    function facts(trip, shared) {
-      return [!shared.drukte && trip.drukte && nsWord(trip.drukte), !shared.prijs && price(trip)].filter(Boolean);
+    // On a card of the journey planner the crowd and the price are of NS for the train part only (see _train_facts in
+    // reisplanner.py), so they go together after "trein:", and the note says what you pay apart.
+    function facts(trip, shared, train = false) {
+      const found = [!shared.drukte && trip.drukte && nsWord(trip.drukte), !shared.prijs && price(trip)].filter(Boolean);
+      return train && found.length ? [t("trein: ", "train: ") + found.join(", ")] : found;
+    }
+
+    // What a price of the train leaves out on a card of the journey planner: De tram betaal je apart.
+    function apart(list) {
+      const kinds = Object.keys(VEHICLES).filter((kind) => kind !== "trein"
+        && list.some((trip) => rides(trip).some((ride) => ride.soort === kind)));
+      if (!kinds.length) return "";
+      const join = (items, and) => items.length > 1 ? `${items.slice(0, -1).join(", ")} ${and} ${items.at(-1)}` : items[0];
+      return t(capital(`${join(kinds.map((kind) => `de ${VEHICLES[kind][1]}`), "en")} betaal je apart.`),
+        `You pay for ${join(kinds.map((kind) => `the ${VEHICLES[kind][2]}`), "and")} separately.`);
     }
 
     // In orange: that a train leaving now only works if you are there, a status like works, a delay, and a stretch
@@ -1337,12 +1350,16 @@
     }
 
     function note(card, list, long) {
+      const train = card.bron === "Transitous";
       const shared = same(list);
       const together = [shared.drukte && nsWord(shared.drukte), shared.prijs].filter(Boolean);
       const lines = [];
       if (together.length) {
-        lines.push(`${list.length === 2 ? t("Allebei", "Both") : t("Allemaal", "All")} ${together.join(t(" en ", " and "))}.`);
+        const all = `${list.length === 2 ? t("allebei", "both") : t("allemaal", "all")} ${together.join(t(" en ", " and "))}.`;
+        lines.push(train ? t("Trein: ", "Train: ") + all : capital(all));
       }
+      const rest = train && list.some((trip) => typeof trip.prijs === "number") && apart(list);
+      if (rest) lines.push(rest);
       if (card.later && weekday(card.datum) >= 0) {
         lines.push(t(`Vertraging zie je pas op ${WEEKDAYS[weekday(card.datum)]} zelf.`, `Delays only show on ${WEEKDAYS[weekday(card.datum)]} itself.`));
       }
@@ -1392,6 +1409,7 @@
     function tripCards(card) {
       const list = usable(card);
       if (!list.length) return null;
+      const train = card.bron === "Transitous";
       const shared = same(list);
       const box = make("div", "reizen");
       box.lang = english ? "en" : "nl";
@@ -1417,7 +1435,7 @@
         if (signs) open.append(rideRow(trip));
         const left = spare(card, trip, false);
         if (left.length) open.append(make("span", "reis-marge", ...left));
-        const change = [changes(trip, false), ...facts(trip, shared)].filter(Boolean).join(" · ");
+        const change = [changes(trip, false), ...facts(trip, shared, train)].filter(Boolean).join(" · ");
         if (change) open.append(make("span", "reis-over", change));
         const warn = warnings(card, trip, false);
         if (warn.length) open.append(make("span", "reis-let", warn.join(" · ")));
@@ -1431,7 +1449,7 @@
           list.lang = "nl";
           route.append(list);
         }
-        const foot = [typeof trip.reistijd === "number" && duration(trip.reistijd), trip.drukte && nsWord(trip.drukte), price(trip)];
+        const foot = [typeof trip.reistijd === "number" && duration(trip.reistijd), ...facts(trip, {}, train)];
         const footer = make("div", "reis-voet", make("span", "", foot.filter(Boolean).join(" · ")));
         if (typeof trip.link === "string" && trip.link.startsWith("https://www.ns.nl/")) {
           const link = make("a", "reis-link", t("Open bij de NS", "Open at NS"), svgIcon("i-arrow"));
@@ -1539,6 +1557,7 @@
       for (const card of cards) {
         const list = usable(card);
         if (!list.length) continue;
+        const train = card.bron === "Transitous";
         const shared = same(list);
         const signs = mixed(list);
         lines.push((signs ? t(`Reizen van ${card.van} naar ${card.naar}, `, `Trips from ${card.van} to ${card.naar}, `)
@@ -1546,7 +1565,7 @@
         for (const trip of list) {
           const head = trip.beste ? t("Beste reis", "Best trip") : trip.laatste ? t("Laatste trein", "Last train") : t("Of", "Or");
           const by = signs && t("met ", "by ") + rides(trip).map((ride) => rideWord(ride)).join(t(", dan ", ", then "));
-          const parts = [by, flat(spare(card, trip, true)), changes(trip, true), ...facts(trip, shared), ...warnings(card, trip, true)]
+          const parts = [by, flat(spare(card, trip, true)), changes(trip, true), ...facts(trip, shared, train), ...warnings(card, trip, true)]
             .filter(Boolean).map((part) => part.charAt(0).toLowerCase() + part.slice(1));
           lines.push(`${head}: ${[`${trip.vertrek} ${t("tot", "to")} ${trip.aankomst}`, ...parts].join(", ")}.`);
         }

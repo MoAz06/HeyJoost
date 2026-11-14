@@ -3,7 +3,7 @@
 import argparse
 import os
 
-__version__ = "0.38.1"
+__version__ = "0.39.0"
 
 
 def main() -> None:

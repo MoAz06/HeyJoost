@@ -840,8 +840,10 @@ def _card_trip(trip: dict[str, Any], asked: str | None) -> dict[str, Any]:
         **({"over": _gap(trip["aankomst"], asked)} if asked else {}),
         "reistijd": _whole(trip.get("reistijd_min")),
         "overstappen": _card_changes(parts),
-        "drukte": trip.get("drukte") if isinstance(trip.get("drukte"), str) else None,
-        "prijs": trip.get("prijs_euro") if isinstance(trip.get("prijs_euro"), int | float) else None,
+        # Of the train part only in a trip of the planner, and the card says so (see price() in index.html).
+        "drukte": next((trip[key] for key in ("drukte", "drukte_trein") if isinstance(trip.get(key), str)), None),
+        "prijs": next((trip[key] for key in ("prijs_euro", "prijs_trein_euro") if isinstance(trip.get(key), int | float)),
+                      None),
         **({"toeslag": trip["toeslag_euro"]} if isinstance(trip.get("toeslag_euro"), int | float) else {}),
         # "normaal" goes without saying.
         **({"status": trip["status"]} if isinstance(trip.get("status"), str) and trip["status"] != "normaal" else {}),

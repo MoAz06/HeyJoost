@@ -13,6 +13,7 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
+from nederland_mcp import tellers
 from nederland_mcp.bronnen import ns, ov, plaats, reisplanner
 from nederland_mcp.common import AMSTERDAM
 
@@ -202,71 +203,93 @@ def by_icd(trip: dict, number: str = "1820") -> dict:
     return {**trip, "legs": legs}
 
 
-def ns_trip(clock: str, number: str, cents: int | None) -> dict:
+def ns_trip(clock: str, number: str, cents: int | None, arrives: str = "13:33", crowd: str = "LOW") -> dict:
     """A direct train from Utrecht Centraal to Den Haag Centraal on 17 November as NS gives it."""
     fare = {"priceInCents": 1500, **({"supplementInCents": cents} if cents else {})}
     return {"legs": [{"travelType": "PUBLIC_TRANSIT", "product": {"number": number},
                       "origin": {"name": "Utrecht Centraal", "plannedDateTime": f"2026-11-17T{clock}:00+0100"},
-                      "destination": {"name": "Den Haag Centraal", "plannedDateTime": "2026-11-17T13:33:00+0100"}}],
-            "transfers": 0, "productFare": fare}
+                      "destination": {"name": "Den Haag Centraal", "plannedDateTime": f"2026-11-17T{arrives}:00+0100"}}],
+            "transfers": 0, "productFare": fare, "crowdForecast": crowd}
 
 
-async def supplements() -> None:
-    """The supplement of a train in a plan comes from NS, asked once per train, and is not there when NS cannot say."""
+def at(clock: str) -> datetime:
+    hour, minute = map(int, clock.split(":"))
+    return datetime(2026, 11, 17, hour, minute, tzinfo=AMSTERDAM)
+
+
+async def train_facts() -> None:
+    """The price, supplement and crowd of the train part of a plan come from NS: the trip of NS with the same trains at
+    the same times, asked once per two stations, and nothing when NS cannot say."""
     os.environ.setdefault("NS_API_KEY", "offline")
     seen: list[dict] = []
 
     async def ns_json(url: str, params: Any = None, **kwargs: Any) -> dict:
         seen.append(dict(params or {}))
-        return {"trips": [ns_trip("12:48", "1818", 270), ns_trip("12:55", "3100", None), ns_trip("12:55", "1820", 270)]}
+        return {"trips": [ns_trip("12:48", "1818", 270), ns_trip("12:55", "3100", None, crowd="HIGH"),
+                          ns_trip("12:55", "1820", 270), ns_trip("13:10", "3102", None, arrives="13:50")]}
 
     real = ns.get_json, ns.cached
     ns.get_json, ns.cached = ns_json, uncached
     try:
-        leaves = datetime(2026, 11, 17, 12, 55, tzinfo=AMSTERDAM)
-        amounts = [await ns._supplement("Utrecht Centraal", "Den Haag Centraal", leaves, number)
-                   for number in ("1820", "3100")]
-        amounts.append(await ns._supplement("Utrecht Centraal", "Den Haag Centraal", leaves + timedelta(minutes=30)))
+        found = await ns._train_parts("Utrecht Centraal", "Den Haag Centraal", [
+            (at("12:55"), at("13:33"), 1, "1820"), (at("12:55"), at("13:33"), 1, "3100"),
+            (at("13:10"), at("13:52"), 1, None), (at("13:25"), at("14:03"), 1, None),
+        ])
     finally:
         ns.get_json, ns.cached = real
-    check("NS geeft de toeslag van precies die trein: zelfde tijd en nummer, niet de trein ervoor of een andere",
-          amounts == [2.7, None, None] and seen[0] == {"fromStation": "UTR", "toStation": "DEN",
-                                                       "dateTime": "2026-11-17T12:55:00+01:00", "searchForArrival": "false"},
-          (amounts, seen[:1]))
+    check("NS geeft prijs, toeslag en drukte van precies die trein: zelfde tijd en nummer",
+          found[:2] == [{"prijs_euro": 15.0, "toeslag_euro": 2.7, "drukte": "rustig"},
+                        {"prijs_euro": 15.0, "drukte": "druk"}], found[:2])
+    check("een andere aankomsttijd of een trein die er niet is: niets", found[2:] == [None, None], found[2:])
+    check("een vraag aan NS vanaf de eerste trein, en alleen een trein die daar niet bij zat apart",
+          [ask["dateTime"][11:16] for ask in seen] == ["12:55", "13:10", "13:25"]
+          and seen[0]["fromStation"] == "UTR" and seen[0]["toStation"] == "DEN", seen)
 
     calls: list[tuple] = []
     answers: list[Any] = []
 
-    async def supplement(*train: Any) -> float | None:
-        calls.append(train)
-        answer = answers.pop(0) if answers else 2.7
+    async def train_parts(van: str, naar: str, wanted: list[tuple]) -> list[dict | None]:
+        calls.append((van, naar, wanted))
+        answer = answers.pop(0) if answers else None
         if isinstance(answer, Exception):
             raise answer
-        return answer
+        return answer or [{"prijs_euro": 15.0, "drukte": "rustig",
+                           **({"toeslag_euro": 2.7} if part[3] == "1820" else {})} for part in wanted]
 
-    real_supplement = ns._supplement
-    ns._supplement = supplement
+    real_parts = ns._train_parts
+    ns._train_parts = train_parts
     try:
         bus = by_icd(to_kurhaus())
         bus["legs"] = [*bus["legs"][:3], {**bus["legs"][3], "mode": "BUS", "routeShortName": "22"}]
         PLANS[:] = [[by_icd(to_kurhaus()), bus, to_kurhaus(20)]]
         result = await reisplanner.deur_tot_deur("Utrecht", "Kurhaus Den Haag", "2026-11-17", "14:00", True)
-        toeslag = [trip.get("toeslag_euro") for trip in result["reisadviezen"]]
-        check("een ICD in de reis: de toeslag van NS staat erbij, één keer gevraagd voor twee reizen met die trein",
-              len(calls) == 1 and calls[0][3] == "1820" and calls[0][:2] == ("Utrecht Centraal", "Den Haag Centraal")
-              and sorted(toeslag, key=str) == [2.7, 2.7, None], (calls, toeslag))
+        trips = result["reisadviezen"]
+        check("drie reizen met de trein van Utrecht Centraal naar Den Haag Centraal: één vraag aan NS, de vroegste "
+              "trein eerst",
+              len(calls) == 1 and calls[0][:2] == ("Utrecht Centraal", "Den Haag Centraal")
+              and [part[0].strftime("%H:%M") for part in calls[0][2]] == ["12:35", "12:55"]
+              and calls[0][2][1][1].strftime("%H:%M") == "13:33" and calls[0][2][1][2:] == (1, "1820"), calls)
+        check("de prijs en de drukte van alleen het treinstuk, en de toeslag van de ICD",
+              all(trip.get("prijs_trein_euro") == 15.0 and trip.get("drukte_trein") == "rustig"
+                  and "prijs_euro" not in trip and "drukte" not in trip for trip in trips)
+              and sorted((trip.get("toeslag_euro") for trip in trips), key=str) == [2.7, 2.7, None], trips)
         calls.clear()
         answers.append(RuntimeError("NS ligt plat"))
         PLANS[:] = [[by_icd(to_kurhaus())]]
         result = await reisplanner.deur_tot_deur("Utrecht", "Kurhaus Den Haag", "2026-11-17", "14:00", True)
-        check("weet NS het niet, dan de reis zonder toeslag, en geen fout",
-              len(calls) == 1 and "toeslag_euro" not in result["reisadviezen"][0], result["reisadviezen"][0])
+        check("weet NS het niet, dan de reis zonder prijs en drukte, en geen fout",
+              len(calls) == 1 and not {"prijs_trein_euro", "toeslag_euro", "drukte_trein"} & set(result["reisadviezen"][0]),
+              result["reisadviezen"][0])
         calls.clear()
-        PLANS[:] = [[to_kurhaus()]]
+        tram_only = to_kurhaus()
+        tram_only["legs"] = [tram_only["legs"][3]]
+        between = to_kurhaus()
+        between["legs"] = [*between["legs"], {**between["legs"][1], "from": {"name": "Den Haag, Kurhaus"}}]
+        PLANS[:] = [[tram_only, between]]
         await reisplanner.deur_tot_deur("Utrecht", "Kurhaus Den Haag", "2026-11-17", "14:00", True)
-        check("een gewone Intercity: NS wordt niets gevraagd", not calls, calls)
+        check("zonder trein, of met een tram tussen twee treinen: NS wordt niets gevraagd", not calls, calls)
     finally:
-        ns._supplement = real_supplement
+        ns._train_parts = real_parts
 
 
 async def budget() -> None:
@@ -275,6 +298,7 @@ async def budget() -> None:
     reisplanner.new_question()
     asked.clear()
     PLANS[:] = [[to_kurhaus()]] * 3
+    counted = tellers._counts["transitous plannen"]
 
     async def plan() -> str:
         try:
@@ -288,6 +312,8 @@ async def budget() -> None:
     check("een derde plan in dezelfde vraag wordt niet gevraagd", results[:2] == ["plan", "plan"]
           and "genoeg reizen gepland" in results[2] and len(plans) == 2, (results, len(plans)))
     check("de dag telt alleen de plannen die echt gevraagd zijn", reisplanner._today["aantal"] == 2, reisplanner._today)
+    check("de Tellers tellen dezelfde plannen", tellers._counts["transitous plannen"] - counted == 2,
+          tellers._counts["transitous plannen"] - counted)
 
     # Lookups side by side share the count of their question.
     reisplanner.new_question()
@@ -430,7 +456,7 @@ async def main() -> None:
           "met wel Intercity, Sprinter, bus, tram en metro; anders mag alles",
           len(plans) == 2 and "transitModes" not in plans[0] and {"REGIONAL_RAIL", "BUS", "TRAM", "SUBWAY"} <= modes
           and not modes & {"LONG_DISTANCE", "HIGHSPEED_RAIL", "RAIL", "TRANSIT"}, plans)
-    await supplements()
+    await train_facts()
 
     PLANS[:] = [[to_kurhaus(-10)]]
     error = await kurhaus("14:00", True)
@@ -453,6 +479,7 @@ async def main() -> None:
     reisplanner._today["aantal"] = reisplanner._per_day()
     error = await kurhaus("14:00", True)
     check("aan het maximum van de dag: een fout", isinstance(error, str) and "maximum" in error, error)
+    check("het maximum staat in de Tellers", tellers._counts["transitous maximum"] >= 1, dict(tellers._counts))
     reisplanner._today.update(dag=None, aantal=0)
 
     # reis_plannen is trein_reis, with the town after the name.

@@ -371,8 +371,9 @@ async def trein_aankomst(
         "'niet_berekend' bij dat stuk en houdt de trein 'speling_min' minuten vrij voor bus of tram: 15 minuten plus 3 "
         "per km hemelsbreed."
         + (" Staat de reisplanner aan, dan plant die zo'n reis van deur tot deur met bus, tram of metro, ook tussen "
-           "twee plekken bij hetzelfde station: dan staat er 'reisplanner': true en per deel de lijn en het perron, "
-           "zonder prijs en drukte." if reisplanner.AAN else "")
+           "twee plekken bij hetzelfde station: dan staat er 'reisplanner': true en per deel de lijn en het perron. "
+           "De prijs en de drukte zijn dan van NS voor alleen het treinstuk, in 'prijs_trein_euro' en "
+           "'drukte_trein': bus, tram en metro betaal je apart." if reisplanner.AAN else "")
         + " Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
         "komt zo vroeg mogelijk aan met zo min mogelijk overstappen (een overstap telt als 5 minuten, een krappe "
         "als 10). Met aankomst=true komen alleen reizen die op tijd aankomen, en vertrekt de beste zo laat "
@@ -474,8 +475,10 @@ if reisplanner.AAN:
             "Hetzelfde als Treinreis plannen: kan het met de trein, dan met de trein en het lopen naar en van het "
             "station, met prijs en drukte. Ligt een plek te ver van een station, of liggen begin en eind bij "
             "hetzelfde station, dan plant de reisplanner van Transitous de reis met bus, tram, metro of veerboot, "
-            "met 'reisplanner': true, en per deel de lijn, waar je instapt en uitstapt en het perron. Met datum en "
-            "tijd voor later; met aankomst=true is de tijd de aankomsttijd en gaan er 5 minuten marge af."
+            "met 'reisplanner': true, en per deel de lijn, waar je instapt en uitstapt en het perron. De prijs en de "
+            "drukte zijn dan van NS voor alleen het treinstuk, in 'prijs_trein_euro' en 'drukte_trein': bus, tram en "
+            "metro betaal je apart. Met datum en tijd voor later; met aankomst=true is de tijd de aankomsttijd en gaan "
+            "er 5 minuten marge af."
         ),
         annotations=READ_ONLY,
     )

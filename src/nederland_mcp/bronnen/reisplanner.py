@@ -20,6 +20,7 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 
+from .. import tellers
 from ..common import cached, fmt_time, get_json, now_local, parse_moment, parse_time
 from . import ns
 from . import plaats as plaatsen
@@ -191,40 +192,51 @@ def _gaps(trip: dict) -> list[tuple[int, int]]:
     return gaps
 
 
-def _train(leg: dict) -> tuple | None:
-    """A train that may cost a supplement, as NS is asked about it: from, to, the time it leaves and its number."""
-    leaves = parse_time(leg.get("scheduledStartTime") or leg.get("startTime"))
-    name = leg.get("displayName") or leg.get("routeShortName") or ""
-    if _kind(leg) != "trein" or not leaves or not ns.SUPPLEMENT.match(name):
+def _train_part(trip: dict) -> tuple | None:
+    """The train part of a trip as NS is asked about it: the stations where the first train leaves and the last
+    arrives, when they do as planned, how many trains, and the number of the first. None without a train, or with a
+    bus, tram or metro between two trains, which is no trip of NS."""
+    rides = [leg for leg in trip.get("legs") or [] if _kind(leg) != "lopen"]
+    trains = [index for index, leg in enumerate(rides) if _kind(leg) == "trein"]
+    if not trains or trains[-1] - trains[0] + 1 != len(trains):
         return None
-    start, end = leg.get("from") or {}, leg.get("to") or {}
-    return start.get("name") or "", end.get("name") or "", leaves, leg.get("tripShortName")
+    first, last = rides[trains[0]], rides[trains[-1]]
+    leaves = parse_time(first.get("scheduledStartTime") or first.get("startTime"))
+    arrives = parse_time(last.get("scheduledEndTime") or last.get("endTime"))
+    if not leaves or not arrives:
+        return None
+    return ((first.get("from") or {}).get("name") or "", (last.get("to") or {}).get("name") or "", leaves, arrives,
+            len(trains), first.get("tripShortName"))
 
 
-async def _supplements(trips: list[dict]) -> dict[tuple, float]:
-    """The supplements NS asks for the trains of these trips, by train (see _train). Each train is asked once, and
-    when NS cannot tell, the trip goes without, as before."""
-    trains = {train for trip in trips for leg in trip.get("legs") or [] if (train := _train(leg))}
+async def _train_facts(trips: list[dict]) -> dict[tuple, dict]:
+    """What NS says about the train part of these trips (see _train_part): its price, supplement and crowd. The parts
+    between the same two stations go to NS together (see ns._train_parts), and when NS cannot tell, the trip goes
+    without, as before."""
+    routes: dict[tuple, list[tuple]] = {}
+    for part in sorted({part for trip in trips if (part := _train_part(trip))}, key=lambda part: part[2]):
+        routes.setdefault(part[:2], []).append(part)
 
-    async def ask(train: tuple) -> float | None:
+    async def ask(route: tuple, parts: list[tuple]) -> list[dict | None]:
         try:
-            return await ns._supplement(*train)
+            return await ns._train_parts(*route, [part[2:] for part in parts])
         except Exception as exc:
-            log.info("reisplanner: geen toeslag van NS (%s)", type(exc).__name__)
-            return None
+            log.info("reisplanner: geen prijs en drukte van NS (%s)", type(exc).__name__)
+            return [None] * len(parts)
 
-    amounts = await asyncio.gather(*(ask(train) for train in trains))
-    return {train: amount for train, amount in zip(trains, amounts) if amount}
+    answers = await asyncio.gather(*(ask(route, parts) for route, parts in routes.items()))
+    return {part: facts for parts, found in zip(routes.values(), answers) for part, facts in zip(parts, found) if facts}
 
 
-def _advice(trip: dict, names: dict[str, str], supplements: dict[tuple, float] | None = None) -> dict[str, Any]:
+def _advice(trip: dict, names: dict[str, str], trains: dict[tuple, dict] | None = None) -> dict[str, Any]:
     """A trip of a plan as trein_reis gives one, with times from door to door. The minutes to change are from one ride
-    to the next with the walk in between, and a supplement is what NS asks for its trains (see _supplements)."""
+    to the next with the walk in between, and the price and crowd are what NS says of the train part (see
+    _train_facts)."""
     legs = trip.get("legs") or []
     rides = [index for index, leg in enumerate(legs) if _kind(leg) != "lopen"]
     parts = [_part(leg, names, bool(rides) and rides[0] < index < rides[-1]) for index, leg in enumerate(legs)]
     changes = [ns._change_line(parts[before]["naar"] or "?", gap) for before, gap in _gaps(trip)]
-    extra = sum((supplements or {}).get(_train(leg), 0) for leg in legs if _train(leg))
+    train = (trains or {}).get(_train_part(trip)) or {}
     # From a station the planner first walks from its point to the platform, "from Gouda to Gouda": the station is
     # the start itself, as in the trips of NS.
     keep = [
@@ -239,8 +251,11 @@ def _advice(trip: dict, names: dict[str, str], supplements: dict[tuple, float] |
         "reistijd_min": round((ends - begins).total_seconds() / 60) if begins and ends else None,
         "overstappen": trip.get("transfers") or 0,
         **({"overstaptijd": changes} if changes else {}),
-        # As NS gives it: for the Intercity direct, ICE or Eurostar you pay this on top of your ticket.
-        **({"toeslag_euro": round(extra, 2)} if extra else {}),
+        # Of NS, for the train part only: bus, tram and metro cost apart. As NS gives it, the price includes the
+        # supplement for the Intercity direct, ICE or Eurostar.
+        **({"prijs_trein_euro": train["prijs_euro"]} if train.get("prijs_euro") else {}),
+        **({"toeslag_euro": train["toeslag_euro"]} if train.get("toeslag_euro") else {}),
+        **({"drukte_trein": train["drukte"]} if train.get("drukte") else {}),
         "delen": [parts[index] for index in keep],
     }
 
@@ -252,11 +267,14 @@ async def _ask(params: dict) -> dict:
     if _today["dag"] != day:
         _today.update(dag=day, aantal=0)
     if _today["aantal"] >= _per_day():
+        tellers.tel("transitous maximum")
         raise ToolError("De reisplanner zit voor vandaag aan zijn maximum.")
     left = _left.get()
     if left is not None and left[0] <= 0:
         raise ToolError("Voor deze vraag zijn al genoeg reizen gepland.")
     _today["aantal"] += 1
+    # In the Tellers line of the Railway logs, so you see how far the day is from the cap.
+    tellers.tel("transitous plannen")
     if left is not None:
         left[0] -= 1
     return await get_json(f"{BASE}/v6/plan", params=params, source=SOURCE)
@@ -313,14 +331,14 @@ async def deur_tot_deur(
     # The others in time order, as for NS.
     others = sorted((trip for trip in found if trip is not best), key=lambda trip: trip["startTime"])
     chosen = [best, *others][:MAX_TRIPS]
-    supplements = await _supplements(chosen)
-    trips = [_advice(trip, names, supplements) for trip in chosen]
+    trains = await _train_facts(chosen)
+    trips = [_advice(trip, names, trains) for trip in chosen]
     trips[0] = {"beste": True, **trips[0]}
     kind = "aankomst" if aankomst else "vertrek"
     result: dict[str, Any] = {
         "van": start.name,
         "naar": end.name,
-        # Planned with bus, tram or metro, so there is no NS price or crowd forecast.
+        # Planned with bus, tram or metro, so a price and crowd are only of the train part, from NS.
         "reisplanner": True,
         "gezocht_op": f"{kind} {moment.strftime('%Y-%m-%d %H:%M')}",
         "gevraagd": f"{kind} {asked.strftime('%Y-%m-%d %H:%M')}",

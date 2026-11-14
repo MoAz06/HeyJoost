@@ -289,6 +289,11 @@ async def main() -> None:
     check("een reis van de planner: het kaartje noemt Transitous, zonder NS-link of prijs",
           card and card.get("bron") == "Transitous" and card["tijd"] == "14:00" and best.get("over") == 10
           and "link" not in best and best.get("prijs") is None, card)
+    priced = json.loads(json.dumps(planned))
+    priced["reisadviezen"][0] |= {"prijs_trein_euro": 15.0, "toeslag_euro": 2.7, "drukte_trein": "rustig"}
+    first = (vraag._card(json.dumps(priced)) or {}).get("reizen", [{}])[0]
+    check("de prijs en drukte van het treinstuk staan op het kaartje van de planner",
+          (first.get("prijs"), first.get("toeslag"), first.get("drukte")) == (15.0, 2.7, "rustig"), first)
     check("de tram met lijn en perron, niet als trein met spoor",
           (tram.get("soort"), tram.get("lijn"), tram.get("perron")) == ("tram", "9", "E")
           and "trein" not in tram and "spoor" not in tram, tram)

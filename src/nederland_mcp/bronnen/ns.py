@@ -46,9 +46,6 @@ OTHER_END = 0.25
 # A transfer with fewer minutes than this is tight; from AMPLE on there is plenty of time, in between it is enough.
 TIGHT = 5
 AMPLE = 10
-# Trains that cost a supplement on part of the way, by their name in a plan of Transitous: Intercity direct, Eurocity
-# Direct, ICE and Eurostar. How much, NS says (see _supplement).
-SUPPLEMENT = re.compile(r"^(?:ICD|ECD|ICE|EST|Eurostar|Intercity direct|Eurocity direct)\b", re.IGNORECASE)
 # For someone who will not pay a supplement, when every trip around that time has one.
 ALL_SUPPLEMENT = "Rond deze tijd gaat er geen reis zonder toeslag, dus deze reizen hebben er een."
 # To be somewhere at a time, the train arrives this much before the last stretch, in case it runs late.
@@ -725,31 +722,63 @@ async def _trips(params: dict) -> dict:
     )
 
 
-async def _supplement(van: str, naar: str, leaves: datetime, number: str | None = None) -> float | None:
-    """What NS asks on top of the fare for one train, in euros: the Intercity direct costs extra between Schiphol and
-    Rotterdam. For the trains in a plan of Transitous, which knows no prices: its best trip from Amsterdam to the
-    Erasmus MC took the ICD, for someone who wanted no supplement, and nothing said so. None when NS asks nothing or
-    has no direct train from van to naar at that time with that number."""
+async def _train_parts(van: str, naar: str, wanted: list[tuple]) -> list[dict[str, Any] | None]:
+    """The trips of NS that are the train parts of trips of Transitous, which knows no prices or crowds. Each wanted
+    part goes from van to naar as (leaves, arrives, trains, number): the first train leaves at `leaves`, with that
+    number when known, the last is there at `arrives`, as planned, and there are that many trains. For each its
+    price with any supplement in it, the supplement on its own and the crowd, as in a trip of trein_reis, or None when
+    NS has no such trip. The supplement matters: the planner's best trip from Amsterdam to the Erasmus MC took the
+    Intercity direct, for someone who wanted no supplement, and nothing said so.
+
+    A page of NS from the first part holds about an hour of trips, and only a part it lacks is asked on its own: NS
+    allows 300 requests per 5 minutes for the whole site."""
     stations = await _stations()
     origin, destination = _match(van, stations), _match(naar, stations)
-    if origin is None or destination is None:
+    if origin is None or destination is None or not wanted:
+        return [None] * len(wanted)
+
+    async def page(leaves: datetime) -> list[dict]:
+        data = await _trips({
+            "fromStation": origin.get("code"),
+            "toStation": destination.get("code"),
+            "dateTime": leaves.isoformat(timespec="seconds"),
+            "searchForArrival": "false",
+        })
+        return data.get("trips") or []
+
+    def near(moment: datetime | None, planned: datetime) -> bool:
+        return moment is not None and abs(moment - planned) <= timedelta(minutes=1)
+
+    def find(trips: list[dict], leaves: datetime, arrives: datetime, count: int, number: str | None) -> dict | None:
+        for trip in trips:
+            rides = [leg for leg in trip.get("legs") or [] if _is_train(leg)]
+            if len(rides) != count:
+                continue
+            own = str((rides[0].get("product") or {}).get("number") or "")
+            if (near(parse_time((rides[0].get("origin") or {}).get("plannedDateTime")), leaves)
+                    and near(parse_time((rides[-1].get("destination") or {}).get("plannedDateTime")), arrives)
+                    and (not number or not own or own == number)):
+                return trip
         return None
-    data = await _trips({
-        "fromStation": origin.get("code"),
-        "toStation": destination.get("code"),
-        "dateTime": leaves.isoformat(timespec="seconds"),
-        "searchForArrival": "false",
-    })
-    for trip in data.get("trips") or []:
-        trains = [leg for leg in trip.get("legs") or [] if _is_train(leg)]
-        if len(trains) != 1:
-            continue
-        planned = parse_time((trains[0].get("origin") or {}).get("plannedDateTime"))
-        own = str((trains[0].get("product") or {}).get("number") or "")
-        if planned and abs(planned - leaves) <= timedelta(minutes=1) and (not number or not own or own == number):
-            cents = (trip.get("productFare") or {}).get("supplementInCents")
-            return cents / 100 if cents else None
-    return None
+
+    first = min(part[0] for part in wanted)
+    listed = await page(first)
+    trips = [find(listed, *part) for part in wanted]
+    missing = [index for index, trip in enumerate(trips) if trip is None and wanted[index][0] != first]
+    pages = await asyncio.gather(*(page(wanted[index][0]) for index in missing))
+    for index, later in zip(missing, pages):
+        trips[index] = find(later, *wanted[index])
+    return [_part_facts(trip) if trip else None for trip in trips]
+
+
+def _part_facts(trip: dict) -> dict[str, Any]:
+    fare = trip.get("productFare") or {}
+    return {
+        **({"prijs_euro": fare["priceInCents"] / 100} if fare.get("priceInCents") else {}),
+        # Intercity direct and ICE cost extra on part of the way; the price above includes it.
+        **({"toeslag_euro": fare["supplementInCents"] / 100} if fare.get("supplementInCents") else {}),
+        **({"drukte": CROWD[trip["crowdForecast"]]} if trip.get("crowdForecast") in CROWD else {}),
+    }
 
 
 def _advice(option: tuple, leaving: bool, ends: tuple[dict | None, dict | None] = (None, None)) -> dict[str, Any]:
