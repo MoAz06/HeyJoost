@@ -36,16 +36,17 @@ PRICE_INPUT, PRICE_OUTPUT, PRICE_CACHE_WRITE, PRICE_CACHE_READ = 0.10, 0.50, 0.1
 # Booked before each call and settled after it, so a visitor who leaves halfway still counts.
 ROUND_RESERVE = 0.002
 # Haiku thinks before it answers, and that counts as output too: 1024 cut off some answers halfway, and 2048 one in
-# three answers for a train there and back with the night trains.
-MAX_TOKENS = 3072
+# three answers for a train there and back with the night trains. 3072 still cut off the hardest question of the eval
+# now and then, to the Erasmus MC and back as late as possible without the Intercity direct: its last round thinks
+# close to 3000 tokens, and the answer stopped after a sentence.
+MAX_TOKENS = 4096
 # Low was not faster in tests, and high not better.
 EFFORT = "medium"
 MAX_ROUNDS = 5
 MAX_LOOKUPS = 6
-# Transitous was told a few calls per question, so one question looks up at most three stops.
+# Transitous was told a few calls per question, so one question looks up at most three stops. Its plans from door to
+# door are counted in reisplanner.PER_QUESTION.
 MAX_STOP_LOOKUPS = 3
-# And at most two trips from door to door, such as there and back.
-MAX_PLAN_LOOKUPS = 2
 # Flights only exist in this chat, with the limits agreed with Schiphol (see bronnen/schiphol.py).
 MAX_FLIGHT_LOOKUPS = 2
 MAX_QUESTION = 500
@@ -207,6 +208,8 @@ CREDITS = {
 }
 # The trips of trein_reis also go to the page, as cards above the answer (see _card): the best and two others.
 CARD_TRIPS = 3
+# What else than a train a part of a planned trip can be (see reisplanner.MODES).
+VEHICLES = {"bus", "tram", "metro", "veerboot"}
 # For Claude, with the results of trein_reis: the cards say the trips, so the answer only has to choose.
 CARDS = (
     "De bezoeker ziet deze reizen al als kaartjes boven je antwoord: per reis de tijden, de reistijd, de overstappen "
@@ -308,7 +311,7 @@ Zo antwoord je:
 - Mis je iets wat echt nodig is, zoals de plaats van een halte, vraag dat dan kort.
 {reisplanner}
 - Noem bij een overstap hoeveel minuten je hebt en of dat krap, genoeg of ruim is, zoals "in Utrecht heb je 12 minuten om over te stappen, dat is ruim". Bij trein_reis staat dat al op de kaartjes (zie hieronder); noem je het toch, neem dan het oordeel uit 'overstaptijd' letterlijk over (5 minuten is dus genoeg, niet krap) en reken het niet zelf uit. Anders reken je zelf: minder dan 5 minuten is krap, 5 tot 10 minuten is genoeg en vanaf 10 minuten is het ruim.
-- Gaat het om een trein van de ene plaats naar de andere, ook bij "de volgende trein", gebruik dan trein_reis en niet trein_vertrek. Noemt iemand bij zo'n reis een tijd, zoals "vrijdag om 17:10 van Delft naar Gouda", dan is dat de vertrektijd. aankomst=true is alleen voor als iemand op een tijd ergens moet zijn. De eerste trein van een dag zoek je vanaf 04:00, want treinen tussen middernacht en 4 uur horen bij de nacht ervoor. Wil iemand de laatste trein, of zo laat mogelijk terug, gebruik dan laatste=true met alleen de datum: dan zoekt de tool zelf tot in de nacht. Raad de reis met 'laatste' aan, of de laatste die past bij wat iemand wil, zoals zonder toeslag. Vertrekt die na middernacht, zeg dan dat het 's nachts is. Staat er 'nachttreinen', neem die zin dan altijd over, want daarmee kan iemand nog later terug.
+- Gaat het om een trein van de ene plaats naar de andere, ook bij "de volgende trein", gebruik dan trein_reis en niet trein_vertrek. Noemt iemand bij zo'n reis een tijd, zoals "vrijdag om 17:10 van Delft naar Gouda", dan is dat de vertrektijd. aankomst=true is alleen voor als iemand op een tijd ergens moet zijn. Wil iemand geen toeslag betalen, of niet met de Intercity direct of de ICE, geef dan zonder_toeslag=true mee, ook bij de reis terug. De eerste trein van een dag zoek je vanaf 04:00, want treinen tussen middernacht en 4 uur horen bij de nacht ervoor. Wil iemand de laatste trein, of zo laat mogelijk terug, gebruik dan laatste=true met alleen de datum: dan zoekt de tool zelf tot in de nacht. Raad de reis met 'laatste' aan, of de laatste die past bij wat iemand wil, zoals zonder toeslag. Vertrekt die na middernacht, zeg dan dat het 's nachts is. Staat er 'nachttreinen', neem die zin dan altijd over, want daarmee kan iemand nog later terug.
 - In deze chat ziet de bezoeker de reizen van trein_reis als kaartjes boven je antwoord: per reis de tijden, de reistijd, de overstappen met het oordeel, de sporen, de drukte, de prijs met een eventuele toeslag, hoe laat iemand er is en, na een tik, de hele route. Dat gaat voor op de andere regels over wat je bij een treinreis noemt. Herhaal het dus niet, reken niets uit en maak geen lijstje. Schrijf één of twee korte zinnen, samen niet meer dan 30 woorden: welke reis je aanraadt, met de vertrektijd vet, en in een paar woorden waarom, zoals "zonder overstap" of "het snelst, met één overstap in Utrecht". Noem daarnaast alleen wat niet op de kaartjes staat: 'let_op', 'meldingen', 'niet_mogelijk', 'nachttreinen', een trein met 'vertrekt_nu', een krappe overstap, of een korte vraag over het laatste stuk. Zeg niet "de bovenste" of "het eerste kaartje", maar noem de tijd. Vraagt iemand iets wat op de kaartjes staat, zoals het spoor, geef dan gewoon antwoord. "Bron: NS" en een zin over de NS-app horen er niet onder, want de kaartjes komen van de NS en linken ernaar.
 - Bij trein_reis staat de beste reis bovenaan, met 'beste'. Die komt zo vroeg mogelijk aan met zo min mogelijk overstappen, of bij aankomst=true vertrekt die zo laat mogelijk en is nog op tijd. Raad die reis aan, ook als een andere korter onderweg is. Wil iemand iets, zoals geen toeslag of niet overstappen, raad dan de eerste reis aan die daarbij past. Noem daarna hooguit één andere reis, en alleen als die iets heeft wat de beste mist: geen overstap of geen toeslag. Noem die met de tijd en alleen dat verschil. Hoe vaak een trein onderweg stopt, staat in 'tussenstops'; zeg alleen dat hij nergens stopt als dat 0 is. Hoeft iemand niet over te stappen, zeg dan "zonder overstap". Welke dag de reis is, staat in 'dag', en de tijden gelden voor die dag: noem die dag, en zeg geen "vandaag" als het een andere dag is. Vertrekt de beste trein binnen een paar minuten, zeg dat dan en noem ook de volgende. Een reis met 'vertrekt_nu' vertrekt nu of binnen 2 minuten en is daarom niet de beste, want die haal je alleen als je al bij de trein staat. Noem die er kort bij, zoals "de trein van 17:15 vertrekt nu, die haal je alleen als je al op het perron staat"; die telt niet als die ene andere reis. Heeft de beste zelf 'vertrekt_nu', zeg dan dat die nu vertrekt.
 - Raad je een treinreis met 'toeslag_euro' aan, zeg dan kort dat er een toeslag in de prijs zit voor de Intercity direct of de ICE; hoeveel staat op het kaartje. Staan er reizen in 'niet_mogelijk', zeg dan kort dat die niet gaan.
@@ -357,12 +360,12 @@ NO_PLANNER = (
     "hoe laat je er bent ('op_bestemming')."
 )
 PLANNER = (
-    "- Van deur tot deur met het ov gebruik je reis_plannen, met het adres, de straat, het station of de plaats "
-    "van vertrek en van bestemming. Noem per reis de vertrek- en aankomsttijd en de overstappen, en per deel de "
-    'lijn, waar je instapt en uitstapt en hoe lang je loopt. Noem als bron "Transitous".\n'
-    "- Moet iemand op een vaste tijd ergens zijn, gebruik dan reis_plannen met die tijd en aankomst=true, en neem "
-    "de bovenste reis: die vertrekt het laatst en is nog op tijd.\n"
-    "- Gaat het alleen om de trein, of om de prijs of de drukte, gebruik dan trein_reis."
+    "- Voor een reis met het ov gebruik je trein_reis, ook van deur tot deur: van en naar mogen een station, plaats, "
+    "adres of plek zijn, zoals 'Radboudumc Nijmegen' of 'Stadhuisplein 1 Leiden'. Geef de woorden van de bezoeker "
+    "door, en de tijd waarop hij weg wil of er moet zijn: de tool kiest zelf de trein of plant de reis met bus, tram "
+    "of metro, en rekent het lopen en 5 minuten marge zelf uit, dus trek daar zelf niets voor af.\n"
+    "- Staat er 'reisplanner' bij, dan komt de reis van de reisplanner van Transitous: noem dan bij bus, tram of "
+    "metro de lijn en waar je instapt en uitstapt. Staat er bij een stuk 'niet_berekend', doe dan wat daar staat."
 )
 
 DAYS = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
@@ -580,11 +583,12 @@ async def _answer(
     tools: MCPServer, messages: list[dict[str, Any]], visitor: str, english: bool = False
 ) -> AsyncIterator[dict[str, Any]]:
     day = _day.today()
-    # Counted per plan, not per lookup: one reis_plannen can ask a second plan (see reisplanner.PER_QUESTION).
+    # The plans of the journey planner are counted per question (see reisplanner.PER_QUESTION).
     reisplanner.new_question()
+    # trein_reis takes the journey planner itself where it must, so the chat has no reis_plannen to choose wrongly.
     definitions = [
         {"name": tool.name, "description": tool.description or "", "input_schema": tool.input_schema}
-        for tool in await tools.list_tools()
+        for tool in await tools.list_tools() if tool.name != "reis_plannen"
     ]
     with_flights = schiphol.available()
     if with_flights:
@@ -668,6 +672,10 @@ async def _answer(
         for use, result in zip(uses, results):
             if use.name == "trein_reis" and not result["is_error"] and (card := _card(result["content"])):
                 cards = True
+                if card.get("bron") == "Transitous":
+                    # The line above the cards said NS when the lookup began, and this trip came from the planner.
+                    where = WHERE_EN["reis_plannen"] if english else WHERE["reis_plannen"]
+                    yield {"type": "tool", "where": where, "tool": "reis_plannen"}
                 yield {"type": "kaart", "kaart": card}
         # Haiku hears it right after the results too: from the system prompt alone it still wrote out every trip.
         told = [{"type": "text", "text": CARDS_EN if _in_english(question, english) else CARDS}] if cards else []
@@ -741,7 +749,6 @@ async def _lookup(tools: MCPServer, use: Any, lookups: dict[str, int], visitor: 
     if (
         sum(lookups.values()) > MAX_LOOKUPS
         or lookups.get("ov_vertrek", 0) > MAX_STOP_LOOKUPS
-        or lookups.get("reis_plannen", 0) > MAX_PLAN_LOOKUPS
         or lookups.get(FLIGHT_TOOL["name"], 0) > MAX_FLIGHT_LOOKUPS
     ):
         return {**result, "content": ENOUGH, "is_error": True}
@@ -810,6 +817,9 @@ def _card(content: str) -> dict[str, Any] | None:
     if found.get("dienstregeling"):
         # A later day: the timetable, without delays.
         card["later"] = True
+    if found.get("reisplanner"):
+        # Planned door to door with bus or tram: the card names Transitous and OpenStreetMap, for the walks.
+        card["bron"] = "Transitous"
     first, others = (trips[:1], trips[1:]) if trips[0].get("beste") or trips[0].get("laatste") else ([], trips)
     # The others are in time order. For an arrival search and the last train the ones nearest the asked time matter
     # most, otherwise the first ones after it.
@@ -846,17 +856,23 @@ def _card_trip(trip: dict[str, Any], asked: str | None) -> dict[str, Any]:
 def _card_part(part: dict[str, Any]) -> dict[str, Any]:
     if "lopen_min" in part:
         return {"lopen": _whole(part.get("lopen_min")), "van": _place(part.get("van")), "vertrek": part.get("vertrek"),
-                "naar": _place(part.get("naar")), "aankomst": part.get("aankomst")}
+                "naar": _place(part.get("naar")), "aankomst": part.get("aankomst"),
+                # Walking from one ride to the next in a plan: that is the transfer itself (see _card_changes).
+                **({"overstap": True} if part.get("overstap") is True else {})}
     # The tool gives the departure as planned, with the delay apart; the card shows when the train leaves.
     late = _whole(part.get("vertraging_min")) or 0
     leaves = _clock(part.get("vertrek"))
+    # A bus, tram, metro or ferry from the journey planner, with its line and stop, or else a train.
+    vehicle = part.get("soort") in VEHICLES
     return {
-        "trein": re.sub(r"^NS\s+", "", part.get("trein") or "") or None,
+        **({"soort": part["soort"], "lijn": str(part.get("lijn") or "")[:12] or None} if vehicle
+           else {"trein": re.sub(r"^NS\s+", "", part.get("trein") or "") or None}),
         "richting": _place(part.get("richting")),
         "van": _place(part.get("van")),
         "vertrek": f"{(leaves + late) // 60 % 24:02d}:{(leaves + late) % 60:02d}" if leaves is not None else None,
         **({"vertraging": late} if late > 0 else {}),
-        "spoor": part.get("spoor") if isinstance(part.get("spoor"), str) else None,
+        **({"perron": part["perron"] if isinstance(part.get("perron"), str) else None} if vehicle
+           else {"spoor": part.get("spoor") if isinstance(part.get("spoor"), str) else None}),
         "naar": _place(part.get("naar")),
         "aankomst": part.get("aankomst"),
         **({"tussenstops": part["tussenstops"]} if isinstance(part.get("tussenstops"), int) else {}),
@@ -866,12 +882,13 @@ def _card_part(part: dict[str, Any]) -> dict[str, Any]:
 
 def _card_changes(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Where you change trains, the minutes you have there and what that is, as ns.py says it: a walk in between comes
-    off the minutes."""
+    off the minutes, as from Rotterdam Zuid to Rotterdam Stadion. In a plan the walk from the train to the tram is the
+    transfer itself, as getting from one platform to another is for NS, so it stays in (see reisplanner._advice)."""
     changes: list[dict[str, Any]] = []
     last, walk = None, 0
     for part in parts:
         if "lopen" in part:
-            walk += part.get("lopen") or 0
+            walk += 0 if part.get("overstap") else part.get("lopen") or 0
             continue
         if last is not None and _clock(last.get("aankomst")) is not None and _clock(part.get("vertrek")) is not None:
             gap = _gap(last["aankomst"], part["vertrek"]) - walk

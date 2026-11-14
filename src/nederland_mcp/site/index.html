@@ -1261,7 +1261,7 @@
       const parts = [];
       const add = (...bits) => parts.push(...(parts.length ? [long ? ", " : " · "] : []), ...bits);
       if (first) add(t(`${minutes(first.lopen, long)} lopen naar `, `${minutes(first.lopen, long)} walk to `) + short(first.naar));
-      if (train && train.spoor) add(t("spoor ", "platform "), { b: train.spoor });
+      if (train && (train.perron || train.spoor)) add(train.perron ? t("perron ", "platform ") : t("spoor ", "platform "), { b: train.perron || train.spoor });
       if (typeof trip.reistijd === "number") add(t("reistijd ", "journey ") + duration(trip.reistijd, long));
       if (typeof parts[0] === "string") parts[0] = capital(parts[0]);
       return parts;
@@ -1335,6 +1335,8 @@
       if (card.later && weekday(card.datum) >= 0) {
         lines.push(t(`Vertraging zie je pas op ${WEEKDAYS[weekday(card.datum)]} zelf.`, `Delays only show on ${WEEKDAYS[weekday(card.datum)]} itself.`));
       }
+      // A trip of the journey planner, with walks from OpenStreetMap (see _card in vraag.py).
+      if (card.bron === "Transitous") lines.push(t("Bron: Transitous en OpenStreetMap.", "Source: Transitous and OpenStreetMap."));
       return lines;
     }
 
@@ -1416,8 +1418,13 @@
       const open = (stretch) => stretch ? [{ lopen: null, van: stretch.van, naar: stretch.naar, meter: stretch.meter, speling: stretch.speling }] : [];
       const parts = [...open(unworked(card, "begin")), ...(trip.delen || []).filter(Boolean), ...open(unworked(card, "eind"))];
       const left = [...(trip.overstappen || [])];
-      const stop = (kind, time, station, platform) => make("li", "halte " + kind, make("time", "", time || ""), mark(),
-        make("div", "", make("b", "", station || ""), platform ? " " : null, platform ? make("span", "spoor", t("spoor ", "platform ") + platform) : null));
+      // A train leaves from a track, a bus or tram of the journey planner from a stop with a letter, as B4.
+      const stop = (kind, time, station, part) => {
+        const platform = part && (part.perron || part.spoor);
+        const word = part && part.perron ? t("perron ", "platform ") : t("spoor ", "platform ");
+        return make("li", "halte " + kind, make("time", "", time || ""), mark(),
+          make("div", "", make("b", "", station || ""), platform ? " " : null, platform ? make("span", "spoor", word + platform) : null));
+      };
       const between = (kind, ...content) => make("li", kind, make("time", ""), mark(), make("div", "", ...content));
       let before = null;
       let train = false;
@@ -1438,7 +1445,7 @@
           return;
         }
         if (!before) {
-          list.append(stop("begin", part.vertrek, part.van, part.spoor));
+          list.append(stop("begin", part.vertrek, part.van, part));
         } else {
           const change = train ? left.shift() : null;
           const tight = change && (change.oordeel === "mis" || change.oordeel === "krap") ? "let" : "";
@@ -1449,7 +1456,7 @@
             list.append(stop("aan", before.aankomst, before.naar));
             list.append(between("loop", change ? make("span", tight, changeText(change)) : ""));
           }
-          list.append(stop("af", part.vertrek, part.van, part.spoor));
+          list.append(stop("af", part.vertrek, part.van, part));
         }
         const about = [];
         const n = part.tussenstops;
@@ -1459,7 +1466,9 @@
         }
         if (part.vertraging) about.push(make("em", "let", t(`${minutes(part.vertraging)} later dan gepland`, `${minutes(part.vertraging)} later than planned`)));
         if (part.geannuleerd) about.push(make("em", "let", t("Rijdt niet", "Cancelled")));
-        const name = (part.trein || t("Trein", "Train")) + (part.richting ? t(" richting ", " towards ") + part.richting : "");
+        const vehicle = { bus: "Bus", tram: "Tram", metro: "Metro", veerboot: t("Veerboot", "Ferry") }[part.soort];
+        const ride = vehicle ? vehicle + (part.lijn ? " " + part.lijn : "") : part.trein || t("Trein", "Train");
+        const name = ride + (part.richting ? t(" richting ", " towards ") + part.richting : "");
         list.append(between("deel", name, ...about));
         if (last) list.append(stop("eind", part.aankomst, part.naar));
         before = part;

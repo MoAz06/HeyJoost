@@ -76,14 +76,18 @@ TOWNS = {"Leiden", "Den Haag", "Utrecht", "Dorp"}
 origins: list[tuple[str, str | None]] = []
 
 
-def fake(origin: Any, spot: Any = None, town: Any = None, stations: list[dict] = STATIONS) -> None:
-    """Transitous gives this origin (or raises it) and this spot, PDOK this town, and NS these stations."""
+def fake(
+    origin: Any, spot: Any = None, town: Any = None, stations: list[dict] = STATIONS, places: dict | None = None
+) -> None:
+    """Transitous gives this origin (or raises it; per name and town when it is a dict), this spot and these towns and
+    districts, PDOK this town, and NS these stations. Nothing goes to Transitous itself."""
 
     async def fake_origin(halte: str, plaats: str | None) -> Any:
         origins.append((halte, plaats))
-        if isinstance(origin, Exception):
-            raise origin
-        return origin
+        found = origin.get((halte, plaats), ToolError("Geen halte gevonden")) if isinstance(origin, dict) else origin
+        if isinstance(found, Exception):
+            raise found
+        return found
 
     async def fake_spot(text: str, plaats: str | None) -> Any:
         if isinstance(spot, Exception):
@@ -101,8 +105,11 @@ def fake(origin: Any, spot: Any = None, town: Any = None, stations: list[dict] =
     async def fake_is_town(name: str) -> bool:
         return name in TOWNS
 
-    ov._origin, ov._spot, plaats.zoek, plaats.is_town, ns._stations = (
-        fake_origin, fake_spot, fake_town, fake_is_town, fake_stations)
+    async def fake_place(name: str) -> dict | None:
+        return (places or {}).get(name)
+
+    ov._origin, ov._spot, ov._place, plaats.zoek, plaats.is_town, ns._stations = (
+        fake_origin, fake_spot, fake_place, fake_town, fake_is_town, fake_stations)
 
 
 async def no_station(name: str, origin: Any, spot: Any = None, stations: list[dict] = STATIONS) -> str:
@@ -115,9 +122,11 @@ async def no_station(name: str, origin: Any, spot: Any = None, stations: list[di
     return "geen fout"
 
 
-async def end(name: str, origin: Any, spot: Any = None, town: Any = None) -> tuple[str | None, dict | None] | str:
+async def end(
+    name: str, origin: Any, spot: Any = None, town: Any = None, places: dict | None = None
+) -> tuple[str | None, dict | None] | str:
     """The station trein_reis takes for this end of a trip and the stretch to it, or the error."""
-    fake(origin, spot, town)
+    fake(origin, spot, town, places=places)
     try:
         found, stretch = await ns._end(name, STATIONS)
     except ToolError as error:
@@ -207,12 +216,31 @@ async def main() -> None:
           found == ("Utrecht Centraal", {"plek": "Utrecht Science Park", "station": "Utrecht Centraal", "meter": 3700,
                                          "speling_min": 30}), found)
     slack = [ns._slack(metres) for metres in (1570, 3660, 4400, 7340, 30_000)]
-    check("speling: 20 minuten voor het Erasmus MC, 30 voor Science Park en Kurhaus, 40 vanuit Wassenaar, hooguit een uur",
+    check("speling: 20 minuten voor het Erasmus MC, 30 voor Science Park en Kurhaus, 40 voor 7,3 km, hooguit een uur",
           slack == [20, 30, 30, 40, 60], slack)
     found = await end("Dorp", ToolError("Geen halte gevonden"), None, plaats.Plaats("Dorp", north(3100), 5.0, "Dorp", "Utrecht"))
     check("een plaats zonder station: vanaf het midden, naar het dichtste van twee even grote stations",
           found == ("Utrecht Lunetten", {"plek": "Dorp", "station": "Utrecht Lunetten", "meter": 100, "lopen_min": 2}),
           found)
+    dunes = plaats.Plaats("Wassenaar", north(6000), 5.0, "Wassenaar", "Zuid-Holland", "woonplaats")
+    village = {"name": "Wassenaar", "lat": north(3100), "lon": 5.0, "category": "town", "areas": []}
+    found = await end("Wassenaar", ToolError("Geen halte gevonden"), None, dunes, {"Wassenaar": village})
+    check("een plaats zonder station: vanaf het dorp in OpenStreetMap, niet vanaf het midden van PDOK in de duinen",
+          found == ("Utrecht Lunetten", {"plek": "Wassenaar", "station": "Utrecht Lunetten", "meter": 100, "lopen_min": 2}),
+          found)
+    found = await end("Wassenaar", ToolError("Geen halte gevonden"), None, dunes._replace(lat=north(3100)),
+                      {"Wassenaar": village | {"lat": north(30_000)}})
+    check("een plaats met die naam ver weg is een andere: dan het midden van PDOK",
+          found == ("Utrecht Lunetten", {"plek": "Wassenaar", "station": "Utrecht Lunetten", "meter": 100, "lopen_min": 2}),
+          found)
+    kurhaus = stop("Den Haag, Kurhaus", 2900)
+    district = {"name": "Scheveningen", "lat": north(2500), "lon": 5.0, "category": "suburb", "areas": []}
+    found = await end("Kurhaus Scheveningen", {("Kurhaus", "Scheveningen"): (None, kurhaus, [kurhaus], True)}, None,
+                      dunes._replace(naam="Scheveningen, Den Haag", lat=north(2000), soort="wijk"),
+                      {"Scheveningen": district})
+    check("met een wijk die geen woonplaats is: de halte in die wijk, zoals ov_vertrek hem vindt, niet het midden ervan",
+          not isinstance(found, str) and found[1]["plek"] == "Den Haag, Kurhaus"
+          and origins[-2:] == [("Kurhaus Scheveningen", None), ("Kurhaus", "Scheveningen")], (found, origins[-2:]))
     found = await end("Kerk", ({"lat": north(3500), "lon": 5.0, "naam": "Kerk, Utrecht"}, None, [], True))
     check("een groter station dat nauwelijks verder ligt: dat, zoals Leiden Centraal voor de Hooglandse Kerk",
           found == ("Utrecht Centraal", {"plek": "Kerk, Utrecht", "station": "Utrecht Centraal", "meter": 200,

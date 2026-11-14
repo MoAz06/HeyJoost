@@ -369,7 +369,11 @@ async def trein_aankomst(
         "'eerste_stuk' en 'laatste_stuk' en als deel met 'lopen_min' in 'delen', en vertrek, aankomst en reistijd zijn "
         "dan van deur tot deur. Ligt de plek verder weg, dan neemt de tool het grote station in de buurt, staat er "
         "'niet_berekend' bij dat stuk en houdt de trein 'speling_min' minuten vrij voor bus of tram: 15 minuten plus 3 "
-        "per km hemelsbreed. Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
+        "per km hemelsbreed."
+        + (" Staat de reisplanner aan, dan plant die zo'n reis van deur tot deur met bus, tram of metro, ook tussen "
+           "twee plekken bij hetzelfde station: dan staat er 'reisplanner': true en per deel de lijn en het perron, "
+           "zonder prijs en drukte." if reisplanner.AAN else "")
+        + " Zonder datum en tijd wordt er gezocht vanaf nu. De beste reis staat bovenaan, met beste=true: die "
         "komt zo vroeg mogelijk aan met zo min mogelijk overstappen (een overstap telt als 5 minuten, een krappe "
         "als 10). Met aankomst=true komen alleen reizen die op tijd aankomen, en vertrekt de beste zo laat "
         "mogelijk; daarvoor gaan het lopen of de speling en 5 minuten marge van de tijd af ('op_tijd_voor'). Daarna "
@@ -384,7 +388,9 @@ async def trein_aankomst(
         "weg. Met laatste=true komen de laatste treinen van die dag en telt alleen de datum; een trein tot 4 uur 's "
         "nachts hoort nog bij die avond. De laatste staat dan bovenaan met laatste=true, en treinen die na 1 uur 's "
         "nachts vertrekken, staan in een zin in 'nachttreinen'. Bij de Intercity direct en de ICE staat de toeslag "
-        "in 'toeslag_euro', en die zit al in de prijs. Reizen die niet gaan, omdat een trein uitvalt of een overstap niet meer lukt, staan in "
+        "in 'toeslag_euro', en die zit al in de prijs. Met zonder_toeslag=true komen alleen reizen zonder toeslag; "
+        "heeft elke reis rond die tijd er een, dan staat dat in 'let_op'. Reizen die niet gaan, omdat een trein "
+        "uitvalt of een overstap niet meer lukt, staan in "
         "'niet_mogelijk'. Rijdt er door werkzaamheden of een storing een bus in plaats van de trein, dan staat het "
         "bericht van NS in 'meldingen'."
     ),
@@ -397,8 +403,9 @@ async def trein_reis(
     tijd: Annotated[str | None, Field(description="Tijd als UU:MM: wanneer de bezoeker weg wil of er moet zijn, zonder er zelf lopen of marge af te halen. Leeg = nu")] = None,
     aankomst: Annotated[bool, Field(description="True als de tijd is waarop je er moet zijn. De tool haalt het lopen of de speling voor bus of tram, en 5 minuten marge, er zelf af")] = False,
     laatste: Annotated[bool, Field(description="True voor de laatste trein van die dag, of om zo laat mogelijk te vertrekken. Dan telt alleen de datum, niet tijd of aankomst")] = False,
+    zonder_toeslag: Annotated[bool, Field(description="True als de bezoeker geen toeslag wil betalen, zoals niet met de Intercity direct of de ICE")] = False,
 ) -> dict[str, Any]:
-    return await ns.trein_reis(van, naar, datum, tijd, aankomst, laatste)
+    return await ns.trein_reis(van, naar, datum, tijd, aankomst, laatste, zonder_toeslag)
 
 
 @server.tool(
@@ -463,11 +470,12 @@ if reisplanner.AAN:
     @server.tool(
         title="Reis plannen",
         description=(
-            "Van deur tot deur met het ov in Nederland: lopen, bus, tram, metro, trein en veerboot, vanaf een adres, "
-            "straat, station of plaats naar een ander, met de beste drie reizen. Per reis de vertrek- en "
-            "aankomsttijd, de reistijd en het aantal overstappen, en per deel de lijn en richting, waar je instapt "
-            "en uitstapt, het spoor of perron, en hoe lang je loopt. Met datum en tijd voor later; met aankomst=true "
-            "is de tijd de aankomsttijd. Prijs en drukte van de trein staan in Treinreis."
+            "Van deur tot deur met het ov in Nederland, vanaf een adres, straat, station of plaats naar een ander. "
+            "Hetzelfde als Treinreis plannen: kan het met de trein, dan met de trein en het lopen naar en van het "
+            "station, met prijs en drukte. Ligt een plek te ver van een station, of liggen begin en eind bij "
+            "hetzelfde station, dan plant de reisplanner van Transitous de reis met bus, tram, metro of veerboot, "
+            "met 'reisplanner': true, en per deel de lijn, waar je instapt en uitstapt en het perron. Met datum en "
+            "tijd voor later; met aankomst=true is de tijd de aankomsttijd en gaan er 5 minuten marge af."
         ),
         annotations=READ_ONLY,
     )
@@ -479,8 +487,9 @@ if reisplanner.AAN:
         datum: Annotated[str | None, Field(description="Datum als JJJJ-MM-DD. Leeg = vandaag")] = None,
         tijd: Annotated[str | None, Field(description="Tijd als UU:MM. Leeg = nu")] = None,
         aankomst: Annotated[bool, Field(description="true = de tijd is de aankomsttijd")] = False,
+        zonder_toeslag: Annotated[bool, Field(description="true = alleen reizen zonder toeslag, dus niet met de Intercity direct of de ICE")] = False,
     ) -> dict[str, Any]:
-        return await reisplanner.reis_plannen(van, naar, van_plaats, naar_plaats, datum, tijd, aankomst)
+        return await reisplanner.reis_plannen(van, naar, van_plaats, naar_plaats, datum, tijd, aankomst, zonder_toeslag)
 
 
 @server.tool(

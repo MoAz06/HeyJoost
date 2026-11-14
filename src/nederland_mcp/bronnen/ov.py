@@ -60,6 +60,10 @@ MAIN_STOP_WORDS = {"centraal", "hoofdstation", "stationsplein"}
 WORD_ALIASES = {"cs": ("centraal", "station"), "hs": ("hollands", "spoor"), "stat": ("station",)}
 # A town's stops lie in its municipality, or this close to its centre (for districts like Scheveningen).
 TOWN_RADIUS = 3000
+# The places in OpenStreetMap that are a town, village or district, by their category at Transitous.
+TOWN_KINDS = {"city", "town", "village", "hamlet", "suburb", "quarter", "neighbourhood", "borough"}
+# The old centre of a town is at most this far from the middle of its area (see _middle).
+MIDDLE_RADIUS = 5000
 # Further away than this from the town asked for, a stop is not the one meant.
 NEAR_RADIUS = 15000
 # Search box around a town, in degrees: about 11 km each way.
@@ -175,6 +179,42 @@ async def _place(plaats: str) -> dict | None:
     key = place_key(plaats)
     hits = await _geocode(plaats, "PLACE")
     return next((h for h in hits if h.get("category") != "state" and place_key(h["name"]) == key), None)
+
+
+async def _in_town(hit: dict, plaats: str) -> bool:
+    """Whether a stop or place lies in a town or district, as _find decides it: by its areas, or close to the centre.
+    Districts like Scheveningen are not among the areas of their stops."""
+    if place_key(plaats) in _towns(hit):
+        return True
+    center = await _place(plaats)
+    return bool(center and _distance(center, hit) <= TOWN_RADIUS)
+
+
+async def _district(text: str) -> tuple[str, str] | None:
+    """'Kurhaus Scheveningen' as ('Kurhaus', 'Scheveningen'): a name that ends in a district or village that is no
+    woonplaats, so ns._split leaves it on, but that Transitous knows as a place. None otherwise. Only for a name that
+    was not found whole, as the callers do: 'Utrecht Science Park' is no Utrecht stop in the district Science Park."""
+    words = text.replace(",", " ").split()
+    if len(words) < 2:
+        return None
+    hit = await _place(words[-1])
+    if hit and (hit.get("category") or "") in TOWN_KINDS:
+        return " ".join(words[:-1]), words[-1]
+    return None
+
+
+async def _middle(found: Any) -> dict:
+    """The middle of a town or district from plaats.zoek as people mean it, as {"lat", "lon", "naam"}: its place in
+    OpenStreetMap, at the old centre. PDOK gives the middle of the whole area, and for Wassenaar that lies in the
+    dunes, 2.4 km from the village and its stops, so the journey planner found no trip from there. Anything else, or
+    an OpenStreetMap place that is not near, as PDOK has it."""
+    point = {"lat": found.lat, "lon": found.lon, "naam": found.naam}
+    if found.soort not in ("woonplaats", "gemeente", "wijk", "buurt"):
+        return point
+    hit = await _place(found.naam.split(",")[0])
+    if hit and (hit.get("category") or "") in TOWN_KINDS and _distance(point, hit) <= MIDDLE_RADIUS:
+        return {**point, "lat": hit["lat"], "lon": hit["lon"]}
+    return point
 
 
 async def _find(halte: str, plaats: str | None, wide: bool = True) -> tuple[dict, list[dict], bool]:

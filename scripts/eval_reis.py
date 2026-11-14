@@ -34,7 +34,7 @@ from dotenv import find_dotenv, load_dotenv
 load_dotenv(find_dotenv(usecwd=True))
 
 from nederland_mcp import common, vraag  # noqa: E402
-from nederland_mcp.bronnen import ns  # noqa: E402
+from nederland_mcp.bronnen import ns, reisplanner  # noqa: E402
 from nederland_mcp.server import server  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -70,7 +70,7 @@ MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augus
 MONTHS_EN = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
              "november", "december"]
 
-# The tools that plan a trip; reis_plannen only with HEYJOOST_REISPLANNER=1.
+# The tools that plan a trip; the chat has had only trein_reis since 0.38.0, reis_plannen is for older runs.
 TRIP_TOOLS = {"trein_reis", "reis_plannen"}
 TIME = re.compile(r"(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])")
 SEARCHED = re.compile(r"(vertrek|aankomst|laatste trein) (\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?")
@@ -252,6 +252,8 @@ async def _ask(case: dict[str, Any], rep: int) -> dict[str, Any]:
         "lookups": seen["lookups"],
         "started": started.isoformat(),
         "english": english,
+        # Whether the journey planner was on: then a place too far to walk goes by it (see _check_zoek).
+        "reisplanner": reisplanner.AAN,
         "model": rounds[-1].model,
         "stop_reason": rounds[-1].stop_reason,
         "truncated": any(m.stop_reason == "max_tokens" for m in rounds),
@@ -324,12 +326,19 @@ def _calls(lookups: list[dict[str, Any]]) -> list[dict[str, Any]]:
         kind, day, clock = found.groups()
         # The last train has no time: the tool looks from late in the evening into the night.
         calls.append({"result": result, "input": lookup.get("input") or {}, "aankomst": kind == "aankomst",
-                      "dag": date.fromisoformat(day), "tijd": clock or "23:59"})
+                      "laatste": kind == "laatste trein", "dag": date.fromisoformat(day), "tijd": clock or "23:59"})
     return calls
+
+
+def _door(spec: dict[str, Any], call: dict[str, Any]) -> dict[str, Any]:
+    """The spec for this search. A trip from the journey planner goes from door to door, with the places themselves and
+    the asked time minus the margin, so a spec has its own 'deur' part for it."""
+    return {**spec, **spec["deur"]} if call["result"].get("reisplanner") and spec.get("deur") else spec
 
 
 def _route(spec: dict[str, Any], call: dict[str, Any]) -> bool:
     """Whether a search went this way: by the place asked, or by the station the tool took for it."""
+    spec = _door(spec, call)
     result = call["result"]
     first, last = (result.get(key) if isinstance(result.get(key), dict) else {} for key in ("eerste_stuk", "laatste_stuk"))
     van = f"{result.get('van') or ''} | {first.get('naar') or ''}".lower()
@@ -350,6 +359,7 @@ def _dates(day: str, today: date) -> set[date]:
 
 
 def _fits(spec: dict[str, Any], call: dict[str, Any], started: datetime) -> bool:
+    spec = _door(spec, call)
     want, clock = spec["tijd"], call["tijd"]
     dates = _dates(spec["dag"], started.date())
     if isinstance(want, dict) and clock < "03:00":
@@ -378,7 +388,9 @@ def _expected(spec: dict[str, Any]) -> str:
     return f"{'aankomst' if spec['aankomst'] else 'vertrek'} {spec['dag']} {want}"
 
 
-def _check_zoek(case: dict[str, Any], calls: list[dict[str, Any]], started: datetime) -> tuple[int, str]:
+def _check_zoek(
+    case: dict[str, Any], calls: list[dict[str, Any]], started: datetime, planner: bool = False
+) -> tuple[int, str]:
     # Since 0.37.0 the tool works out the walk; minutes Haiku fills in itself are a guess (see ns.trein_reis).
     problems = [f"vult zelf lopen_min {call['input']['lopen_min']} in" for call in calls if call["input"].get("lopen_min")][:1]
     for spec in case["zoek"]:
@@ -388,7 +400,12 @@ def _check_zoek(case: dict[str, Any], calls: list[dict[str, Any]], started: date
         elif not any(_fits(spec, call, started) for call in route):
             last = route[-1]
             kind = "aankomst" if last["aankomst"] else "vertrek"
-            problems.append(f"zocht {kind} {last['dag']} {last['tijd']}, verwacht {_expected(spec)}")
+            problems.append(f"zocht {kind} {last['dag']} {last['tijd']}, verwacht {_expected(_door(spec, last))}")
+        # With the journey planner on, a place too far to walk goes from door to door; the train with room for a bus
+        # is only for when it may not ask. The last train never goes by the planner.
+        timed = [call for call in route if not call["laatste"]]
+        if planner and spec.get("deur") and timed and not any(call["result"].get("reisplanner") for call in timed):
+            problems.append(f"geen reis van de planner naar {spec['deur']['naar'][0]}")
     return (0, "; ".join(problems)) if problems else (1, "")
 
 
@@ -716,8 +733,10 @@ def _check_rekenen(
         if ahead != 0:
             continue
         wait = int(match.group(1) or match.group(2))
-        if not any(abs((_minutes(trip["vertrek"]) - now) % 1440 - wait) <= 2 for trip in pool):
-            problems.append(f"'{match.group(0)}uten' klopt met geen vertrektijd")
+        # "Die is er in 29 minuten" is the trip itself, from 12:31 to 13:00.
+        travel = any(abs((trip.get("reistijd_min") or -9) - wait) <= 1 for trip in pool)
+        if not travel and not any(abs((_minutes(trip["vertrek"]) - now) % 1440 - wait) <= 2 for trip in pool):
+            problems.append(f"'{match.group(0)}uten' klopt met geen vertrektijd of reistijd")
     if not found:
         return None, ""
     return (0, "; ".join(dict.fromkeys(problems))) if problems else (1, "")
@@ -789,7 +808,7 @@ def grade(case: dict[str, Any], raw: dict[str, Any]) -> tuple[dict[str, float], 
     trips, pool = _pool(case, calls)
     card = _on_card(raw, chosen)
     checks = {
-        "zoek": _check_zoek(case, calls, started),
+        "zoek": _check_zoek(case, calls, started, raw.get("reisplanner", reisplanner.AAN)),
         "keuze": (keuze, keuze_why),
         "tijden": _check_tijden(case, answer, lookups, started),
         "sporen": _check_sporen(answer, lookups),

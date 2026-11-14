@@ -358,7 +358,16 @@
         "tijd": [
           "09:20",
           "09:50"
-        ]
+        ],
+        "deur": {
+          "van": [
+            "Leiden"
+          ],
+          "naar": [
+            "Erasmus"
+          ],
+          "tijd": "09:55"
+        }
       }
     ],
     "keuze": "beste",
@@ -439,7 +448,17 @@
         "tijd": [
           "08:15",
           "08:45"
-        ]
+        ],
+        "deur": {
+          "van": [
+            "Gouda"
+          ],
+          "naar": [
+            "Science Park",
+            "Uithof"
+          ],
+          "tijd": "08:55"
+        }
       }
     ],
     "keuze": null,
@@ -580,7 +599,16 @@
         "tijd": [
           "08:35",
           "09:05"
-        ]
+        ],
+        "deur": {
+          "van": [
+            "Amsterdam"
+          ],
+          "naar": [
+            "Erasmus"
+          ],
+          "tijd": "09:10"
+        }
       },
       {
         "van": [
@@ -593,6 +621,18 @@
         "dag": "volgende week dinsdag",
         "tijd": {
           "na": "22:00"
+        },
+        "deur": {
+          "van": [
+            "Erasmus",
+            "Rotterdam"
+          ],
+          "naar": [
+            "Amsterdam"
+          ],
+          "tijd": {
+            "na": "22:00"
+          }
         }
       }
     ],
@@ -770,7 +810,16 @@
         "tijd": [
           "13:05",
           "13:35"
-        ]
+        ],
+        "deur": {
+          "van": [
+            "Utrecht"
+          ],
+          "naar": [
+            "Kurhaus"
+          ],
+          "tijd": "13:55"
+        }
       }
     ],
     "tags": [
@@ -801,7 +850,16 @@
         "tijd": [
           "09:15",
           "10:00"
-        ]
+        ],
+        "deur": {
+          "van": [
+            "Wassenaar"
+          ],
+          "naar": [
+            "Amsterdam"
+          ],
+          "tijd": "09:00"
+        }
       }
     ],
     "tags": [

@@ -261,6 +261,69 @@ async def main() -> None:
           card["route"] == vraag._card(json.dumps(again))["route"] == "Leiden Centraal > Utrecht Centraal",
           (card["route"], vraag._card(json.dumps(again))["route"]))
 
+    # A trip from the journey planner, as reisplanner.deur_tot_deur gives it: a tram with its line and stop, and the
+    # walk from the train to the tram is the transfer itself.
+    planned = {
+        "van": "Utrecht Centraal", "naar": "Den Haag, Kurhaus", "reisplanner": True,
+        "gezocht_op": "aankomst 2026-11-17 13:55", "gevraagd": "aankomst 2026-11-17 14:00",
+        "op_tijd_voor": "14:00, met 5 minuten marge",
+        "reisadviezen": [{
+            "beste": True, "vertrek": "12:55", "aankomst": "13:50", "reistijd_min": 55, "overstappen": 1,
+            "overstaptijd": ["In Den Haag Centraal heb je 6 minuten om over te stappen, dat is genoeg."],
+            "delen": [
+                {"trein": "Intercity", "spoor": "5", "richting": "Den Haag Centraal", "van": "Utrecht Centraal",
+                 "vertrek": "12:55", "vertraging_min": 0, "naar": "Den Haag Centraal", "aankomst": "13:33",
+                 "vervoerder": "NS"},
+                {"lopen_min": 4, "van": "Den Haag Centraal", "vertrek": "13:33", "naar": "Den Haag, Centraal Station",
+                 "aankomst": "13:37", "overstap": True},
+                {"soort": "tram", "lijn": "9", "perron": "E", "richting": "Scheveningen Noorderstrand",
+                 "van": "Den Haag, Centraal Station", "vertrek": "13:39", "vertraging_min": 0,
+                 "naar": "Den Haag, Kurhaus", "aankomst": "13:50", "vervoerder": "HTM"},
+            ],
+        }],
+        "bron": "Reisplanner van Transitous",
+    }
+    card = vraag._card(json.dumps(planned))
+    best = card["reizen"][0] if card else {}
+    tram = best.get("delen", [{}])[-1]
+    check("een reis van de planner: het kaartje noemt Transitous, zonder NS-link of prijs",
+          card and card.get("bron") == "Transitous" and card["tijd"] == "14:00" and best.get("over") == 10
+          and "link" not in best and best.get("prijs") is None, card)
+    check("de tram met lijn en perron, niet als trein met spoor",
+          (tram.get("soort"), tram.get("lijn"), tram.get("perron")) == ("tram", "9", "E")
+          and "trein" not in tram and "spoor" not in tram, tram)
+    check("het lopen van trein naar tram is de overstap zelf: 6 minuten, genoeg, en niet 2 minuten krap",
+          best.get("overstappen") == [{"station": "Den Haag Centraal", "min": 6, "oordeel": "genoeg"}]
+          and best["delen"][1].get("overstap") is True, best)
+    check("een reis van NS noemt geen Transitous", "bron" not in vraag._card(json.dumps(TRIPS)))
+
+    class Planned(Trains):
+        """trein_reis that went door to door with the journey planner."""
+
+        async def call_tool(self, name: str, given: dict[str, Any]) -> Obj:
+            return Obj(structured_content=planned, content=[], is_error=False)
+
+    haiku = Haiku(looks_up("trein_reis", van="Utrecht", naar="Kurhaus Scheveningen", tijd="14:00", aankomst=True),
+                  says("Neem de **12:55**."))
+    events = await chat(haiku, "Hoe kom ik om 14:00 bij het Kurhaus vanuit Utrecht?", tools=Planned())
+    lines = [event.get("where") for event in events if event["type"] == "tool"]
+    check("een reis van de planner: boven het kaartje staat ook dat Joost bij Transitous keek, niet alleen bij de NS",
+          [event["type"] for event in events] == ["tool", "tool", "kaart", "text", "done"]
+          and lines == ["bij de NS", "bij Transitous"], [(e["type"], e.get("where")) for e in events])
+
+    class Both(Trains):
+        """trein_reis and reis_plannen, as the MCP server has them."""
+
+        async def list_tools(self) -> list[Obj]:
+            return [Obj(name=name, description=name, input_schema={"type": "object", "properties": {}})
+                    for name in ("trein_reis", "reis_plannen")]
+
+    haiku = Haiku(says("Waar wil je heen?"))
+    await chat(haiku, "Hoe kom ik bij het Kurhaus?", tools=Both())
+    names = [tool["name"] for tool in haiku.asked[0]["tools"]]
+    check("de chat kent alleen trein_reis, zodat Joost niet verkeerd kan kiezen",
+          "trein_reis" in names and "reis_plannen" not in names, names)
+
     haiku = Haiku(looks_up("trein_reis", van="Nergens", naar="Nijmegen"), says("Dat station ken ik niet."))
     events = await chat(haiku, "Trein van Nergens naar Nijmegen?", tools=Trains())
     told = [block.get("text") for block in haiku.asked[1]["messages"][-1]["content"] if block["type"] == "text"]

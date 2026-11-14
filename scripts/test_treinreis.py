@@ -304,6 +304,21 @@ async def main() -> None:
     result = await reis(many, FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
     check("hooguit 5 reizen", len(result["reisadviezen"]) == ns.MAX_TRIPS, times(result))
 
+    # Someone who will not pay a supplement: only the trips without one, unless every trip has one.
+    dear = [direct("08:00", "08:25", supplement=320), direct("08:05", "08:40"),
+            direct("08:15", "08:40", supplement=320), direct("08:20", "08:55")]
+    result = await reis(dear, FRIDAY_NOON, datum="2026-10-26", tijd="07:55")
+    check("met toeslag mag het: de Intercity direct die het eerst aankomt is de beste", times(result)[0] == "08:00",
+          times(result))
+    result = await reis(dear, FRIDAY_NOON, datum="2026-10-26", tijd="07:55", zonder_toeslag=True)
+    check("zonder toeslag: alleen de reizen zonder, de beste daarvan bovenaan",
+          times(result) == ["08:05", "08:20"] and result["reisadviezen"][0].get("beste") is True
+          and not any(trip.get("toeslag_euro") for trip in result["reisadviezen"]) and "let_op" not in result, result)
+    result = await reis([direct("08:00", "08:25", supplement=320), direct("08:15", "08:40", supplement=320)],
+                        FRIDAY_NOON, datum="2026-10-26", tijd="07:55", zonder_toeslag=True)
+    check("zonder toeslag, maar elke reis heeft er een: die reizen, en dat staat in let_op",
+          times(result) == ["08:00", "08:15"] and result.get("let_op") == ns.ALL_SUPPLEMENT, result)
+
     # The last train.
     morning = [direct("29:51", "30:20"), direct("30:21", "30:50")]
     result = await reis(morning, FRIDAY_NOON, (
@@ -318,6 +333,13 @@ async def main() -> None:
     check("laatste: gezocht_op en dag", result["gezocht_op"] == "laatste trein 2026-10-26"
           and result["dag"] == "maandag 26 oktober (over 3 dagen)"
           and result.get("dienstregeling", "").startswith("Dit is de dienstregeling voor maandag 26 oktober."), result)
+    result = await reis(morning, FRIDAY_NOON, (
+        [direct("23:21", "23:50"), direct("23:51", "24:20", supplement=320), direct("24:21", "24:50", supplement=320)],
+        [direct("22:21", "22:50"), direct("22:51", "23:20")],
+    ), datum="2026-10-26", laatste=True, zonder_toeslag=True)
+    check("laatste zonder toeslag: verder terugzoeken tot er 3 zonder toeslag zijn, en de laatste daarvan bovenaan",
+          len(asked) == 3 and times(result) == ["23:21", "22:21", "22:51"]
+          and result["reisadviezen"][0].get("laatste") and "let_op" not in result, (len(asked), times(result)))
     result = await reis([direct("28:02", "28:30"), *morning], FRIDAY_NOON, (
         [direct("25:04", "25:30"), direct("26:02", "26:30"), direct("27:02", "27:30")],
         [direct("23:54", "24:40"), direct("24:11", "24:45"), via("24:20", "24:40", "24:46", "25:10")],
@@ -341,8 +363,77 @@ async def main() -> None:
         check("laatste als alles al weg is: zeg het, met de eerste van de ochtend",
               "geen trein meer" in str(error) and "05:51" in str(error), error)
 
+    await planner()
     print(f"\n{len(failed)} fout" if failed else "\nalles goed")
     sys.exit(1 if failed else 0)
+
+
+async def planner() -> None:
+    """Door to door with the journey planner, when it is on: for a place too far from its station to walk, and for two
+    places at the same station. NS is then not asked. When the planner may not ask or fails, the train as before."""
+    from nederland_mcp.bronnen import reisplanner
+
+    planned: list[tuple] = []
+    answer: dict[str, Any] = {"reisplanner": True, "reisadviezen": [{"vertrek": "07:40"}]}
+    trouble: list[Exception] = []
+
+    async def door(*args: Any) -> dict:
+        planned.append(args)
+        if trouble:
+            raise trouble.pop(0)
+        return answer
+
+    real, was = reisplanner.deur_tot_deur, reisplanner.AAN
+    reisplanner.deur_tot_deur, reisplanner.AAN = door, False
+    try:
+        kurhaus = {"naar": "Kurhaus", "datum": "2026-10-26", "tijd": "09:00", "aankomst": True}
+        result = await reis([direct("07:45", "08:20")], FRIDAY_NOON, **kurhaus)
+        check("de planner uit: de trein met speling, zonder plan", not planned and "laatste_stuk" in result, planned)
+        reisplanner.AAN = True
+        result = await reis([direct("07:45", "08:20")], FRIDAY_NOON, **kurhaus)
+        check("de planner aan: een plek te ver om te lopen gaat van deur tot deur, en NS wordt niet gevraagd",
+              result is answer and planned == [("Leiden Centraal", "Kurhaus", "2026-10-26", "09:00", True, False)]
+              and not asked, (result, planned, asked))
+        planned.clear()
+        result = await reis([direct("07:45", "08:20")], FRIDAY_NOON, zonder_toeslag=True, **kurhaus)
+        check("zonder toeslag gaat mee naar de planner", result is answer and len(planned) == 1
+              and planned[0][-1] is True, planned)
+        planned.clear()
+        trouble.append(ToolError("Voor deze vraag zijn al genoeg reizen gepland."))
+        result = await reis([direct("07:45", "08:20"), direct("08:00", "08:35")], FRIDAY_NOON, **kurhaus)
+        check("mag de planner niet meer, dan de trein met speling voor bus of tram", len(planned) == 1
+              and result["laatste_stuk"]["speling_min"] == 30 and times(result) == ["07:45"], result)
+        planned.clear()
+        trouble.append(RuntimeError("Transitous ligt plat"))
+        result = await reis([direct("09:40", "09:55"), direct("09:55", "10:10")], at("09:00"), van="Wassenaar",
+                            tijd="09:10")
+        check("valt de planner uit, dan ook de trein", len(planned) == 1 and times(result) == ["09:55"]
+              and result["eerste_stuk"]["speling_min"] == 40, (planned, result))
+        planned.clear()
+        result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, naar="Binnenhof Den Haag", datum="2026-10-26",
+                            tijd="09:00", aankomst=True)
+        check("een plek op loopafstand blijft de trein, zonder plan",
+              not planned and result["laatste_stuk"].get("lopen_min") == 10, (planned, result.get("laatste_stuk")))
+        result = await reis([direct("08:00", "08:35")], FRIDAY_NOON, datum="2026-10-26", tijd="09:00", aankomst=True)
+        check("van station naar station: de trein, zonder plan", not planned and "reisplanner" not in result, planned)
+        result = await reis([], FRIDAY_NOON, van="Den Haag Centraal", naar="Binnenhof Den Haag")
+        check("twee plekken bij hetzelfde station: de planner", result is answer and len(planned) == 1, (result, planned))
+        planned.clear()
+        trouble.append(ToolError("Begin en eind liggen op dezelfde plek."))
+        try:
+            error = str(await reis([], FRIDAY_NOON, van="Den Haag Centraal", naar="Den Haag Centraal"))
+        except ToolError as exc:
+            error = str(exc)
+        check("vindt de planner niets bij hetzelfde station, dan de fout van de trein",
+              len(planned) == 1 and "allebei bij Den Haag Centraal" in error, (planned, error))
+        planned.clear()
+        try:
+            result = await reis([direct("23:21", "23:50")], FRIDAY_NOON, naar="Kurhaus", datum="2026-10-26", laatste=True)
+        except ToolError as exc:
+            result = {"fout": str(exc)}
+        check("de laatste trein gaat niet via de planner", not planned and result is not answer, (planned, result))
+    finally:
+        reisplanner.deur_tot_deur, reisplanner.AAN = real, was
 
 
 if __name__ == "__main__":

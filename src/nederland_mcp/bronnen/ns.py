@@ -4,6 +4,7 @@ Needs NS_API_KEY (a subscription key from apiportal.ns.nl).
 """
 
 import asyncio
+import logging
 import math
 import os
 import re
@@ -13,9 +14,10 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import ToolError
 
 from ..common import (
-    AMSTERDAM, cached, fmt_datetime, fmt_time, get_json, normalize, now_local, parse_moment, parse_time, place_key,
+    AMSTERDAM, cached, fmt_datetime, fmt_time, get_json, normalize, now_local, parse_moment, parse_time,
 )
 
+log = logging.getLogger(__name__)
 BASE = "https://gateway.apiportal.ns.nl/reisinformatie-api/api"
 SOURCE = "NS Reisinformatie"
 BRON = "NS Reisinformatie API"
@@ -44,6 +46,11 @@ OTHER_END = 0.25
 # A transfer with fewer minutes than this is tight; from AMPLE on there is plenty of time, in between it is enough.
 TIGHT = 5
 AMPLE = 10
+# Trains that cost a supplement on part of the way, by their name in a plan of Transitous: Intercity direct, Eurocity
+# Direct, ICE and Eurostar. How much, NS says (see _supplement).
+SUPPLEMENT = re.compile(r"^(?:ICD|ECD|ICE|EST|Eurostar|Intercity direct|Eurocity direct)\b", re.IGNORECASE)
+# For someone who will not pay a supplement, when every trip around that time has one.
+ALL_SUPPLEMENT = "Rond deze tijd gaat er geen reis zonder toeslag, dus deze reizen hebben er een."
 # To be somewhere at a time, the train arrives this much before the last stretch, in case it runs late.
 MARGIN = 5
 # A train that leaves in fewer minutes than this you only catch when you are at it already, so it is not the best trip.
@@ -222,6 +229,24 @@ async def _where(name: str) -> dict | None:
     from . import ov, plaats
 
     text, town = await _split(name)
+    found = await _look(text, town)
+    if found is None and town is None:
+        # A district at the end that is no woonplaats, as Scheveningen in 'Kurhaus Scheveningen': the place in it.
+        # Without this it was the middle of Scheveningen, a kilometre from the Kurhaus.
+        parts = await ov._district(text)
+        found = await _look(*parts) if parts else None
+    if found:
+        return found
+    try:
+        return await ov._middle(await plaats.zoek(name))
+    except ToolError:
+        return None
+
+
+async def _look(text: str, town: str | None) -> dict | None:
+    """The point of a name in a town, as in _where: an address, a place or a stop. None when none fits."""
+    from . import ov
+
     try:
         point, stop, _, sure = await ov._origin(text, town)
     except ov.Ambiguous:
@@ -229,7 +254,7 @@ async def _where(name: str) -> dict | None:
     except ToolError:
         point, stop, sure = None, None, True
     # ov_vertrek also takes a stop near the town, but for 'stadhuis Leiden' Zoetermeer Stadhuis is not the place.
-    away = bool(stop and town and place_key(town) not in ov._towns(stop))
+    away = bool(stop and town and not await ov._in_town(stop, town))
     # A stop found on the town alone, as Rotterdam Beurs for Rotterdam Ahoy, says little: the place itself first,
     # and the stop only when it shares a word of its own with the name.
     if stop and (away or not sure):
@@ -244,11 +269,7 @@ async def _where(name: str) -> dict | None:
         return point
     if stop:
         return {"lat": stop["lat"], "lon": stop["lon"], "naam": stop["name"]}
-    try:
-        found = await plaats.zoek(name)
-    except ToolError:
-        return None
-    return {"lat": found.lat, "lon": found.lon, "naam": found.naam}
+    return None
 
 
 def _label(place: dict) -> str:
@@ -447,14 +468,30 @@ async def trein_reis(
     tijd: str | None = None,
     aankomst: bool = False,
     laatste: bool = False,
+    zonder_toeslag: bool = False,
 ) -> dict:
     """A train trip between two stations, or between places near them: an address, a town or a place like the
     Radboudumc goes from or to its station, with the walk worked out (see _end). The times of a trip are then from
     door to door, and the walks are parts of it. For an arrival the walk and MARGIN come off the asked time, here and
-    not by Haiku, which guessed: a quarter of an hour of walking to Nijmegen, which was the station itself."""
+    not by Haiku, which guessed: a quarter of an hour of walking to Nijmegen, which was the station itself. A place
+    too far to walk goes through the journey planner when it is on (see reisplanner.deur_tot_deur). With
+    zonder_toeslag only the trips without a supplement, as long as there are any."""
     stations = await _stations()
     (origin, first), (destination, last) = await _end(van, stations), await _end(naar, stations)
-    if origin.get("code") == destination.get("code"):
+    same = origin.get("code") == destination.get("code")
+    # A place too far from its station to walk, or two places at the same station: from door to door with the
+    # journey planner when it is on and may ask, and otherwise the train with room for a bus or tram.
+    if not laatste and (same or any(stretch and "speling_min" in stretch for stretch in (first, last))):
+        from . import reisplanner
+
+        if reisplanner.AAN:
+            try:
+                return await reisplanner.deur_tot_deur(van, naar, datum, tijd, aankomst, zonder_toeslag)
+            except ToolError as exc:
+                log.info("trein_reis: geen plan van de reisplanner (%s), dan de trein", exc)
+            except Exception as exc:
+                log.warning("trein_reis: de reisplanner faalde (%s), dan de trein", type(exc).__name__)
+    if same:
         where = " en ".join(f"'{name}'" for name in (van, naar))
         raise ToolError(
             f"{where} liggen allebei bij {_station_name(origin)}, dus de trein helpt niet. Zoek bus, tram of metro met "
@@ -463,7 +500,7 @@ async def trein_reis(
     ends = (first, last)
     lead_in, lead_out = _lead(first), _lead(last)
     if laatste:
-        return await _last(origin, destination, datum, ends)
+        return await _last(origin, destination, datum, ends, zonder_toeslag)
     asked = parse_moment(datum, tijd)
     # For an arrival the walk or the room for a bus, and the margin, come off; for a departure you first get to the
     # station.
@@ -503,6 +540,7 @@ async def trein_reis(
     if near:
         fitting = [o for o in fitting if o[0] >= ready - timedelta(minutes=1)] or fitting
     running = [o for o in fitting if not _cancelled(o)]
+    running, dear = _without_supplement(running) if zonder_toeslag else (running, False)
     if running:
         chosen = _pick(running, aankomst, ready if near else None)
     else:
@@ -531,6 +569,8 @@ async def trein_reis(
         room = (f"{walk} {'minuut' if walk == 1 else 'minuten'} lopen en " if walk
                 else f"{slack} minuten speling voor bus of tram en " if slack else "")
         result["op_tijd_voor"] = f"{fmt_time(asked)}, met {room}{MARGIN} minuten marge"
+    if dear:
+        result["let_op"] = ALL_SUPPLEMENT
     result["reisadviezen"] = trips
     if running and (gone := [o for o in fitting if _cancelled(o)]):
         # Often the first train runs and a connection does not, so say which trip, not which train.
@@ -575,8 +615,12 @@ def _stretch(stretch: dict, leaving: bool) -> dict[str, Any]:
             f"de trein is gekozen met {slack} minuten speling voor bus of tram. {how}"}
 
 
-async def _last(origin: dict, destination: dict, datum: str | None, ends: tuple[dict | None, dict | None]) -> dict:
-    """The last trains of an evening, the very last first, and the night trains after them.
+async def _last(
+    origin: dict, destination: dict, datum: str | None, ends: tuple[dict | None, dict | None],
+    zonder_toeslag: bool = False,
+) -> dict:
+    """The last trains of an evening, the very last first, and the night trains after them. With zonder_toeslag the
+    last without a supplement.
 
     NS searches forward from a time, so this starts at the end of the night and goes back page by page. Without a
     date, just after midnight it is still the night before.
@@ -599,7 +643,9 @@ async def _last(origin: dict, destination: dict, datum: str | None, ends: tuple[
     options = [option for option in after if option[0] < end]
     context = data.get("scrollRequestBackwardContext")
     for _ in range(3):
-        if not context or sum(option[0] < night for option in options) >= LAST_EVENING:
+        # Without a supplement only those count, or the last three trains of the evening could all be an ICD.
+        found = sum(option[0] < night and (_free(option) or not zonder_toeslag) for option in options)
+        if not context or found >= LAST_EVENING:
             break
         page = await _trips({**params, "context": context})
         options = [option for option in _options(page.get("trips") or []) if option[0] < end] + options
@@ -609,6 +655,7 @@ async def _last(origin: dict, destination: dict, datum: str | None, ends: tuple[
         # Only trains you can still reach, with the walk or the bus to the station.
         options = [option for option in options if option[0] >= now + timedelta(minutes=lead_in - 1)]
     running = [option for option in options if not _cancelled(option)]
+    running, dear = _without_supplement(running) if zonder_toeslag else (running, False)
     evening = [option for option in running if option[0] < night]
     late = [option for option in running if option[0] >= night]
     chosen = _latest(evening or late)
@@ -631,6 +678,7 @@ async def _last(origin: dict, destination: dict, datum: str | None, ends: tuple[
         **({"dienstregeling": _timetable(day)} if day > now.date() else {}),
         # A sentence, before the trips: as a list Haiku left the night trains out, or said they leave earlier.
         **({"nachttreinen": _night_trains(late)} if evening and late else {}),
+        **({"let_op": ALL_SUPPLEMENT} if dear else {}),
         "reisadviezen": trips,
     }
     if gone := [option for option in options if _cancelled(option)]:
@@ -675,6 +723,33 @@ async def _trips(params: dict) -> dict:
         60,
         lambda: get_json(f"{BASE}/v3/trips", params=params, headers=_headers(), source=SOURCE),
     )
+
+
+async def _supplement(van: str, naar: str, leaves: datetime, number: str | None = None) -> float | None:
+    """What NS asks on top of the fare for one train, in euros: the Intercity direct costs extra between Schiphol and
+    Rotterdam. For the trains in a plan of Transitous, which knows no prices: its best trip from Amsterdam to the
+    Erasmus MC took the ICD, for someone who wanted no supplement, and nothing said so. None when NS asks nothing or
+    has no direct train from van to naar at that time with that number."""
+    stations = await _stations()
+    origin, destination = _match(van, stations), _match(naar, stations)
+    if origin is None or destination is None:
+        return None
+    data = await _trips({
+        "fromStation": origin.get("code"),
+        "toStation": destination.get("code"),
+        "dateTime": leaves.isoformat(timespec="seconds"),
+        "searchForArrival": "false",
+    })
+    for trip in data.get("trips") or []:
+        trains = [leg for leg in trip.get("legs") or [] if _is_train(leg)]
+        if len(trains) != 1:
+            continue
+        planned = parse_time((trains[0].get("origin") or {}).get("plannedDateTime"))
+        own = str((trains[0].get("product") or {}).get("number") or "")
+        if planned and abs(planned - leaves) <= timedelta(minutes=1) and (not number or not own or own == number):
+            cents = (trip.get("productFare") or {}).get("supplementInCents")
+            return cents / 100 if cents else None
+    return None
 
 
 def _advice(option: tuple, leaving: bool, ends: tuple[dict | None, dict | None] = (None, None)) -> dict[str, Any]:
@@ -830,6 +905,18 @@ def _unique(options: list[tuple]) -> list[tuple]:
 def _cancelled(option: tuple) -> bool:
     _, _, trip, legs = option
     return trip.get("status") == "CANCELLED" or any(leg.get("cancelled") for leg in legs)
+
+
+def _free(option: tuple) -> bool:
+    """Whether a trip costs no supplement."""
+    return not (option[2].get("productFare") or {}).get("supplementInCents")
+
+
+def _without_supplement(options: list[tuple]) -> tuple[list[tuple], bool]:
+    """For someone who will not pay a supplement: the trips without one, and whether every trip had one. Then they all
+    stay, since a trip with a supplement still beats none."""
+    free = [option for option in options if _free(option)]
+    return (free, False) if free or not options else (options, True)
 
 
 def _describe(option: tuple) -> str:
