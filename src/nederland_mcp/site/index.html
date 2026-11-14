@@ -48,6 +48,11 @@
   <symbol id="i-klap" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
   <symbol id="i-luister" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 9a4.5 4.5 0 0 1 0 6M19.5 6a8.5 8.5 0 0 1 0 12"/></symbol>
   <symbol id="i-stil" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></symbol>
+  <symbol id="i-trein" viewBox="0 0 24 24"><path d="M8 3h8l2 2v11H6V5zM6 10h12M9 13h0M15 13h0M9 16l-2 5M15 16l2 5"/></symbol>
+  <symbol id="i-tram" viewBox="0 0 24 24"><path d="M9 2h6M12 2v4M7 6h10v11H7zM7 11h10M10 14h0M14 14h0M10 17l-2 4M14 17l2 4"/></symbol>
+  <symbol id="i-metro" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 16V8l4 5 4-5v8" stroke-linejoin="bevel"/></symbol>
+  <symbol id="i-bus" viewBox="0 0 24 24"><path d="M5 3h14v14H5zM5 11h14M8 14h0M16 14h0M7 17v3M17 17v3M3 6v3M21 6v3"/></symbol>
+  <symbol id="i-boot" viewBox="0 0 24 24"><path d="M3 14h18l-3 6H6zM7 14V9h10v5M12 9V5"/></symbol>
 </svg>
 <a class="skip" href="#main">Naar de inhoud</a>
 
@@ -1344,6 +1349,45 @@
       return ((card && card.reizen) || []).filter((trip) => trip && typeof trip.vertrek === "string" && typeof trip.aankomst === "string");
     }
 
+    // What you ride, as small signs with the line: train, then tram 22. Only for trips with a bus, tram, metro or
+    // ferry in them, from the journey planner; a card of NS is all train. A kind without a sign gets its word.
+    const VEHICLES = {
+      trein: ["i-trein", "trein", "train"], tram: ["i-tram", "tram", "tram"], metro: ["i-metro", "metro", "metro"],
+      bus: ["i-bus", "bus", "bus"], veerboot: ["i-boot", "veerboot", "ferry"],
+    };
+
+    function rides(trip) {
+      return (trip.delen || []).filter((part) => part && !isWalk(part))
+        .map((part) => ({ soort: part.soort ? String(part.soort) : "trein", lijn: part.soort && part.lijn ? String(part.lijn) : "" }));
+    }
+
+    function mixed(list) {
+      return list.some((trip) => rides(trip).some((ride) => ride.soort !== "trein"));
+    }
+
+    // In words, as a screen reader and Lees voor say it: tram 22, or de trein when there is no line.
+    function rideWord(ride, withLine = true) {
+      const [, nl, en] = VEHICLES[ride.soort] || [null, ride.soort, ride.soort];
+      if (!ride.lijn) return t(`de ${nl}`, en);
+      return t(nl, en) + " " + (withLine ? ride.lijn : "");
+    }
+
+    function rideRow(trip) {
+      const row = make("span", "reis-vervoer");
+      rides(trip).forEach((ride, index) => {
+        if (index) {
+          const arrow = make("span", "reis-pijl", "→");
+          arrow.setAttribute("aria-hidden", "true");
+          row.append(arrow, make("span", "vh", t(", dan ", ", then ")));
+        }
+        const sign = VEHICLES[ride.soort];
+        // The sign and the line are seen, and the word is heard: tram 22.
+        row.append(sign ? make("span", "rit", svgIcon(sign[0]), make("span", "vh", rideWord(ride, false)), ride.lijn)
+          : make("span", "rit", rideWord(ride)));
+      });
+      return row;
+    }
+
     function tripCards(card) {
       const list = usable(card);
       if (!list.length) return null;
@@ -1354,6 +1398,7 @@
       arrow.setAttribute("aria-hidden", "true");
       box.append(make("p", "reizen-kop", make("b", "", short(card.van), arrow, make("span", "vh", t(" naar ", " to ")), short(card.naar)),
         make("span", "reizen-wanneer", when(card, false))));
+      const signs = mixed(list);
       for (const trip of list) {
         const tags = labels(trip);
         const id = `reis-${++tripCount}`;
@@ -1368,6 +1413,7 @@
         if (tags.length) open.append(make("span", "reis-label", make("span", "reis-soort", tags.join(" · ")), toggle));
         else times.append(toggle);
         open.append(times);
+        if (signs) open.append(rideRow(trip));
         const left = spare(card, trip, false);
         if (left.length) open.append(make("span", "reis-marge", ...left));
         const change = [changes(trip, false), ...facts(trip, shared)].filter(Boolean).join(" · ");
@@ -1493,10 +1539,13 @@
         const list = usable(card);
         if (!list.length) continue;
         const shared = same(list);
-        lines.push(t(`Treinen van ${card.van} naar ${card.naar}, `, `Trains from ${card.van} to ${card.naar}, `) + when(card, true) + ".");
+        const signs = mixed(list);
+        lines.push((signs ? t(`Reizen van ${card.van} naar ${card.naar}, `, `Trips from ${card.van} to ${card.naar}, `)
+          : t(`Treinen van ${card.van} naar ${card.naar}, `, `Trains from ${card.van} to ${card.naar}, `)) + when(card, true) + ".");
         for (const trip of list) {
           const head = trip.beste ? t("Beste reis", "Best trip") : trip.laatste ? t("Laatste trein", "Last train") : t("Of", "Or");
-          const parts = [flat(spare(card, trip, true)), changes(trip, true), ...facts(trip, shared), ...warnings(card, trip, true)]
+          const by = signs && t("met ", "by ") + rides(trip).map((ride) => rideWord(ride)).join(t(", dan ", ", then "));
+          const parts = [by, flat(spare(card, trip, true)), changes(trip, true), ...facts(trip, shared), ...warnings(card, trip, true)]
             .filter(Boolean).map((part) => part.charAt(0).toLowerCase() + part.slice(1));
           lines.push(`${head}: ${[`${trip.vertrek} ${t("tot", "to")} ${trip.aankomst}`, ...parts].join(", ")}.`);
         }

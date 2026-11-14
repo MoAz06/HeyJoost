@@ -454,6 +454,11 @@ html:has(.app) { overscroll-behavior-y: none; }
 .reis-tijden b { color: #ffffff; font: 700 calc(30 * var(--px))/1 var(--sans); font-stretch: 75%; font-variant-numeric: tabular-nums; }
 .reis:not(.beste) .reis-tijden b { font-size: calc(24 * var(--px)); }
 .reis-tijden i { flex: none; width: 18px; height: 2px; margin: 0 var(--space-2); background: var(--board-edge); }
+/* What you ride, as small signs with the line: train, then tram 22. */
+.reis-knop > .reis-vervoer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: var(--space-2); }
+.rit { display: inline-flex; align-items: center; gap: 4px; color: #ffffff; font: 600 var(--text-sm)/1 var(--mono); }
+.rit .i { width: 22px; height: 22px; color: var(--led); }
+.reis-pijl { color: var(--board-dim); font: 400 var(--text-sm)/1 var(--sans); }
 .reis-marge { margin-top: var(--space-2); }
 .reis:not(.beste) .reis-marge { margin-top: 6px; }
 .reis-marge b { color: #ffffff; font-weight: 600; }
